@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FMO Smart Queue - ระบบจัดสรรกิจกรรมด่วน อสป.</title>
+
+  <!-- Google Fonts: Sarabun, Pridi & Font Awesome Icons -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Pridi:wght@300;400;500;600;700&family=Maitree:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header>
+    <div class="navbar-container">
+      <!-- Top Row: Brand Info + Actions -->
+      <div class="navbar-top">
+        <div class="brand">
+          <img src="/logoFMO.png" alt="โลโก้ องค์การสะพานปลา (อสป.)" class="brand-logo">
+          <div class="brand-text">
+            <h1>FMO Smart Queue</h1>
+            <p>ระบบจัดสรรคิวพนักงานเข้าร่วมกิจกรรม องค์การสะพานปลา (อสป.)</p>
+          </div>
+        </div>
+        <div class="navbar-actions">
+          <button class="theme-toggle-btn" onclick="toggleTheme()" title="สลับโหมด สว่าง / ดำ (Light / Dark Mode)">
+            <i id="theme-toggle-icon" class="fa-solid fa-moon"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Bottom Row: Navigation Tabs -->
+      <nav class="navbar-nav">
+        <button class="nav-btn active" onclick="switchTab('quick')">
+          <i class="fa-solid fa-bolt text-amber"></i> จัดสรรคิวด่วน (Quick)
+        </button>
+        <button class="nav-btn" onclick="switchTab('dashboard')">
+          <i class="fa-solid fa-chart-pie"></i> แดชบอร์ด
+        </button>
+        <button class="nav-btn" onclick="switchTab('queue')">
+          <i class="fa-solid fa-list-ol"></i> กระดานวนคิว
+        </button>
+        <button class="nav-btn" onclick="switchTab('individual')">
+          <i class="fa-solid fa-id-card"></i> ประวัติรายบุคคล
+        </button>
+        <button class="nav-btn" onclick="switchTab('reports')">
+          <i class="fa-solid fa-file-invoice"></i> รายงานกิจกรรม
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="container" style="padding-top: 1rem;">
+
+    <!-- 0. QUICK ALLOCATION VIEW (Balanced 2-Column Desktop Grid Layout) -->
+    <section id="view-quick" class="view-content active">
+      <div class="quick-layout-grid">
+        
+        <!-- LEFT COLUMN: Activity Form -->
+        <div class="glass-card">
+          <div style="margin-bottom: 1.25rem;">
+            <h2 style="font-size: 1.25rem; font-weight: 700; color: var(--text-heading); display: flex; align-items: center; gap: 8px;">
+              <i class="fa-solid fa-bolt text-amber"></i> ฟอร์มจัดสรรกิจกรรมด่วน (ระบบเวลา 24 ชม.)
+            </h2>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">
+              กรอกรายละเอียดกิจกรรม ➔ ระบบดึง ผอ. และ พนักงานที่ถึงคิวอัตโนมัติทันที
+            </p>
+          </div>
+
+          <form id="form-quick-mission" onsubmit="handleCreateMission(event)">
+            
+            <!-- Activity Details Box -->
+            <div style="background: var(--input-bg); padding: 1.15rem; border-radius: 14px; border: 1px solid var(--card-border); margin-bottom: 1.15rem;">
+              
+              <div class="form-group">
+                <label style="font-size: 0.88rem; font-weight: 600;"><i class="fa-solid fa-bullhorn text-cyan"></i> ชื่อกิจกรรม *</label>
+                <input type="text" id="alloc-title" class="form-control form-control-lg" placeholder="เช่น โครงการตรวจสะพานปลาประจำเดือน..." required>
+              </div>
+
+              <div class="grid-2">
+                <div class="form-group">
+                  <label style="font-size: 0.85rem;"><i class="fa-solid fa-location-dot text-danger"></i> สถานที่ปฏิบัติงาน</label>
+                  <input type="text" id="alloc-location" class="form-control" placeholder="เช่น สะพานปลาสมุทรปราการ">
+                </div>
+
+                <div class="form-group">
+                  <label style="font-size: 0.85rem;"><i class="fa-solid fa-shirt text-purple"></i> การแต่งกาย (Dress Code) *</label>
+                  <input type="text" id="alloc-dress-code" class="form-control" value="ชุดปฏิบัติงาน อสป. (เสื้อยูนิฟอร์ม)">
+                </div>
+              </div>
+
+              <!-- 24-HOUR DATE & TIME PICKERS (NO AM/PM) -->
+              <div class="grid-2">
+                <div class="form-group">
+                  <label style="font-size: 0.85rem;"><i class="fa-solid fa-calendar-day text-emerald"></i> วันเวลาเริ่มต้น (เวลา 24 ชม.) *</label>
+                  <div style="display: flex; gap: 6px;">
+                    <input type="date" id="alloc-start-date" class="form-control" required onchange="autoFetchOnNumberChange()">
+                    <select id="alloc-start-time" class="form-control" style="width: 110px; font-weight: 600; text-align: center;" onchange="autoFetchOnNumberChange()"></select>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label style="font-size: 0.85rem;"><i class="fa-solid fa-calendar-check text-emerald"></i> วันเวลาสิ้นสุด (เวลา 24 ชม.) *</label>
+                  <div style="display: flex; gap: 6px;">
+                    <input type="date" id="alloc-end-date" class="form-control" required>
+                    <select id="alloc-end-time" class="form-control" style="width: 110px; font-weight: 600; text-align: center;"></select>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-group" style="margin-bottom: 0;">
+                <label style="font-size: 0.85rem;"><i class="fa-solid fa-align-left text-muted"></i> รายละเอียดเพิ่มเติม (ถ้ามี)</label>
+                <input type="text" id="alloc-desc" class="form-control" placeholder="วัตถุประสงค์สั้นๆ">
+              </div>
+
+            </div>
+
+            <!-- Staff & Team Leader Selection Box -->
+            <div style="background: var(--primary-light); padding: 1.15rem; border-radius: 14px; border: 1px solid rgba(2, 132, 199, 0.3);">
+              
+              <!-- 1. Select Team Leader (Multi-Select Checkboxes) -->
+              <div class="form-group" style="margin-bottom: 1.25rem;">
+                <label style="font-size: 0.88rem; font-weight: 700; color: var(--text-heading); display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                  <span><i class="fa-solid fa-user-tie text-purple"></i> เลือกหัวหน้าทีม (ผอ.ฝ่าย) - เลือกได้มากกว่า 1 ท่าน</span>
+                  <span class="badge badge-purple" id="selected-directors-badge" style="font-size: 0.78rem;">เลือกแล้ว 0 ท่าน</span>
+                </label>
+                <div id="director-select-list" style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 10px; max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;">
+                  <p style="color: var(--text-muted); font-size: 0.82rem;">กำลังโหลดรายชื่อ ผอ.ฝ่าย...</p>
+                </div>
+              </div>
+
+              <!-- 2. Staff Count for Fair Queue Rotation -->
+              <div class="form-group" style="margin-bottom: 0;">
+                <label style="font-size: 0.88rem; font-weight: 700; color: var(--text-heading); display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                  <span><i class="fa-solid fa-users text-cyan"></i> ระบุจำนวนสมาชิกทีม (พนักงานจัดวนคิวตามระบบ)</span>
+                </label>
+                <input type="number" id="alloc-req-staff" class="form-control form-control-lg" value="5" min="1" max="105" oninput="autoFetchOnNumberChange()" onchange="autoFetchOnNumberChange()" onkeyup="autoFetchOnNumberChange()" style="font-size: 1.15rem; font-weight: 700; text-align: center;">
+              </div>
+
+            </div>
+
+          </div>
+
+          <!-- RIGHT COLUMN: Auto-Fetched Candidates Preview Panel + Submit Button -->
+          <div class="glass-card" style="align-self: start;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--card-border);">
+              <div>
+                <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--text-heading); display: flex; align-items: center; gap: 8px;">
+                  <i class="fa-solid fa-wand-magic-sparkles text-amber"></i> ผู้ได้รับจัดสรรตามคิว
+                </h3>
+                <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">คำนวณจาก Dual Queue Rotation อัตโนมัติ</p>
+              </div>
+              <span class="badge badge-waiting"><i class="fa-solid fa-sync fa-spin"></i> Live Queue</span>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.25rem;">
+              <!-- Director Candidate Card -->
+              <div style="background: var(--input-bg); padding: 1rem; border-radius: 12px; border: 1px solid rgba(168, 85, 247, 0.35);">
+                <h5 style="color: #a855f7; font-size: 0.88rem; font-weight: 700; margin-bottom: 0.65rem; display: flex; align-items: center; gap: 6px;">
+                  <i class="fa-solid fa-user-tie"></i> หัวหน้าทีม (ผอ.ฝ่าย)
+                </h5>
+                <div id="preview-directors-list">
+                  <p style="color: var(--text-muted); font-size: 0.85rem;">กำลังดึงคิวอัตโนมัติ...</p>
+                </div>
+              </div>
+
+              <!-- Staff Candidate Card -->
+              <div style="background: var(--input-bg); padding: 1rem; border-radius: 12px; border: 1px solid rgba(2, 132, 199, 0.35);">
+                <h5 style="color: #0284c7; font-size: 0.88rem; font-weight: 700; margin-bottom: 0.65rem; display: flex; align-items: center; gap: 6px;">
+                  <i class="fa-solid fa-users"></i> สมาชิกทีม (พนักงาน)
+                </h5>
+                <div id="preview-staff-list">
+                  <p style="color: var(--text-muted); font-size: 0.85rem;">กำลังดึงคิวอัตโนมัติ...</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Big Submit Button at the bottom -->
+            <button type="submit" class="btn btn-primary btn-lg" style="width: 100%; padding: 1rem; font-size: 1.08rem; font-weight: 700; border-radius: 12px; justify-content: center; box-shadow: 0 6px 20px rgba(2, 132, 199, 0.4);">
+              <i class="fa-solid fa-paper-plane"></i> ยืนยันออกคำสั่งจัดสรรกิจกรรมทันที
+            </button>
+          </div>
+
+        </div>
+      </form>
+    </section>
+
+    <!-- 1. DASHBOARD VIEW -->
+    <section id="view-dashboard" class="view-content">
+      <div class="grid-4 mb-4">
+        <div class="glass-card metric-card">
+          <div class="metric-icon blue">
+            <i class="fa-solid fa-user-tie"></i>
+          </div>
+          <div class="metric-data">
+            <h3 id="stat-director-round">Round 1</h3>
+            <p>รอบคิว ผอ.ฝ่าย (8 ท่าน)</p>
+          </div>
+        </div>
+
+        <div class="glass-card metric-card">
+          <div class="metric-icon cyan">
+            <i class="fa-solid fa-users"></i>
+          </div>
+          <div class="metric-data">
+            <h3 id="stat-staff-round">Round 1</h3>
+            <p>รอบคิว พนักงาน (94 ท่าน)</p>
+          </div>
+        </div>
+
+        <div class="glass-card metric-card">
+          <div class="metric-icon amber">
+            <i class="fa-solid fa-chart-line"></i>
+          </div>
+          <div class="metric-data">
+            <h3 id="stat-participation-rate">0%</h3>
+            <p>Participation Rate (การเข้าร่วมกิจกรรม)</p>
+          </div>
+        </div>
+
+        <div class="glass-card metric-card">
+          <div class="metric-icon emerald">
+            <i class="fa-solid fa-clock-rotate-left"></i>
+          </div>
+          <div class="metric-data">
+            <h3 id="stat-hold-count">0 ท่าน</h3>
+            <p>ติดกิจกรรมซ้อน (Hold_In_Round)</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ACTIVE QUEUE TRACKER SECTION -->
+      <div class="glass-card" style="border: 1px solid var(--accent);">
+        <div class="card-header">
+          <div class="card-title">
+            <i class="fa-solid fa-bullseye text-cyan"></i> Active Queue Tracker (ผู้ถึงคิวปฏิบัติกิจกรรมถัดไปแบบ Real-time)
+          </div>
+          <span class="badge badge-waiting">Pointer Status: Active</span>
+        </div>
+
+        <div class="grid-2">
+          <div style="background: var(--primary-light); padding: 1.25rem; border-radius: 12px; border: 1px solid rgba(168, 85, 247, 0.3);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <span class="badge badge-director"><i class="fa-solid fa-user-tie"></i> ผอ.ฝ่าย (คิวถัดไป)</span>
+              <span id="tracker-dir-round-tag" class="badge badge-waiting">Round 1</span>
+            </div>
+            <h3 id="tracker-dir-name" style="font-size: 1.25rem; font-weight:700; color:var(--text-heading); margin-bottom:4px;">กำลังคำนวณ...</h3>
+            <p id="tracker-dir-pos" style="font-size: 0.85rem; color:var(--text-muted);">-</p>
+          </div>
+
+          <div style="background: var(--primary-light); padding: 1.25rem; border-radius: 12px; border: 1px solid rgba(2, 132, 199, 0.3);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <span class="badge badge-staff"><i class="fa-solid fa-users"></i> พนักงาน (คิวถัดไป)</span>
+              <span id="tracker-staff-round-tag" class="badge badge-waiting">Round 1</span>
+            </div>
+            <h3 id="tracker-staff-name" style="font-size: 1.25rem; font-weight:700; color:var(--text-heading); margin-bottom:4px;">กำลังคำนวณ...</h3>
+            <p id="tracker-staff-pos" style="font-size: 0.85rem; color:var(--text-muted);">-</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="glass-card">
+          <div class="card-header">
+            <div class="card-title">
+              <i class="fa-solid fa-rotate text-cyan"></i> สถานะการจบ Round (Strict Round Control)
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="switchTab('queue')">ดูคิวทั้งหมด</button>
+          </div>
+
+          <div class="grid-2 mb-3">
+            <div style="background: var(--input-bg); padding: 1rem; border-radius: 10px;">
+              <h4 style="color: #a855f7; margin-bottom: 8px;"><i class="fa-solid fa-user-tie"></i> ผอ.ฝ่าย (8 ท่าน)</h4>
+              <p style="font-size: 0.85rem; color: var(--text-muted);">รอบที่: <strong id="dash-dir-round-num" style="color: var(--text-heading);">1</strong></p>
+              <div id="dash-dir-progress" style="margin-top: 8px;"></div>
+            </div>
+
+            <div style="background: var(--input-bg); padding: 1rem; border-radius: 10px;">
+              <h4 style="color: #0284c7; margin-bottom: 8px;"><i class="fa-solid fa-users"></i> พนักงาน (94 ท่าน)</h4>
+              <p style="font-size: 0.85rem; color: var(--text-muted);">รอบที่: <strong id="dash-staff-round-num" style="color: var(--text-heading);">1</strong></p>
+              <div id="dash-staff-progress" style="margin-top: 8px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="glass-card">
+          <div class="card-header">
+            <div class="card-title">
+              <i class="fa-solid fa-history text-amber"></i> กิจกรรมล่าสุด (Recent Activities)
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="switchTab('reports')">กิจกรรมทั้งหมด</button>
+          </div>
+
+          <div id="dash-recent-missions" class="table-responsive">
+            <p style="color: var(--text-muted);">กำลังโหลดข้อมูล...</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. DUAL QUEUE VISUALIZER VIEW -->
+    <section id="view-queue" class="view-content">
+      <div class="glass-card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">
+              <i class="fa-solid fa-layer-group"></i> กระดานคิวเข้าร่วมกิจกรรม Dual Rotation Queue
+            </div>
+            <div class="card-subtitle">แสดงลำดับคิว สถานะค้างสิทธิ์ (Hold_In_Round) และการวนรอบของบุคลากร อสป.</div>
+          </div>
+
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="tab-btn-director" class="btn btn-primary btn-sm" onclick="loadQueueView('DIRECTOR')">
+              <i class="fa-solid fa-user-tie"></i> <span id="tab-btn-director-text">คิว ผอ.ฝ่าย (กำลังโหลด...)</span>
+            </button>
+            <button id="tab-btn-staff" class="btn btn-secondary btn-sm" onclick="loadQueueView('STAFF')">
+              <i class="fa-solid fa-users"></i> <span id="tab-btn-staff-text">คิว พนักงาน (กำลังโหลด...)</span>
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="downloadCsvTemplate()">
+              <i class="fa-solid fa-download"></i> 📄 ดาวน์โหลดเทมเพลต CSV
+            </button>
+            <button class="btn btn-warning btn-sm" onclick="openImportCsvModal()">
+              <i class="fa-solid fa-file-import"></i> 📥 นำเข้าชุดข้อมูลจริง (CSV)
+            </button>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>ลำดับคิว</th>
+                <th>รหัสพนักงาน</th>
+                <th>ชื่อ-นามสกุล</th>
+                <th>ตำแหน่ง / ฝ่าย</th>
+                <th>สถานะในคิว</th>
+                <th>กิจกรรมสะสม</th>
+                <th>ปฏิบัติกิจกรรมล่าสุด</th>
+                <th class="no-print">จัดการสิทธิ์ (Actions)</th>
+              </tr>
+            </thead>
+            <tbody id="queue-table-body">
+              <tr><td colspan="8" style="text-align:center;">กำลังโหลดข้อมูลคิว...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. INDIVIDUAL HISTORY VIEW -->
+    <section id="view-individual" class="view-content">
+      <div class="glass-card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">
+              <i class="fa-solid fa-id-card text-emerald"></i> หน้าประวัติย้อนหลังรายบุคคล (Individual History View)
+            </div>
+            <div class="card-subtitle">แสดงข้อมูลตำแหน่ง รหัสคิว สถานะรอบ และสรุปประวัติเข้าร่วมกิจกรรมรวม</div>
+          </div>
+
+          <button class="btn btn-secondary btn-sm no-print" onclick="window.print()">
+            <i class="fa-solid fa-print"></i> พิมพ์ / ออกรายงานบุคคล
+          </button>
+        </div>
+
+        <div class="grid-3 mb-4 no-print">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>เลือกรายชื่อบุคลากร (ผอ.ฝ่าย 8 ท่าน / พนักงาน 94 ท่าน)</label>
+            <select id="indiv-select-person" class="form-control" onchange="loadIndividualHistory(this.value)">
+              <option value="">-- กรุณาเลือกบุคลากร --</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-bottom:0;">
+            <label>หรือ ค้นหาด้วยรหัส/ชื่อ/ตำแหน่ง</label>
+            <input type="text" id="indiv-search-input" class="form-control" placeholder="พิมพ์ชื่อ หรือ รหัสพนักงาน..." onkeyup="filterPersonDropdown(this.value)">
+          </div>
+
+          <div class="form-group" style="margin-bottom:0; display:flex; align-items:flex-end;">
+            <button class="btn btn-primary" style="width:100%;" onclick="loadSelectedPerson()">
+              <i class="fa-solid fa-magnifying-glass"></i> แสดงประวัติ
+            </button>
+          </div>
+        </div>
+
+        <div id="indiv-profile-card" style="display:none;" class="mb-4">
+          <div style="background: var(--input-bg); padding: 1.5rem; border-radius: 16px; border: 1px solid var(--card-border);">
+            <div style="margin-bottom: 1rem;">
+              <h2 id="indiv-header-info" style="font-size: 1.3rem; font-weight: 700; color: var(--text-heading);">
+                ข้อมูล: -
+              </h2>
+              <p id="indiv-header-status" style="font-size: 1rem; color: var(--primary); font-weight: 600; margin-top: 4px;">
+                สถานะปัจจุบัน: -
+              </p>
+              <p id="indiv-header-summary" style="font-size: 0.95rem; color: var(--text-muted); margin-top: 4px;">
+                สรุปประวัติรวม: -
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <h4 style="font-size: 1.1rem; font-weight: 600; color: var(--text-heading); margin-bottom: 1rem;">
+          <i class="fa-solid fa-list-check text-cyan"></i> ตารางประวัติกิจกรรมแยกตามรอบ (Round History Details)
+        </h4>
+
+        <div id="indiv-rounds-container">
+          <p style="color: var(--text-muted);">กรุณาเลือกบุคลากรเพื่อแสดงประวัติ</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. REPORTS & MISSIONS VIEW -->
+    <section id="view-reports" class="view-content">
+      <div class="glass-card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">
+              <i class="fa-solid fa-file-invoice text-amber"></i> ระบบรายงานสรุป & ประวัติกิจกรรมทั้งหมด
+            </div>
+            <div class="card-subtitle">ตรวจสอบกิจกรรม รายชื่อผู้ปฏิบัติงาน การแต่งกาย และส่งออกข้อมูลย้อนหลัง</div>
+          </div>
+
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-secondary btn-sm" onclick="openNotificationLogsModal()">
+              <i class="fa-solid fa-bell text-amber"></i> ประวัติส่งแจ้งเตือน Email & LINE Group
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="exportSummaryData()">
+              <i class="fa-solid fa-file-csv"></i> Export ข้อมูลสรุป CSV
+            </button>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>รหัสกิจกรรม</th>
+                <th>ชื่อกิจกรรม</th>
+                <th>สถานที่</th>
+                <th>การแต่งกาย (Dress Code)</th>
+                <th>วันที่เริ่ม - สิ้นสุด</th>
+                <th>หัวหน้าทีม (ผอ.)</th>
+                <th>จำนวนสมาชิก (พนักงาน)</th>
+                <th>สถานะ</th>
+                <th>รายละเอียด & เปลี่ยนตัว</th>
+              </tr>
+            </thead>
+            <tbody id="all-missions-table-body">
+              <tr><td colspan="9" style="text-align:center;">กำลังโหลดรายการกิจกรรม...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- SKIP & HOLD MODAL -->
+  <div id="modal-skip" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div class="modal-title"><i class="fa-solid fa-clock-rotate-left text-amber"></i> บันทึกการข้ามคิว (Hold_In_Round)</div>
+        <button class="modal-close" onclick="closeModal('modal-skip')">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <p style="font-size: 0.9rem; color: var(--text-heading); margin-bottom: 1rem;">
+          คุณกำลังทำรายการข้ามคิวสำหรับ: <strong id="modal-skip-person-name" style="color: var(--primary);">-</strong>
+        </p>
+
+        <input type="hidden" id="modal-skip-person-id">
+
+        <div class="form-group">
+          <label>ระบุเหตุผลการข้ามคิว (Hold Reason) *</label>
+          <textarea id="modal-skip-reason" class="form-control" rows="3" placeholder="เช่น ติดกิจกรรมตรวจราชการต่างจังหวัด / ติดประชุมด่วน"></textarea>
+        </div>
+
+        <div style="background: var(--warning-light); border: 1px solid rgba(245, 158, 11, 0.3); padding: 0.85rem; border-radius: 8px; font-size: 0.8rem; color: var(--warning);">
+          <i class="fa-solid fa-lightbulb"></i> <strong>Hold_In_Round Logic:</strong> บุคลากรจะถูกบันทึกสถานะค้างสิทธิ์ไว้ใน Round ปัจจุบัน และจะถูกดึงกลับมาพิจารณาเป็นอันดับแรกสุดในกิจกรรมถัดไป
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-skip')">ยกเลิก</button>
+        <button class="btn btn-warning" onclick="confirmSkipHold()">
+          <i class="fa-solid fa-pause"></i> ยืนยันการค้างสิทธิ์ (Hold)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- EMERGENCY SUBSTITUTION MODAL -->
+  <div id="modal-substitute" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div class="modal-title"><i class="fa-solid fa-user-gear text-amber"></i> เปลี่ยนตัวกะทันหัน (Emergency Substitution)</div>
+        <button class="modal-close" onclick="closeModal('modal-substitute')">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <p style="font-size: 0.9rem; color: var(--text-heading); margin-bottom: 1rem;">
+          ต้องการเปลี่ยนตัวให้บุคคลอื่นทำแทน: <strong id="sub-orig-person-name" style="color: var(--danger);">-</strong>
+        </p>
+
+        <input type="hidden" id="sub-mission-id">
+        <input type="hidden" id="sub-orig-person-id">
+
+        <div class="form-group">
+          <label>เหตุผลการขอเปลี่ยนตัว *</label>
+          <input type="text" id="sub-reason" class="form-control" placeholder="เช่น ลาป่วย / ลากิจกะทันหัน">
+        </div>
+
+        <div style="background: var(--primary-light); border: 1px solid rgba(2, 132, 199, 0.3); padding: 0.85rem; border-radius: 8px; font-size: 0.82rem; color: var(--accent);">
+          <i class="fa-solid fa-circle-info"></i> ระบบจะดึงพนักงานคิวถัดไปใน Round นั้นเข้ามาทำแทนทันที พร้อมบันทึกประวัติ <em>"ปฏิบัติงานแทน [ชื่อเดิม]"</em> โดยไม่ทำให้สถิติรอบเสีย
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-substitute')">ยกเลิก</button>
+        <button class="btn btn-warning" onclick="confirmSubstitution()">
+          <i class="fa-solid fa-user-check"></i> ยืนยันการเปลี่ยนตัว
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MISSION DETAIL MODAL -->
+  <div id="modal-mission-detail" class="modal-overlay">
+    <div class="modal-box" style="max-width: 780px;">
+      <div class="modal-header">
+        <div class="modal-title"><i class="fa-solid fa-circle-info text-cyan"></i> รายละเอียดกิจกรรม & ผู้เข้าร่วม</div>
+        <button class="modal-close" onclick="closeModal('modal-mission-detail')">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <h3 id="md-title" style="color: var(--text-heading); font-size: 1.2rem; margin-bottom: 4px;">-</h3>
+        <p id="md-location-time" style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 6px;">-</p>
+        <p id="md-dress-code" style="color: var(--accent); font-size: 0.85rem; font-weight: 500; margin-bottom: 1rem;">-</p>
+
+        <div style="background: var(--warning-light); border: 1px solid rgba(245, 158, 11, 0.3); padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.82rem; color: var(--warning); margin-bottom: 1rem;">
+          <i class="fa-solid fa-clock"></i> <strong>ข้อปฏิบัติตน:</strong> ควรมาถึงสถานที่ปฏิบัติงาน<strong>ก่อนเวลาเริ่มกิจกรรม 30 นาที</strong>
+        </div>
+
+        <h4 style="font-size: 0.95rem; color: var(--primary); margin-bottom: 0.5rem;">รายชื่อผู้ปฏิบัติงานที่ได้รับการจัดสรร:</h4>
+        <div class="table-responsive">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>บทบาท</th>
+                <th>รหัส</th>
+                <th>ชื่อ-นามสกุล</th>
+                <th>ตำแหน่ง / ฝ่าย</th>
+                <th>สถานะ / หมายเหตุ</th>
+                <th class="no-print">เปลี่ยนตัว</th>
+              </tr>
+            </thead>
+            <tbody id="md-assigned-body">
+              <tr><td colspan="6">กำลังโหลด...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-mission-detail')">ปิด</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- NOTIFICATION LOGS MODAL -->
+  <div id="modal-notif-logs" class="modal-overlay">
+    <div class="modal-box" style="max-width: 780px;">
+      <div class="modal-header">
+        <div class="modal-title"><i class="fa-solid fa-bell text-amber"></i> ประวัติการส่งแจ้งเตือน (Email & LINE Group Logs)</div>
+        <button class="modal-close" onclick="closeModal('modal-notif-logs')">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+          บันทึกการส่งการแจ้งเตือน Real-time เมื่อมีการออกคำสั่งจัดสรรกิจกรรม หรือมีการจัดสรรพนักงานทดแทนอัตโนมัติ
+        </p>
+
+        <div class="table-responsive">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>ช่องทาง (Channel)</th>
+                <th>ผู้รับ (Recipient)</th>
+                <th>หัวข้อแจ้งเตือน</th>
+                <th>สถานะ</th>
+                <th>เวลาที่ส่ง (24 ชม.)</th>
+              </tr>
+            </thead>
+            <tbody id="notif-logs-body">
+              <tr><td colspan="5">กำลังโหลดประวัติ...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-notif-logs')">ปิด</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- IMPORT REAL PERSONNEL CSV MODAL -->
+  <div id="modal-import-csv" class="modal-overlay">
+    <div class="modal-box" style="max-width: 680px;">
+      <div class="modal-header">
+        <div class="modal-title"><i class="fa-solid fa-file-import text-amber"></i> นำเข้าข้อมูลรายชื่อบุคลากรจริง (Import Personnel CSV)</div>
+        <button class="modal-close" onclick="closeModal('modal-import-csv')">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 1rem; line-height: 1.5;">
+          คุณสามารถนำเข้าชุดข้อมูลบุคลากรจริงของ อสป. ได้ง่ายๆ โดยเลือกไฟล์ <strong>.CSV</strong> หรือวางข้อความข้อมูล CSV ในกล่องด้านล่างนี้ ระบบจะปรับปรุงฐานข้อมูลและลำดับคิวการวนคิวให้อัตโนมัติ
+        </p>
+
+        <div style="background: var(--input-bg); padding: 1rem; border-radius: 12px; border: 1px solid var(--card-border); margin-bottom: 1rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <label style="font-weight: 700; font-size: 0.88rem;"><i class="fa-solid fa-file-csv text-cyan"></i> 1. เลือกไฟล์ CSV จากเครื่องคอมพิวเตอร์:</label>
+            <button class="btn btn-secondary btn-sm" onclick="downloadCsvTemplate()"><i class="fa-solid fa-download"></i> ดาวน์โหลดไฟล์แม่แบบ (.csv)</button>
+          </div>
+          <input type="file" id="csv-file-input" accept=".csv, text/csv" class="form-control" onchange="handleCsvFileUpload(event)">
+        </div>
+
+        <div style="margin-bottom: 1rem;">
+          <label style="font-weight: 700; font-size: 0.88rem; margin-bottom: 0.5rem; display: block;">
+            <i class="fa-solid fa-align-left text-purple"></i> 2. หรือ วางเนื้อหาข้อความ CSV ตรงนี้ (Header: รหัสพนักงาน,ชื่อ-นามสกุล,ตำแหน่ง,หน่วยงาน,บทบาท):
+          </label>
+          <textarea id="csv-text-input" class="form-control" rows="6" style="font-family: monospace; font-size: 0.82rem;" placeholder="emp_code,name,position,department,role_type,email,phone&#10;DIR-01,นายสมชาย ใจดี,ผอ.ฝ่ายบริหาร,ฝ่ายบริหาร,DIRECTOR,somchai@fmo.or.th,0812345678&#10;EMP-001,นางสาวสมหญิง มีสุข,พนักงานบริหารงาน 4,ฝ่ายการเงิน,STAFF,somying@fmo.or.th,0898765432"></textarea>
+        </div>
+
+        <div style="background: var(--warning-light); padding: 0.75rem 1rem; border-radius: 10px; border: 1px solid rgba(245, 158, 11, 0.3); font-size: 0.82rem; color: var(--warning);">
+          <i class="fa-solid fa-triangle-exclamation"></i> <strong>คำเตือน:</strong> การนำเข้าชุดข้อมูลจริงจะทำการล้างข้อมูลตัวอย่างเดิมและตั้งต้นระบบคิวเริ่มต้น (Round 1) ใหม่อัตโนมัติ
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-import-csv')">ยกเลิก</button>
+        <button class="btn btn-primary" onclick="submitImportCsv()"><i class="fa-solid fa-cloud-arrow-up"></i> ยืนยันนำเข้าข้อมูลจริง</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>
