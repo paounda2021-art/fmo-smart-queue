@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const axios = require('axios');
 const { dbRun, dbGet, dbAll } = require('../db/database');
 const { sendMissionNotification } = require('../services/notification');
 
@@ -659,7 +660,7 @@ router.get('/personnel', async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// 6. EMPLOYEE ACKNOWLEDGEMENT & AUTO RE-ALLOCATION ON CONFLICT
+// 9. EMPLOYEE ACKNOWLEDGEMENT & AUTO RE-ALLOCATION ON CONFLICT
 // -------------------------------------------------------------
 router.post('/missions/respond', async (req, res) => {
   try {
@@ -684,7 +685,6 @@ router.post('/missions/respond', async (req, res) => {
     const mission = await dbGet(`SELECT * FROM missions WHERE id = ?;`, [mission_id]);
 
     if (response_status === 'ACKNOWLEDGED') {
-      // 1. ACCEPTANCE
       await dbRun(
         `UPDATE mission_assignments 
          SET ack_status = 'ACKNOWLEDGED', ack_at = CURRENT_TIMESTAMP 
@@ -697,10 +697,8 @@ router.post('/missions/respond', async (req, res) => {
         message: `บันทึกการรับทราบเข้าร่วมกิจกรรมของ ${assignment.name} เรียบร้อยแล้ว`
       });
     } else if (response_status === 'DECLINED_BUSY') {
-      // 2. DECLINE BUSY -> AUTO RE-ALLOCATION WORKFLOW
       const reasonText = decline_reason || 'ติดภารกิจซ้อน (ขอสลับคิวอัตโนมัติ)';
 
-      // Mark original assignment as SUBSTITUTED & DECLINED_BUSY
       await dbRun(
         `UPDATE mission_assignments 
          SET assignment_status = 'SUBSTITUTED', ack_status = 'DECLINED_BUSY', decline_reason = ?, ack_at = CURRENT_TIMESTAMP 
@@ -708,7 +706,6 @@ router.post('/missions/respond', async (req, res) => {
         [reasonText, assignment.id]
       );
 
-      // Place original person on HOLD in current round so they get top priority for next mission
       await dbRun(
         `UPDATE queue_members 
          SET status = 'HOLD', hold_reason = ?, hold_timestamp = CURRENT_TIMESTAMP 
@@ -716,7 +713,6 @@ router.post('/missions/respond', async (req, res) => {
         [reasonText, personnel_id]
       );
 
-      // Find next candidate in queue for same role_type
       const roleType = assignment.role_type;
       const state = await dbGet(`SELECT current_round FROM queue_state WHERE role_type = ?;`, [roleType]);
       const currentRound = state ? state.current_round : 1;
@@ -737,7 +733,6 @@ router.post('/missions/respond', async (req, res) => {
       let replacementName = '';
       if (nextCandidate) {
         replacementName = nextCandidate.name;
-        // Assign replacement candidate
         await dbRun(
           `INSERT INTO mission_assignments (mission_id, personnel_id, role_type, assigned_round, is_leader, assignment_status, substituted_for_personnel_id, notes, ack_status)
            VALUES (?, ?, ?, ?, ?, 'JOINED', ?, ?, 'PENDING_ACK');`,
@@ -752,7 +747,6 @@ router.post('/missions/respond', async (req, res) => {
           ]
         );
 
-        // Update replacement candidate status to COMPLETED
         await dbRun(
           `UPDATE queue_members 
            SET status = 'COMPLETED', hold_reason = NULL, hold_timestamp = NULL, last_assigned_at = CURRENT_TIMESTAMP 
@@ -760,10 +754,7 @@ router.post('/missions/respond', async (req, res) => {
           [nextCandidate.personnel_id]
         );
 
-        // Check Round progression
         await checkAndAdvanceRound(roleType);
-
-        // Send Notification to Replacement Candidate
         sendMissionNotification(mission, [nextCandidate], true).catch(e => console.error('Notification dispatch error:', e));
       }
 
@@ -798,7 +789,7 @@ router.get('/notifications/logs', async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// 9. EXPORT SUMMARY REPORT DATA
+// 10. EXPORT SUMMARY REPORT DATA
 // -------------------------------------------------------------
 router.get('/reports/export', async (req, res) => {
   try {
@@ -843,7 +834,7 @@ router.get('/reports/export', async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// 10. IMPORT REAL PERSONNEL DATA (CSV)
+// 11. IMPORT REAL PERSONNEL DATA (CSV)
 // -------------------------------------------------------------
 router.post('/personnel/import-csv', async (req, res) => {
   try {
@@ -852,7 +843,6 @@ router.post('/personnel/import-csv', async (req, res) => {
       return res.status(400).json({ success: false, error: 'ไม่พบข้อมูลรายชื่อบุคลากรในไฟล์' });
     }
 
-    // Clear existing personnel & queue
     await dbRun(`DELETE FROM mission_assignments;`);
     await dbRun(`DELETE FROM queue_members;`);
     await dbRun(`DELETE FROM personnel;`);
@@ -860,7 +850,6 @@ router.post('/personnel/import-csv', async (req, res) => {
 
     let dirOrder = 1;
     let staffOrder = 1;
-
     const usedEmpCodes = new Set();
 
     for (const p of personnelList) {
@@ -876,7 +865,6 @@ router.post('/personnel/import-csv', async (req, res) => {
         empCode = role === 'DIRECTOR' ? `DIR-${String(dirOrder).padStart(2, '0')}` : `EMP-${String(staffOrder).padStart(3, '0')}`;
       }
 
-      // Ensure empCode is 100% unique to prevent SQLite constraint errors
       let uniqueEmpCode = empCode;
       let dupCounter = 1;
       while (usedEmpCodes.has(uniqueEmpCode)) {
@@ -910,6 +898,48 @@ router.post('/personnel/import-csv', async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
+// 12. LINE OA WEBHOOK ENDPOINT
+// -------------------------------------------------------------
+router.post('/line-webhook', async (req, res) => {
+  res.status(200).send('OK');
+
+  const events = req.body.events || [];
+  for (const event of events) {
+    if (event.type === 'message' && event.message.type === 'text') {
+      const lineUserId = event.source.userId;
+      const userText = event.message.text.trim().toUpperCase();
+      const replyToken = event.replyToken;
+
+      try {
+        const person = await dbGet(`SELECT * FROM personnel WHERE UPPER(emp_code) = ?`, [userText]);
+
+        let replyMsg = '';
+        if (person) {
+          await dbRun(`UPDATE personnel SET line_user_id = ? WHERE id = ?`, [lineUserId, person.id]);
+          replyMsg = `✅ ผูกบัญชีสำเร็จ!\n\nสวัสดีคุณ ${person.name}\nระบบ FMO Smart Queue ได้เชื่อมต่อกับ LINE ของคุณเรียบร้อยแล้วค่ะ`;
+        } else {
+          replyMsg = `❌ ไม่พบรหัสพนักงาน "${userText}" ในระบบ\n\nกรุณาพิมพ์รหัสพนักงานใหม่อีกครั้ง เช่น EMP-001 หรือ DIR-01 ค่ะ`;
+        }
+
+        if (process.env.LINE_CHANNEL_ACCESS_TOKEN) {
+          await axios.post('https://api.line.me/v2/bot/message/reply', {
+            replyToken: replyToken,
+            messages: [{ type: 'text', text: replyMsg }]
+          }, {
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}`
+            }
+          });
+        }
+      } catch (err) {
+        console.error('Error handling LINE Webhook:', err);
+      }
+    }
   }
 });
 

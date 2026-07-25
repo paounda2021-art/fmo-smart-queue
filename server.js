@@ -17,9 +17,34 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Mount API routes
 app.use('/api', apiRoutes);
 
-// Fallback to index.html for SPA
-app.get('*', (req, res) => {
+// Serve main app
+app.get('/app', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Serve login page
+app.get('/login', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+// Redirect หน้าแรก (/) ไปที่หน้า login
+app.get('/', (req, res) => {
+  res.redirect('/login');
+});
+
+// Serve main app
+app.get('/app', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Fallback for SPA routes
+app.get('*', (req, res) => {
+  if (req.path.includes('.')) {
+    // Let static files be served (they already are from express.static)
+    res.status(404).send('Not found');
+  } else {
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+  }
 });
 
 // Initialize DB and start server

@@ -7,9 +7,155 @@ let previewedStaff = [];
 let autoFetchDebounceTimer = null;
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Show logged-in user label and apply RBAC
+  try {
+    const user = JSON.parse(sessionStorage.getItem('fmo_user') || '{}');
+    const labelEl = document.getElementById('user-label');
+    if (labelEl && user.label) {
+      const roleTag = user.role === 'staff'
+        ? '<span style="margin-left:6px;background:#f59e0b;color:#fff;font-size:0.7rem;padding:2px 7px;border-radius:10px;font-weight:700;">STAFF</span>'
+        : '<span style="margin-left:6px;background:#0284c7;color:#fff;font-size:0.7rem;padding:2px 7px;border-radius:10px;font-weight:700;">ADMIN</span>';
+      labelEl.innerHTML = user.username + roleTag;
+    }
+    applyRBAC(user.role || 'admin');
+  } catch(e) {}
+
   initApp();
   initTheme();
+  loadQueueView('STAFF');
 });
+
+// ─── Role-Based Access Control ───
+// staff → แสดงเฉพาะ จัดสรรคิว + กระดานวนคิว
+// admin → แสดงทุกเมนู
+function applyRBAC(role) {
+  if (role === 'staff') {
+    // ซ่อนเมนูที่มี data-role="admin"
+    document.querySelectorAll('[data-role="admin"]').forEach(btn => {
+      btn.style.display = 'none';
+    });
+    // ถ้าแท็บปัจจุบันเป็น admin-only ให้ redirect กลับไปที่ quick
+    const adminTabs = ['dashboard', 'individual', 'reports'];
+    // block direct URL hash access to admin tabs
+    window._staffRestrictedTabs = adminTabs;
+  }
+}
+
+// Logout function — shows a toast-style confirmation
+function handleLogout() {
+  // Remove existing logout toast if any
+  const existing = document.getElementById('logout-toast');
+  if (existing) existing.remove();
+
+  const toast = document.createElement('div');
+  toast.id = 'logout-toast';
+  toast.innerHTML = `
+    <div style="
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    ">
+      <div style="
+        width: 40px; height: 40px;
+        border-radius: 50%;
+        background: rgba(239,68,68,0.15);
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+      ">
+        <i class="fa-solid fa-right-from-bracket" style="color:#ef4444; font-size:1rem;"></i>
+      </div>
+      <div style="flex:1; min-width:0;">
+        <div style="font-weight:700; font-size:0.92rem; color:var(--text-heading); margin-bottom:2px;">ออกจากระบบ</div>
+        <div style="font-size:0.82rem; color:var(--text-muted);">ต้องการออกจากระบบ FMO Smart Queue หรือไม่?</div>
+      </div>
+    </div>
+    <div style="display:flex; gap:8px; margin-top:14px; justify-content:flex-end;">
+      <button id="logout-cancel-btn" style="
+        padding: 7px 18px;
+        border-radius: 8px;
+        border: 1px solid var(--card-border);
+        background: transparent;
+        color: var(--text-muted);
+        font-family: inherit;
+        font-size: 0.84rem;
+        cursor: pointer;
+        transition: background 0.2s;
+      " onmouseover="this.style.background='rgba(148,163,184,0.1)'" onmouseout="this.style.background='transparent'">
+        <i class="fa-solid fa-xmark"></i> ยกเลิก
+      </button>
+      <button id="logout-confirm-btn" style="
+        padding: 7px 18px;
+        border-radius: 8px;
+        border: none;
+        background: #ef4444;
+        color: #fff;
+        font-family: inherit;
+        font-size: 0.84rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s, transform 0.15s;
+        box-shadow: 0 2px 10px rgba(239,68,68,0.35);
+      " onmouseover="this.style.background='#dc2626'" onmouseout="this.style.background='#ef4444'">
+        <i class="fa-solid fa-right-from-bracket"></i> ออกจากระบบ
+      </button>
+    </div>
+  `;
+
+  Object.assign(toast.style, {
+    position: 'fixed',
+    bottom: '24px',
+    right: '24px',
+    zIndex: '99999',
+    background: 'var(--card-bg)',
+    backdropFilter: 'blur(20px)',
+    webkitBackdropFilter: 'blur(20px)',
+    border: '1px solid rgba(239,68,68,0.25)',
+    borderRadius: '16px',
+    padding: '18px 20px',
+    width: '320px',
+    boxShadow: '0 8px 40px rgba(0,0,0,0.2), 0 0 0 1px rgba(239,68,68,0.1)',
+    animation: 'toast-slide-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both',
+  });
+
+  // Add keyframe animation if not already added
+  if (!document.getElementById('logout-toast-style')) {
+    const style = document.createElement('style');
+    style.id = 'logout-toast-style';
+    style.textContent = `
+      @keyframes toast-slide-in {
+        from { opacity: 0; transform: translateX(60px) scale(0.95); }
+        to   { opacity: 1; transform: translateX(0)    scale(1); }
+      }
+      @keyframes toast-slide-out {
+        from { opacity: 1; transform: translateX(0)    scale(1); }
+        to   { opacity: 0; transform: translateX(60px) scale(0.95); }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  document.body.appendChild(toast);
+
+  // Cancel button
+  document.getElementById('logout-cancel-btn').addEventListener('click', () => {
+    toast.style.animation = 'toast-slide-out 0.25s ease forwards';
+    setTimeout(() => toast.remove(), 260);
+  });
+
+  // Confirm button
+  document.getElementById('logout-confirm-btn').addEventListener('click', () => {
+    sessionStorage.removeItem('fmo_user');
+    window.location.replace('/login');
+  });
+
+  // Auto-dismiss after 8 seconds if no action
+  setTimeout(() => {
+    if (document.getElementById('logout-toast')) {
+      toast.style.animation = 'toast-slide-out 0.25s ease forwards';
+      setTimeout(() => toast.remove(), 260);
+    }
+  }, 8000);
+}
 
 function initApp() {
   populate24HourTimeOptions('alloc-start-time', '09:00');
@@ -48,10 +194,14 @@ function populate24HourTimeOptions(selectId, defaultTime = '09:00') {
 // -------------------------------------------------------------
 function initTheme() {
   const savedTheme = localStorage.getItem('fmo_theme');
-  if (savedTheme === 'light') {
+  // Default is light mode; only go dark if user explicitly saved 'dark'
+  const isLight = savedTheme !== 'dark';
+  if (isLight) {
     document.body.classList.add('light-mode');
-    updateThemeIcon(true);
+  } else {
+    document.body.classList.remove('light-mode');
   }
+  updateThemeIcon(isLight);
 }
 
 function toggleTheme() {
@@ -76,6 +226,12 @@ function updateThemeIcon(isLight) {
 // TAB NAVIGATION
 // -------------------------------------------------------------
 function switchTab(tabId) {
+  // RBAC guard: staff ไม่สามารถเข้าถึง admin-only tabs
+  if (window._staffRestrictedTabs && window._staffRestrictedTabs.includes(tabId)) {
+    showToast('⛔ คุณไม่มีสิทธิ์เข้าถึงเมนูนี้ กรุณาติดต่อผู้ดูแลระบบ', 'danger');
+    return;
+  }
+
   document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
   const activeBtn = Array.from(document.querySelectorAll('.nav-btn')).find(btn => btn.getAttribute('onclick')?.includes(tabId));
   if (activeBtn) activeBtn.classList.add('active');
@@ -266,7 +422,17 @@ async function loadQueueView(roleType) {
       tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--danger);">${result.error}</td></tr>`;
       return;
     }
+    // ดึงจำนวนจาก totalCount หรือ members.length โดยตรง
+    const count = result.totalCount || (result.members ? result.members.length : 0);
 
+    if (roleType === 'DIRECTOR') {
+      const btnText = document.getElementById('tab-btn-director-text');
+      if (btnText) btnText.innerText = `คิว ผู้บริหารและ ผอ.ฝ่าย (${count} ท่าน)`;
+    } else if (roleType === 'STAFF') {
+      const btnText = document.getElementById('tab-btn-staff-text');
+      if (btnText) btnText.innerText = `คิว พนักงาน (${count} ท่าน)`;
+    }
+    
     let html = '';
     result.members.forEach((m, idx) => {
       let statusBadge = '';

@@ -3,7 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FMO Smart Queue - ระบบจัดสรรกิจกรรมด่วน อสป.</title>
+  <title>FMO Smart Queue - ระบบจัดสรรพนักงานเข้าร่วมกิจกรรม อสป.</title>
+  <!-- Auth Guard: Redirect to login if no session -->
+  <script>
+    (function() {
+      var user = sessionStorage.getItem('fmo_user');
+      if (!user) { window.location.replace('/login'); }
+    })();
+  </script>
 
   <!-- Google Fonts: Sarabun, Pridi & Font Awesome Icons -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Pridi:wght@300;400;500;600;700&family=Maitree:wght@300;400;500;600;700&display=swap">
@@ -24,28 +31,36 @@
             <p>ระบบจัดสรรคิวพนักงานเข้าร่วมกิจกรรม องค์การสะพานปลา (อสป.)</p>
           </div>
         </div>
-        <div class="navbar-actions">
+        <div class="navbar-actions" style="display:flex;align-items:center;gap:10px;">
+          <!-- Logged-in User Badge -->
+          <div id="user-badge" style="display:flex;align-items:center;gap:8px;background:rgba(2,132,199,0.12);border:1px solid rgba(2,132,199,0.25);border-radius:20px;padding:5px 14px;font-size:0.8rem;color:#94a3b8;">
+            <i class="fa-solid fa-user-circle" style="color:#06b6d4;"></i>
+            <span id="user-label">ผู้ใช้งาน</span>
+          </div>
           <button class="theme-toggle-btn" onclick="toggleTheme()" title="สลับโหมด สว่าง / ดำ (Light / Dark Mode)">
             <i id="theme-toggle-icon" class="fa-solid fa-moon"></i>
+          </button>
+          <button class="theme-toggle-btn" onclick="handleLogout()" title="ออกจากระบบ" style="color:#ef4444;border-color:rgba(239,68,68,0.25);" aria-label="ออกจากระบบ">
+            <i class="fa-solid fa-right-from-bracket"></i>
           </button>
         </div>
       </div>
 
       <!-- Bottom Row: Navigation Tabs -->
-      <nav class="navbar-nav">
-        <button class="nav-btn active" onclick="switchTab('quick')">
-          <i class="fa-solid fa-bolt text-amber"></i> จัดสรรคิวด่วน (Quick)
+      <nav class="navbar-nav" id="main-navbar-nav">
+        <button class="nav-btn active" onclick="switchTab('quick')" data-menu="quick">
+          <i class="fa-solid fa-bolt text-amber"></i> จัดสรรคิว (Queue)
         </button>
-        <button class="nav-btn" onclick="switchTab('dashboard')">
+        <button class="nav-btn" onclick="switchTab('dashboard')" data-menu="dashboard" data-role="admin">
           <i class="fa-solid fa-chart-pie"></i> แดชบอร์ด
         </button>
-        <button class="nav-btn" onclick="switchTab('queue')">
+        <button class="nav-btn" onclick="switchTab('queue')" data-menu="queue">
           <i class="fa-solid fa-list-ol"></i> กระดานวนคิว
         </button>
-        <button class="nav-btn" onclick="switchTab('individual')">
+        <button class="nav-btn" onclick="switchTab('individual')" data-menu="individual" data-role="admin">
           <i class="fa-solid fa-id-card"></i> ประวัติรายบุคคล
         </button>
-        <button class="nav-btn" onclick="switchTab('reports')">
+        <button class="nav-btn" onclick="switchTab('reports')" data-menu="reports" data-role="admin">
           <i class="fa-solid fa-file-invoice"></i> รายงานกิจกรรม
         </button>
       </nav>
@@ -63,10 +78,10 @@
         <div class="glass-card">
           <div style="margin-bottom: 1.25rem;">
             <h2 style="font-size: 1.25rem; font-weight: 700; color: var(--text-heading); display: flex; align-items: center; gap: 8px;">
-              <i class="fa-solid fa-bolt text-amber"></i> ฟอร์มจัดสรรกิจกรรมด่วน (ระบบเวลา 24 ชม.)
+              <i class="fa-solid fa-bolt text-amber"></i> ฟอร์มจัดสรรกิจกรรม (Form Queue)
             </h2>
             <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">
-              กรอกรายละเอียดกิจกรรม ➔ ระบบดึง ผอ. และ พนักงานที่ถึงคิวอัตโนมัติทันที
+              กรอกรายละเอียดกิจกรรม ➔ ระบบดึงพนักงานที่ถึงคิวอัตโนมัติทันที
             </p>
           </div>
 
@@ -77,18 +92,18 @@
               
               <div class="form-group">
                 <label style="font-size: 0.88rem; font-weight: 600;"><i class="fa-solid fa-bullhorn text-cyan"></i> ชื่อกิจกรรม *</label>
-                <input type="text" id="alloc-title" class="form-control form-control-lg" placeholder="เช่น โครงการตรวจสะพานปลาประจำเดือน..." required>
+                <input type="text" id="alloc-title" class="form-control form-control-lg" placeholder="เช่น เข้าร่วมกิจกรรม..." required>
               </div>
 
               <div class="grid-2">
                 <div class="form-group">
                   <label style="font-size: 0.85rem;"><i class="fa-solid fa-location-dot text-danger"></i> สถานที่ปฏิบัติงาน</label>
-                  <input type="text" id="alloc-location" class="form-control" placeholder="เช่น สะพานปลาสมุทรปราการ">
+                  <input type="text" id="alloc-location" class="form-control" placeholder="เช่น กระทรวงเกษตรและสหกรณ์" required>
                 </div>
 
                 <div class="form-group">
                   <label style="font-size: 0.85rem;"><i class="fa-solid fa-shirt text-purple"></i> การแต่งกาย (Dress Code) *</label>
-                  <input type="text" id="alloc-dress-code" class="form-control" value="ชุดปฏิบัติงาน อสป. (เสื้อยูนิฟอร์ม)">
+                  <input type="text" id="alloc-dress-code" class="form-control" placeholder="เช่น ชุดฟอร์ม อสป. / ชุดสุภาพ" required>
                 </div>
               </div>
 
@@ -113,7 +128,7 @@
 
               <div class="form-group" style="margin-bottom: 0;">
                 <label style="font-size: 0.85rem;"><i class="fa-solid fa-align-left text-muted"></i> รายละเอียดเพิ่มเติม (ถ้ามี)</label>
-                <input type="text" id="alloc-desc" class="form-control" placeholder="วัตถุประสงค์สั้นๆ">
+                <input type="text" id="alloc-desc" class="form-control" placeholder="วัตถุประสงค์สั้น ๆ">
               </div>
 
             </div>
@@ -180,7 +195,7 @@
 
             <!-- Big Submit Button at the bottom -->
             <button type="submit" class="btn btn-primary btn-lg" style="width: 100%; padding: 1rem; font-size: 1.08rem; font-weight: 700; border-radius: 12px; justify-content: center; box-shadow: 0 6px 20px rgba(2, 132, 199, 0.4);">
-              <i class="fa-solid fa-paper-plane"></i> ยืนยันออกคำสั่งจัดสรรกิจกรรมทันที
+              <i class="fa-solid fa-paper-plane"></i> ยืนยันการจัดสรรพนักงานเข้าร่วมกิจกรรม
             </button>
           </div>
 
@@ -207,7 +222,7 @@
           </div>
           <div class="metric-data">
             <h3 id="stat-staff-round">Round 1</h3>
-            <p>รอบคิว พนักงาน (94 ท่าน)</p>
+            <p>รอบคิว พนักงาน (95 ท่าน)</p>
           </div>
         </div>
 
@@ -279,7 +294,7 @@
             </div>
 
             <div style="background: var(--input-bg); padding: 1rem; border-radius: 10px;">
-              <h4 style="color: #0284c7; margin-bottom: 8px;"><i class="fa-solid fa-users"></i> พนักงาน (94 ท่าน)</h4>
+              <h4 style="color: #0284c7; margin-bottom: 8px;"><i class="fa-solid fa-users"></i> พนักงาน (95 ท่าน)</h4>
               <p style="font-size: 0.85rem; color: var(--text-muted);">รอบที่: <strong id="dash-staff-round-num" style="color: var(--text-heading);">1</strong></p>
               <div id="dash-staff-progress" style="margin-top: 8px;"></div>
             </div>
@@ -368,7 +383,7 @@
 
         <div class="grid-3 mb-4 no-print">
           <div class="form-group" style="margin-bottom:0;">
-            <label>เลือกรายชื่อบุคลากร (ผอ.ฝ่าย 8 ท่าน / พนักงาน 94 ท่าน)</label>
+            <label>เลือกรายชื่อบุคลากร (ผอ.ฝ่าย 8 ท่าน / พนักงาน 95 ท่าน)</label>
             <select id="indiv-select-person" class="form-control" onchange="loadIndividualHistory(this.value)">
               <option value="">-- กรุณาเลือกบุคลากร --</option>
             </select>
