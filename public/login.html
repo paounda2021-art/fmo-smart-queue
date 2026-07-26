@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FMO Smart Queue - เข้าสู่ระบบ</title>
+  <meta name="description" content="เข้าสู่ระบบ FMO Smart Queue ระบบจัดสรรคิวพนักงานเข้าร่วมกิจกรรม องค์การสะพานปลา (อสป.)">
+
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Pridi:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --primary: #0284c7;
+      --primary-hover: #0369a1;
+      --primary-glow: rgba(2, 132, 199, 0.35);
+      --accent: #0891b2;
+      --success: #059669;
+      --danger: #dc2626;
+      --warning: #d97706;
+      --bg-gradient: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 50%, #dbeafe 100%);
+      --card-bg: rgba(255, 255, 255, 0.88);
+      --card-border: rgba(2, 132, 199, 0.18);
+      --text-main: #1e293b;
+      --text-muted: #64748b;
+      --input-bg: rgba(248, 250, 252, 0.95);
+      --input-border: rgba(2, 132, 199, 0.2);
+      --input-focus: rgba(2, 132, 199, 0.3);
+      --glass-shadow: 0 20px 60px 0 rgba(2, 132, 199, 0.15);
+    }
+
+    html, body {
+      height: 100%;
+      font-family: 'Sarabun', 'Pridi', sans-serif;
+    }
+
+    body {
+      background: var(--bg-gradient);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* ─── Animated Background Particles ─── */
+    .bg-particles {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .particle {
+      position: absolute;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(2,132,199,0.18), transparent);
+      animation: float-particle linear infinite;
+    }
+
+    .particle:nth-child(1)  { width:300px; height:300px; top:-50px;  left:10%;  animation-duration: 20s; opacity:0.5; }
+    .particle:nth-child(2)  { width:200px; height:200px; top:30%;  left:-80px; animation-duration: 25s; opacity:0.4; }
+    .particle:nth-child(3)  { width:400px; height:400px; bottom:-100px; right:5%;  animation-duration: 18s; opacity:0.45; }
+    .particle:nth-child(4)  { width:150px; height:150px; top:60%; right:20%; animation-duration: 22s; opacity:0.35; }
+    .particle:nth-child(5)  { width:250px; height:250px; top:10%; right:-50px; animation-duration: 28s; opacity:0.4; }
+
+    @keyframes float-particle {
+      0%   { transform: translateY(0px) scale(1); }
+      33%  { transform: translateY(-30px) scale(1.05); }
+      66%  { transform: translateY(20px) scale(0.97); }
+      100% { transform: translateY(0px) scale(1); }
+    }
+
+    /* ─── Grid Background Overlay ─── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(2, 132, 199, 0.07) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(2, 132, 199, 0.07) 1px, transparent 1px);
+      background-size: 48px 48px;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    /* ─── Login Container ─── */
+    .login-container {
+      position: relative;
+      z-index: 10;
+      width: 100%;
+      max-width: 460px;
+      padding: 16px;
+    }
+
+    .login-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      padding: 48px 44px 40px;
+      box-shadow: var(--glass-shadow), 0 0 0 1px rgba(2, 132, 199, 0.08);
+      animation: card-entrance 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    @keyframes card-entrance {
+      0%   { opacity: 0; transform: translateY(40px) scale(0.96); }
+      100% { opacity: 1; transform: translateY(0)    scale(1); }
+    }
+
+    /* ─── Brand Header ─── */
+    .login-brand {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+
+    .login-brand img.brand-logo {
+      width: 80px;
+      height: 80px;
+      object-fit: contain;
+      margin-bottom: 16px;
+      filter: drop-shadow(0 4px 16px rgba(2,132,199,0.4));
+      animation: logo-pulse 3s ease-in-out infinite;
+    }
+
+    @keyframes logo-pulse {
+      0%, 100% { filter: drop-shadow(0 4px 16px rgba(2,132,199,0.4)); }
+      50%       { filter: drop-shadow(0 4px 28px rgba(6,182,212,0.6)); }
+    }
+
+    .login-brand h1 {
+      font-family: 'Pridi', sans-serif;
+      font-size: 1.75rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #0369a1 0%, #0284c7 50%, #0891b2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: 0.02em;
+      margin-bottom: 4px;
+      text-shadow: none;
+    }
+
+    .login-brand p {
+      font-size: 1rem;
+      color: #334155;
+      line-height: 1.65;
+      font-weight: 600;
+    }
+
+    /* ─── Divider ─── */
+    .login-divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+
+    .login-divider::before,
+    .login-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(2,132,199,0.35), transparent);
+    }
+
+    .login-divider span {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    /* ─── Form ─── */
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      letter-spacing: 0.04em;
+    }
+
+    .input-wrapper {
+      position: relative;
+    }
+
+    .input-icon {
+      position: absolute;
+      left: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      pointer-events: none;
+      transition: color 0.2s;
+    }
+
+    .form-input {
+      width: 100%;
+      background: var(--input-bg);
+      border: 1px solid var(--input-border);
+      border-radius: 12px;
+      padding: 14px 16px 14px 44px;
+      font-family: 'Sarabun', sans-serif;
+      font-size: 0.95rem;
+      color: var(--text-main);
+      outline: none;
+      transition: border-color 0.25s, box-shadow 0.25s, background 0.25s;
+    }
+
+    .form-input::placeholder { color: rgba(148, 163, 184, 0.5); }
+
+    .form-input:focus {
+      border-color: var(--primary);
+      background: rgba(2, 132, 199, 0.06);
+      box-shadow: 0 0 0 3px var(--primary-glow);
+    }
+
+    .form-input:focus + .input-icon,
+    .input-wrapper:focus-within .input-icon {
+      color: var(--accent);
+    }
+
+    /* Toggle password visibility */
+    .toggle-password {
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 0.9rem;
+      padding: 4px;
+      transition: color 0.2s;
+    }
+
+    .toggle-password:hover { color: var(--accent); }
+
+    /* ─── Login Options Row ─── */
+    .login-options {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 28px;
+      font-size: 0.84rem;
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-muted);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .checkbox-label input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+
+    .forgot-link {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 0.2s, text-decoration 0.2s;
+    }
+
+    .forgot-link:hover {
+      color: var(--primary);
+      text-decoration: underline;
+    }
+
+    /* ─── Submit Button ─── */
+    .btn-login {
+      width: 100%;
+      padding: 15px;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+      color: #ffffff;
+      font-family: 'Sarabun', sans-serif;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      letter-spacing: 0.04em;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
+      box-shadow: 0 4px 20px rgba(2, 132, 199, 0.4);
+    }
+
+    .btn-login::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.15), transparent);
+    }
+
+    .btn-login:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(2, 132, 199, 0.55);
+      filter: brightness(1.08);
+    }
+
+    .btn-login:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .btn-login:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-login .btn-icon {
+      margin-left: 8px;
+      transition: transform 0.2s;
+    }
+
+    .btn-login:hover:not(:disabled) .btn-icon {
+      transform: translateX(4px);
+    }
+
+    /* Loading spinner inside button */
+    .btn-login.loading .btn-text { opacity: 0; }
+    .btn-login.loading::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: inherit;
+      border-radius: inherit;
+    }
+
+    .spinner {
+      display: none;
+      width: 20px;
+      height: 20px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 2;
+    }
+
+    .btn-login.loading .spinner { display: block; }
+
+    @keyframes spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+
+    /* ─── Error / Alert ─── */
+    .login-alert {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 0.875rem;
+      margin-bottom: 20px;
+      animation: slide-in 0.25s ease;
+    }
+
+    @keyframes slide-in {
+      from { opacity: 0; transform: translateY(-8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .login-alert.error {
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #fca5a5;
+    }
+
+    .login-alert.success {
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #6ee7b7;
+    }
+
+    /* ─── Footer ─── */
+    .login-footer {
+      text-align: center;
+      margin-top: 28px;
+      font-size: 0.78rem;
+      color: rgba(100, 116, 139, 0.7);
+      line-height: 1.6;
+    }
+
+    .login-footer strong {
+      color: rgba(30, 41, 59, 0.8);
+    }
+
+    /* ─── Floating Badge ─── */
+    .version-badge {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(255, 255, 255, 0.75);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(2, 132, 199, 0.15);
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 0.73rem;
+      color: #64748b;
+      z-index: 20;
+      box-shadow: 0 2px 12px rgba(2,132,199,0.1);
+    }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 480px) {
+      .login-card { padding: 36px 28px 32px; border-radius: 20px; }
+      .login-brand h1 { font-size: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Floating Particles Background -->
+  <div class="bg-particles" aria-hidden="true">
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+  </div>
+
+  <!-- Login Card -->
+  <div class="login-container">
+    <div class="login-card" role="main">
+
+      <!-- Brand -->
+      <div class="login-brand">
+        <img src="/logoFMO.png" alt="โลโก้ องค์การสะพานปลา (อสป.)" class="brand-logo">
+        <h1>FMO Smart Queue</h1>
+        <p>ระบบจัดสรรคิวพนักงานเข้าร่วมกิจกรรม<br>องค์การสะพานปลา (อสป.)</p>
+      </div>
+
+      <!-- Divider -->
+      <div class="login-divider"><span>เข้าสู่ระบบ</span></div>
+
+      <!-- Alert Box -->
+      <div class="login-alert" id="login-alert" role="alert" aria-live="assertive">
+        <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>
+        <span id="login-alert-msg"></span>
+      </div>
+
+      <!-- Form -->
+      <form id="login-form" onsubmit="handleLogin(event)" novalidate>
+
+        <!-- Username -->
+        <div class="form-group">
+          <label class="form-label" for="login-username">
+            <i class="fa-solid fa-user" style="margin-right:6px;"></i>ชื่อผู้ใช้งาน
+          </label>
+          <div class="input-wrapper">
+            <input
+              type="text"
+              id="login-username"
+              class="form-input"
+              placeholder="กรอกชื่อผู้ใช้งาน"
+              autocomplete="username"
+              required
+              aria-required="true"
+            >
+            <i class="fa-solid fa-user input-icon" aria-hidden="true"></i>
+          </div>
+        </div>
+
+        <!-- Password -->
+        <div class="form-group">
+          <label class="form-label" for="login-password">
+            <i class="fa-solid fa-lock" style="margin-right:6px;"></i>รหัสผ่าน
+          </label>
+          <div class="input-wrapper">
+            <input
+              type="password"
+              id="login-password"
+              class="form-input"
+              placeholder="กรอกรหัสผ่าน"
+              autocomplete="current-password"
+              required
+              aria-required="true"
+              style="padding-right: 44px;"
+            >
+            <i class="fa-solid fa-lock input-icon" aria-hidden="true"></i>
+            <button
+              type="button"
+              class="toggle-password"
+              id="toggle-pass-btn"
+              onclick="togglePasswordVisibility()"
+              title="แสดง / ซ่อนรหัสผ่าน"
+              aria-label="แสดง/ซ่อนรหัสผ่าน"
+            >
+              <i class="fa-solid fa-eye" id="toggle-pass-icon"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Remember & Forgot -->
+        <div class="login-options">
+          <label class="checkbox-label">
+            <input type="checkbox" id="remember-me">
+            <span>จดจำฉัน</span>
+          </label>
+          <a href="#" class="forgot-link" onclick="showForgotMsg(event)">ลืมรหัสผ่าน?</a>
+        </div>
+
+        <!-- Submit -->
+        <button type="submit" class="btn-login" id="login-btn">
+          <div class="spinner" aria-hidden="true"></div>
+          <span class="btn-text">
+            เข้าสู่ระบบ
+            <i class="fa-solid fa-arrow-right btn-icon" aria-hidden="true"></i>
+          </span>
+        </button>
+      </form>
+
+      <!-- Footer -->
+      <div class="login-footer">
+        <strong>FMO Smart Queue</strong> v2.0<br>
+        © 2026 องค์การสะพานปลา (อสป.) · แผนกประชาสัมพันธ์
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Version Badge -->
+  <div class="version-badge" aria-hidden="true">
+    <i class="fa-solid fa-shield-halved" style="margin-right:5px; color:#06b6d4;"></i>Secure Login
+  </div>
+
+  <script>
+    /* ─── Credentials with Role-Based Access Control ─── */
+    // role: 'admin' → ครบทุกเมนู
+    // role: 'staff' → เฉพาะ จัดสรรคิว + กระดานคิว
+    const CREDENTIALS = [
+      // ─── Admins (Full Access) ───
+      { username: 'admin',       password: 'Fmo@2026#Adm!',  label: 'ผู้ดูแลระบบ',                           empCode: 'ADMIN',   role: 'admin' },
+      { username: 'pimrada.a',   password: 'Pim@043#Fmo!',   label: 'น.ส.พิมพ์ลดา อัศวเศรษฐชัย (EMP-043)', empCode: 'EMP-043', role: 'admin' },
+      { username: 'amornrat.k',  password: 'Amorn@062#Fmo!', label: 'น.ส.อมรรัตน์ ขุนทอง (EMP-062)',        empCode: 'EMP-062', role: 'admin' },
+      // ─── Staff (Limited Access: จัดสรรคิว + กระดานคิว only) ───
+      { username: 'watit.t',     password: 'Watit@1234',     label: 'นายวาทิต แตงนวลจันทร์ (เจ้าหน้าที่บันทึก)', empCode: 'EMP-102', role: 'staff' },
+    ];
+
+    /* ─── Auto-fill if remember-me was checked ─── */
+    window.addEventListener('DOMContentLoaded', () => {
+      // Reset theme preference to light each time login page is shown
+      if (localStorage.getItem('fmo_theme') !== 'dark') {
+        localStorage.setItem('fmo_theme', 'light');
+      }
+
+      const saved = localStorage.getItem('fmo_remembered_user');
+      if (saved) {
+        document.getElementById('login-username').value = saved;
+        document.getElementById('remember-me').checked = true;
+      }
+      document.getElementById('login-username').focus();
+    });
+
+    /* ─── Toggle Password Visibility ─── */
+    function togglePasswordVisibility() {
+      const input = document.getElementById('login-password');
+      const icon  = document.getElementById('toggle-pass-icon');
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'fa-solid fa-eye-slash';
+      } else {
+        input.type = 'password';
+        icon.className = 'fa-solid fa-eye';
+      }
+    }
+
+    /* ─── Show Alert ─── */
+    function showAlert(msg, type = 'error') {
+      const box  = document.getElementById('login-alert');
+      const msgEl = document.getElementById('login-alert-msg');
+      const icon = box.querySelector('i');
+      box.className = `login-alert ${type}`;
+      icon.className = type === 'success'
+        ? 'fa-solid fa-circle-check'
+        : 'fa-solid fa-circle-exclamation';
+      msgEl.textContent = msg;
+      box.style.display = 'flex';
+    }
+
+    function hideAlert() {
+      document.getElementById('login-alert').style.display = 'none';
+    }
+
+    /* ─── Handle Login ─── */
+    async function handleLogin(e) {
+      e.preventDefault();
+      hideAlert();
+
+      const username = document.getElementById('login-username').value.trim();
+      const password = document.getElementById('login-password').value;
+      const remember = document.getElementById('remember-me').checked;
+      const btn      = document.getElementById('login-btn');
+
+      if (!username || !password) {
+        showAlert('กรุณากรอกชื่อผู้ใช้งานและรหัสผ่านให้ครบถ้วน');
+        return;
+      }
+
+      /* Set loading state */
+      btn.classList.add('loading');
+      btn.disabled = true;
+
+      /* Simulate async auth (300ms delay to feel responsive) */
+      await new Promise(r => setTimeout(r, 600));
+
+      const match = CREDENTIALS.find(c => c.username === username && c.password === password);
+
+      if (match) {
+        /* Save remember-me */
+        if (remember) {
+          localStorage.setItem('fmo_remembered_user', username);
+        } else {
+          localStorage.removeItem('fmo_remembered_user');
+        }
+
+        /* Store session including role for RBAC */
+        sessionStorage.setItem('fmo_user', JSON.stringify({
+          username,
+          label: match.label,
+          empCode: match.empCode || '',
+          role: match.role || 'admin',
+          loginAt: new Date().toISOString()
+        }));
+
+        showAlert(`✅ ยินดีต้อนรับ ${match.label} — กำลังเข้าสู่ระบบ...`, 'success');
+
+        /* Redirect after short delay */
+        setTimeout(() => {
+          window.location.href = '/app';
+        }, 900);
+      } else {
+        btn.classList.remove('loading');
+        btn.disabled = false;
+        showAlert('ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง');
+
+        /* Shake animation */
+        const card = document.querySelector('.login-card');
+        card.animate([
+          { transform: 'translateX(0)' },
+          { transform: 'translateX(-8px)' },
+          { transform: 'translateX(8px)' },
+          { transform: 'translateX(-6px)' },
+          { transform: 'translateX(6px)' },
+          { transform: 'translateX(0)' }
+        ], { duration: 380, easing: 'ease-out' });
+      }
+    }
+
+    /* ─── Forgot Password ─── */
+    function showForgotMsg(e) {
+      e.preventDefault();
+      showAlert('กรุณาติดต่อผู้ดูแลระบบ เพื่อขอรีเซ็ตรหัสผ่าน ', 'error');
+    }
+
+    /* ─── Press Enter to Submit ─── */
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        document.getElementById('login-form').requestSubmit();
+      }
+    });
+  </script>
+</body>
+</html>

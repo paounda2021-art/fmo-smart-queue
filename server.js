@@ -1,3 +1,4 @@
+﻿require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -11,15 +12,34 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve static frontend files
-app.use(express.static(path.join(__dirname, 'public')));
+// Serve static frontend files (Disable default index.html serving)
+app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
 // Mount API routes
 app.use('/api', apiRoutes);
 
-// Fallback to index.html for SPA
-app.get('*', (req, res) => {
+// Redirect หน้าแรก (/) ไปที่หน้า login
+app.get('/', (req, res) => {
+  res.redirect('/login');
+});
+
+// Serve login page
+app.get('/login', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+// Serve main app
+app.get('/app', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Fallback for SPA routes
+app.get('*', (req, res) => {
+  if (req.path.includes('.')) {
+    res.status(404).send('Not found');
+  } else {
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+  }
 });
 
 // Initialize DB and start server

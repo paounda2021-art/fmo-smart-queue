@@ -1,4 +1,4 @@
-// FMO Smart Queue Application Logic (K2D & 1-Page Mobile Quick Allocation with Explicit 24-Hour Time)
+﻿// FMO Smart Queue Application Logic (K2D & 1-Page Mobile Quick Allocation with Explicit 24-Hour Time)
 
 let currentQueueRole = 'DIRECTOR';
 let allPersonnelList = [];
@@ -258,6 +258,28 @@ async function loadQueueView(roleType) {
   const tbody = document.getElementById('queue-table-body');
   tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">กำลังโหลดข้อมูลคิว...</td></tr>';
 
+  // --- ฟังก์ชันช่วยนับเฉพาะคนที่ "รอคิวจริง" ---
+  const countWaiting = (membersList) => {
+    return membersList.filter(m => m.status === 'WAITING' || m.status === 'HOLD').length;
+  };
+
+  // --- แอบดึงข้อมูลของอีกแท็บมาเพื่อนับจำนวนคิวที่เหลือ / จำนวนทั้งหมด ---
+  const otherRole = roleType === 'DIRECTOR' ? 'STAFF' : 'DIRECTOR';
+  fetch(`/api/queue/${otherRole}`)
+    .then(res => res.json())
+    .then(otherResult => {
+       const otherMembers = otherResult.data || otherResult.members || [];
+       const otherWaitingCount = countWaiting(otherMembers);
+       const otherTotal = otherMembers.length;
+       
+       if (otherRole === 'STAFF') {
+          document.getElementById('tab-btn-staff-text').innerText = `คิว พนักงาน (เหลือ ${otherWaitingCount}/${otherTotal} ท่าน)`;
+       } else {
+          document.getElementById('tab-btn-director-text').innerText = `คิว ผอ.ฝ่าย (เหลือ ${otherWaitingCount}/${otherTotal} ท่าน)`;
+       }
+    })
+    .catch(err => console.log('Background fetch error:', err));
+
   try {
     const res = await fetch(`/api/queue/${roleType}`);
     const result = await res.json();
@@ -267,8 +289,24 @@ async function loadQueueView(roleType) {
       return;
     }
 
+    const members = result.data || result.members || [];
+    const waitingCount = countWaiting(members);
+    const totalCount = members.length;
+
+    // อัปเดตข้อความบนปุ่มของแท็บปัจจุบัน (แสดงยอดที่เหลือ / จำนวนทั้งหมด)
+    if (roleType === 'DIRECTOR') {
+       document.getElementById('tab-btn-director-text').innerText = `คิว ผอ.ฝ่าย (เหลือ ${waitingCount}/${totalCount} ท่าน)`;
+    } else {
+       document.getElementById('tab-btn-staff-text').innerText = `คิว พนักงาน (เหลือ ${waitingCount}/${totalCount} ท่าน)`;
+    }
+
+    if (members.length === 0) {
+       tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">ไม่พบข้อมูลบุคลากรในระบบ</td></tr>';
+       return;
+    }
+
     let html = '';
-    result.members.forEach((m, idx) => {
+    members.forEach((m, idx) => {
       let statusBadge = '';
       if (m.status === 'HOLD') {
         statusBadge = `<span class="badge badge-hold"><i class="fa-solid fa-pause"></i> HOLD (ค้างสิทธิ์)</span><br><small style="color:var(--warning);">${escapeHtml(m.hold_reason || '')}</small>`;
@@ -304,6 +342,7 @@ async function loadQueueView(roleType) {
     tbody.innerHTML = html;
   } catch (err) {
     console.error('Error loading queue:', err);
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color:var(--danger);">เกิดข้อผิดพลาดในการดึงข้อมูล</td></tr>';
   }
 }
 
@@ -497,7 +536,8 @@ async function previewCandidates() {
     const result = await res.json();
 
     if (result.success) {
-      previewedStaff = result.suggestedStaff;
+      // แก้ไข: ดึงข้อมูลจาก result.data.staff แทน และใช้ || [] ดักเผื่อกรณีไม่มีข้อมูล
+      previewedStaff = result.data.staff || [];
       renderCandidatesList('preview-staff-list', previewedStaff);
     }
   } catch (err) {

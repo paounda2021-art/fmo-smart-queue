@@ -1,5 +1,6 @@
-const express = require('express');
+﻿const express = require('express');
 const router = express.Router();
+const axios = require('axios');
 const { dbRun, dbGet, dbAll } = require('../db/database');
 const { sendMissionNotification } = require('../services/notification');
 
@@ -172,6 +173,183 @@ router.get('/queue/:roleType', async (req, res) => {
 // -------------------------------------------------------------
 // 3. CANDIDATE PREVIEW FOR NEW MISSION
 // -------------------------------------------------------------
+
+// LINE Webhook Endpoint
+router.post('/line-webhook', async (req, res) => {
+  // ตอบ LINE กลับไปทันทีว่าเซิร์ฟเวอร์รับข้อมูลแล้ว (ป้องกัน timeout ถ้าประมวลผลช้า)
+  // ส่วนที่เหลือประมวลผลแบบ fire-and-forget ด้านล่าง
+  res.status(200).send('OK');
+
+  try {
+    const events = req.body.events;
+
+    if (events && events.length > 0) {
+      for (const event of events) {
+        // ครอบ try/catch รายอีเวนต์ กัน event เดียวพังแล้ว event อื่นในชุดเดียวกันไม่ถูกประมวลผลต่อ
+        try {
+        // เช็กว่าผู้ใช้ส่ง "ข้อความตัวอักษร" เข้ามาหรือไม่
+        if (event.type === 'message' && event.message.type === 'text') {
+          const userMessage = event.message.text.trim().toUpperCase();
+          const lineUserId = event.source.userId;
+          const replyToken = event.replyToken;
+          
+          let messagesPayload = []; // ตัวแปรสำหรับเก็บก้อนข้อความที่จะตอบกลับ
+
+          // ---------------------------------------------------------
+          // 1. รับรหัสพนักงาน -> เช็กซ้ำ -> ส่ง Flex Message ขอความยินยอม (PDPA)
+          // ---------------------------------------------------------
+          if (userMessage.startsWith('EMP-') || userMessage.startsWith('DIR-')) {
+            const person = await dbGet(`SELECT * FROM personnel WHERE UPPER(emp_code) = ?`, [userMessage]);
+
+            if (person) {
+              // เช็กระบบป้องกันการผูกซ้ำ (ถ้ามี line_user_id อยู่แล้ว จะไม่ให้ผูกใหม่)
+              if (person.line_user_id) {
+                messagesPayload = [{
+                  type: 'text',
+                  text: `⚠️ รหัสรับคิว ${userMessage} ถูกผูกกับบัญชี LINE อื่นไปแล้วค่ะ\n\nหากต้องการแก้ไขหรือเปลี่ยนบัญชี กรุณาติดต่อทีม IT นะคะ 🛠️`
+                }];
+              } else {
+                // ยังไม่เคยผูก: ส่ง Flex Message ขอความยินยอม PDPA
+                messagesPayload = [{
+                  type: "flex",
+                  altText: "ขอความยินยอมการใช้ข้อมูลส่วนบุคคล (PDPA)",
+                  contents: {
+                    type: "bubble",
+                    header: {
+                      type: "box",
+                      layout: "vertical",
+                      backgroundColor: "#0056A0",
+                      contents: [
+                        { type: "text", text: "นโยบายความเป็นส่วนตัว (PDPA)", weight: "bold", color: "#FFFFFF", size: "sm" },
+                        { type: "text", text: "FMO Smart Queue", weight: "bold", size: "xl", color: "#FFFFFF", margin: "sm" }
+                      ]
+                    },
+                    body: {
+                      type: "box",
+                      layout: "vertical",
+                      contents: [
+                        { type: "text", text: `สวัสดีคุณ ${person.name}`, weight: "bold", size: "md", color: "#111111", wrap: true },
+                        { type: "text", text: "เพื่อความสะดวกในการรับแจ้งเตือนคิวและภารกิจ องค์การสะพานปลา (อสป.) มีความจำเป็นต้องจัดเก็บข้อมูล LINE User ID ของท่าน", wrap: true, size: "sm", color: "#666666", margin: "md" },
+                        { type: "text", text: "ข้อมูลนี้จะถูกใช้เพื่อการแจ้งเตือนภายในระบบ FMO Smart Queue เท่านั้น และจะถูกเก็บรักษาตามมาตรฐานความปลอดภัย", wrap: true, size: "sm", color: "#666666", margin: "md" },
+                        { type: "text", text: "ท่านยินยอมให้ระบบจัดเก็บข้อมูลหรือไม่?", wrap: true, weight: "bold", size: "sm", color: "#0056A0", margin: "lg" }
+                      ]
+                    },
+                    footer: {
+                      type: "box",
+                      layout: "vertical",
+                      spacing: "sm",
+                      contents: [
+                        {
+                          type: "button",
+                          style: "primary",
+                          color: "#0056A0",
+                          action: { type: "message", label: "✅ ยินยอม (ผูกบัญชี)", text: `CONFIRM-${userMessage}` }
+                        },
+                        {
+                          type: "button",
+                          style: "secondary",
+                          action: { type: "message", label: "❌ ไม่ยินยอม (ส่งเมลแทน)", text: `CANCEL-${userMessage}` }
+                        }
+                      ]
+                    }
+                  }
+                }];
+              }
+            } else {
+              messagesPayload = [{
+                type: 'text',
+                text: `❌ ไม่พบรหัสรับคิว "${userMessage}" ในระบบ 🥺\n\n🔍 กรุณาตรวจสอบและพิมพ์รหัสใหม่อีกครั้งค่ะ 💡`
+              }];
+            }
+          } 
+          // ---------------------------------------------------------
+          // 2. เมื่อกดปุ่ม "✅ ยินยอม (ผูกบัญชี)" -> บันทึกข้อมูลลงฐานข้อมูล
+          // ---------------------------------------------------------
+          else if (userMessage.startsWith('CONFIRM-')) {
+            const targetEmpCode = userMessage.replace('CONFIRM-', '');
+            const person = await dbGet(`SELECT * FROM personnel WHERE UPPER(emp_code) = ?`, [targetEmpCode]);
+
+            if (person) {
+              // ใช้ atomic UPDATE พร้อมเงื่อนไข line_user_id IS NULL ใน WHERE
+              // กันปัญหากดยืนยันซ้อนกันพอดีแล้วผูกบัญชีทับกัน (race condition)
+              const bindResult = await dbRun(
+                `UPDATE personnel SET line_user_id = ? WHERE id = ? AND line_user_id IS NULL`,
+                [lineUserId, person.id]
+              );
+
+              if (bindResult && bindResult.changes > 0) {
+                messagesPayload = [{
+                  type: 'text',
+                  text: `🎉 ยืนยันการผูกบัญชีสำเร็จ! ✅\n\n👋 สวัสดีค่ะ\n👤 ${person.name}\n\n🐟 ระบบ FMO Smart Queue ได้เชื่อมต่อกับ LINE ของคุณเรียบร้อยแล้ว 📱✨\n\n🚀 พร้อมรับการแจ้งเตือนคิวและภารกิจต่างๆ ได้ทันทีค่ะ!`
+                }];
+              } else {
+                messagesPayload = [{ type: 'text', text: `⚠️ รหัสรับคิว ${targetEmpCode} ถูกผูกบัญชีไปแล้วค่ะ` }];
+              }
+            } else {
+              messagesPayload = [{ type: 'text', text: `❌ เกิดข้อผิดพลาด ไม่พบข้อมูลรหัสรับคิวค่ะ` }];
+            }
+          } 
+          // ---------------------------------------------------------
+          // 3. เมื่อกดปุ่ม "❌ ไม่ยินยอม (ส่งเมลแทน)" -> แจ้งเปลี่ยนช่องทาง
+          // ---------------------------------------------------------
+          else if (userMessage.startsWith('CANCEL-')) {
+            const targetEmpCode = userMessage.replace('CANCEL-', '');
+            const person = await dbGet(`SELECT * FROM personnel WHERE UPPER(emp_code) = ?`, [targetEmpCode]);
+
+            if (person) {
+              const userEmail = person.email ? person.email : 'อีเมลองค์กรของคุณ';
+              messagesPayload = [{
+                type: 'text',
+                text: `❌ ท่านไม่ยินยอมให้จัดเก็บข้อมูล (PDPA)\n\nระบบจะไม่มีการผูกบัญชี LINE ค่ะ 🛡️\n\n📧 อย่างไรก็ตาม เพื่อไม่ให้ท่านพลาดการติดต่อ ระบบจะทำการส่งการแจ้งเตือนคิวและภารกิจต่างๆ ไปยังอีเมล:\n👉 ${userEmail}\nโดยอัตโนมัติแทนนะคะ 😊`
+              }];
+            } else {
+              messagesPayload = [{ type: 'text', text: `❌ ยกเลิกการทำรายการเรียบร้อยแล้วค่ะ` }];
+            }
+          } 
+          // ---------------------------------------------------------
+          // 4. กรณีพิมพ์ข้อความอื่นๆ ที่ไม่เข้าระบบ
+          // ---------------------------------------------------------
+          else {
+             messagesPayload = [{
+               type: 'text',
+               text: `ℹ️ หากต้องการผูกบัญชีเข้ากับระบบ FMO Smart Queue กรุณาพิมพ์รหัสพนักงานของคุณ (เช่น EMP-025) ได้เลยค่ะ`
+             }];
+          }
+
+          // ---------------------------------------------------------
+          // ยิง API สั่งให้ LINE ตอบกลับข้อความทั้งหมด
+          // ---------------------------------------------------------
+          if (messagesPayload.length > 0) {
+            try {
+              await axios.post('https://api.line.me/v2/bot/message/reply', {
+                replyToken: replyToken,
+                messages: messagesPayload
+              }, {
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}`
+                }
+              });
+            } catch (replyErr) {
+              // LINE จะส่งรายละเอียด error ที่แท้จริงมาใน response.data
+              // เช่น invalid reply token, invalid channel access token ฯลฯ
+              console.error(
+                'LINE Reply API Error:',
+                replyErr.response ? replyErr.response.data : replyErr.message
+              );
+            }
+          }
+        }
+        } catch (eventErr) {
+          console.error('Event processing error:', eventErr);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Webhook Error:', err);
+  }
+});
+
 router.post('/missions/preview-candidates', async (req, res) => {
   try {
     const { required_directors = 1, required_staff = 1 } = req.body;
@@ -181,42 +359,39 @@ router.post('/missions/preview-candidates', async (req, res) => {
 
       const candidates = await dbAll(
         `SELECT 
-          qm.personnel_id,
-          qm.role_type,
-          qm.current_round,
-          qm.queue_order,
-          qm.status as queue_status,
-          qm.hold_reason,
-          p.emp_code,
-          p.name,
-          p.department,
-          p.position
-         FROM queue_members qm
-         JOIN personnel p ON qm.personnel_id = p.id
-         WHERE qm.role_type = ? AND qm.status IN ('HOLD', 'WAITING')
-         ORDER BY 
-           CASE qm.status
-             WHEN 'HOLD' THEN 1
-             WHEN 'WAITING' THEN 2
-           END,
-           qm.queue_order ASC
-         LIMIT ?;`,
-        [roleType, count]
+           qm.personnel_id, 
+           qm.role_type, 
+           qm.current_round,
+           p.emp_code,
+           p.name,
+           p.department,
+           p.position,
+           p.email,
+           p.phone
+          FROM queue_members qm
+          JOIN personnel p ON qm.personnel_id = p.id
+          WHERE UPPER(qm.role_type) = UPPER(?) AND qm.status IN ('HOLD', 'WAITING')
+          ORDER BY qm.current_round ASC, qm.queue_order ASC
+          LIMIT ?`,
+          [roleType, count]
       );
 
       return candidates;
     };
 
-    const suggestedDirectors = await selectCandidatesForRole('DIRECTOR', Number(required_directors));
-    const suggestedStaff = await selectCandidatesForRole('STAFF', Number(required_staff));
+    const directors = await selectCandidatesForRole('DIRECTOR', required_directors);
+    const staff = await selectCandidatesForRole('STAFF', required_staff);
 
     res.json({
       success: true,
-      suggestedDirectors,
-      suggestedStaff
+      data: {
+        directors,
+        staff
+      }
     });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    console.error('Preview Candidates Error:', err);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
   }
 });
 
@@ -659,7 +834,7 @@ router.get('/personnel', async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// 6. EMPLOYEE ACKNOWLEDGEMENT & AUTO RE-ALLOCATION ON CONFLICT
+// 9. EMPLOYEE ACKNOWLEDGEMENT & AUTO RE-ALLOCATION ON CONFLICT
 // -------------------------------------------------------------
 router.post('/missions/respond', async (req, res) => {
   try {
@@ -684,7 +859,6 @@ router.post('/missions/respond', async (req, res) => {
     const mission = await dbGet(`SELECT * FROM missions WHERE id = ?;`, [mission_id]);
 
     if (response_status === 'ACKNOWLEDGED') {
-      // 1. ACCEPTANCE
       await dbRun(
         `UPDATE mission_assignments 
          SET ack_status = 'ACKNOWLEDGED', ack_at = CURRENT_TIMESTAMP 
@@ -697,10 +871,8 @@ router.post('/missions/respond', async (req, res) => {
         message: `บันทึกการรับทราบเข้าร่วมกิจกรรมของ ${assignment.name} เรียบร้อยแล้ว`
       });
     } else if (response_status === 'DECLINED_BUSY') {
-      // 2. DECLINE BUSY -> AUTO RE-ALLOCATION WORKFLOW
       const reasonText = decline_reason || 'ติดภารกิจซ้อน (ขอสลับคิวอัตโนมัติ)';
 
-      // Mark original assignment as SUBSTITUTED & DECLINED_BUSY
       await dbRun(
         `UPDATE mission_assignments 
          SET assignment_status = 'SUBSTITUTED', ack_status = 'DECLINED_BUSY', decline_reason = ?, ack_at = CURRENT_TIMESTAMP 
@@ -708,7 +880,6 @@ router.post('/missions/respond', async (req, res) => {
         [reasonText, assignment.id]
       );
 
-      // Place original person on HOLD in current round so they get top priority for next mission
       await dbRun(
         `UPDATE queue_members 
          SET status = 'HOLD', hold_reason = ?, hold_timestamp = CURRENT_TIMESTAMP 
@@ -716,7 +887,6 @@ router.post('/missions/respond', async (req, res) => {
         [reasonText, personnel_id]
       );
 
-      // Find next candidate in queue for same role_type
       const roleType = assignment.role_type;
       const state = await dbGet(`SELECT current_round FROM queue_state WHERE role_type = ?;`, [roleType]);
       const currentRound = state ? state.current_round : 1;
@@ -737,7 +907,6 @@ router.post('/missions/respond', async (req, res) => {
       let replacementName = '';
       if (nextCandidate) {
         replacementName = nextCandidate.name;
-        // Assign replacement candidate
         await dbRun(
           `INSERT INTO mission_assignments (mission_id, personnel_id, role_type, assigned_round, is_leader, assignment_status, substituted_for_personnel_id, notes, ack_status)
            VALUES (?, ?, ?, ?, ?, 'JOINED', ?, ?, 'PENDING_ACK');`,
@@ -752,7 +921,6 @@ router.post('/missions/respond', async (req, res) => {
           ]
         );
 
-        // Update replacement candidate status to COMPLETED
         await dbRun(
           `UPDATE queue_members 
            SET status = 'COMPLETED', hold_reason = NULL, hold_timestamp = NULL, last_assigned_at = CURRENT_TIMESTAMP 
@@ -760,10 +928,7 @@ router.post('/missions/respond', async (req, res) => {
           [nextCandidate.personnel_id]
         );
 
-        // Check Round progression
         await checkAndAdvanceRound(roleType);
-
-        // Send Notification to Replacement Candidate
         sendMissionNotification(mission, [nextCandidate], true).catch(e => console.error('Notification dispatch error:', e));
       }
 
@@ -798,7 +963,7 @@ router.get('/notifications/logs', async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// 9. EXPORT SUMMARY REPORT DATA
+// 10. EXPORT SUMMARY REPORT DATA
 // -------------------------------------------------------------
 router.get('/reports/export', async (req, res) => {
   try {
@@ -843,7 +1008,7 @@ router.get('/reports/export', async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// 10. IMPORT REAL PERSONNEL DATA (CSV)
+// 11. IMPORT REAL PERSONNEL DATA (CSV)
 // -------------------------------------------------------------
 router.post('/personnel/import-csv', async (req, res) => {
   try {
@@ -852,7 +1017,6 @@ router.post('/personnel/import-csv', async (req, res) => {
       return res.status(400).json({ success: false, error: 'ไม่พบข้อมูลรายชื่อบุคลากรในไฟล์' });
     }
 
-    // Clear existing personnel & queue
     await dbRun(`DELETE FROM mission_assignments;`);
     await dbRun(`DELETE FROM queue_members;`);
     await dbRun(`DELETE FROM personnel;`);
@@ -860,7 +1024,6 @@ router.post('/personnel/import-csv', async (req, res) => {
 
     let dirOrder = 1;
     let staffOrder = 1;
-
     const usedEmpCodes = new Set();
 
     for (const p of personnelList) {
@@ -876,7 +1039,6 @@ router.post('/personnel/import-csv', async (req, res) => {
         empCode = role === 'DIRECTOR' ? `DIR-${String(dirOrder).padStart(2, '0')}` : `EMP-${String(staffOrder).padStart(3, '0')}`;
       }
 
-      // Ensure empCode is 100% unique to prevent SQLite constraint errors
       let uniqueEmpCode = empCode;
       let dupCounter = 1;
       while (usedEmpCodes.has(uniqueEmpCode)) {
