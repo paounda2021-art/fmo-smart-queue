@@ -18,6 +18,7 @@ app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 // Mount API routes
 app.use('/api', apiRoutes);
 
+<<<<<<< HEAD
 // Redirect หน้าแรก (/) ไปที่หน้า login
 app.get('/', (req, res) => {
   res.redirect('/login');
@@ -28,6 +29,28 @@ app.get('/login', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
+=======
+>>>>>>> 47cd7ac0e6b11d808d7c33713a91005f114fa2db
+// Serve main app
+app.get('/app', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+<<<<<<< HEAD
+// Fallback for SPA routes
+app.get('*', (req, res) => {
+  if (req.path.includes('.')) {
+=======
+// Serve login page
+app.get('/login', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+// Redirect หน้าแรก (/) ไปที่หน้า login
+app.get('/', (req, res) => {
+  res.redirect('/login');
+});
+
 // Serve main app
 app.get('/app', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -36,6 +59,8 @@ app.get('/app', (req, res) => {
 // Fallback for SPA routes
 app.get('*', (req, res) => {
   if (req.path.includes('.')) {
+    // Let static files be served (they already are from express.static)
+>>>>>>> 47cd7ac0e6b11d808d7c33713a91005f114fa2db
     res.status(404).send('Not found');
   } else {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
