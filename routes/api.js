@@ -597,60 +597,94 @@ router.post('/line-webhook', async (req, res) => {
           console.log('[DEBUG] 📩 LINE Postback:', postbackData);
 
           if (postbackData.startsWith('ACK|')) {
-            const [, missionIdRaw, personnelIdRaw] = postbackData.split('|');
-            const missionId = Number.parseInt(missionIdRaw, 10);
-            const personnelId = Number.parseInt(personnelIdRaw, 10);
+            const [, missionIdRaw, personnelIdRaw] =
+              postbackData.split('|');
 
-            if (!Number.isInteger(missionId) || !Number.isInteger(personnelId)) {
+            const missionId =
+              Number.parseInt(missionIdRaw, 10);
+
+            const personnelId =
+              Number.parseInt(personnelIdRaw, 10);
+
+            if (
+              !Number.isInteger(missionId) ||
+              !Number.isInteger(personnelId)
+            ) {
               replyMessages = [{
                 type: 'text',
-                text: '❌ ข้อมูลการตอบรับไม่ถูกต้อง กรุณาติดต่อเจ้าหน้าที่ค่ะ'
+                text:
+                  '❌ ข้อมูลการตอบรับไม่ถูกต้อง ' +
+                  'กรุณาติดต่อเจ้าหน้าที่ค่ะ'
               }];
             } else {
               const assignment = await dbGet(
                 `
                 SELECT
                   ma.*,
-                  p.name,
-                  m.mission_title
+                  p.name AS person_name,
+                  m.mission_title,
+                  m.description
                 FROM mission_assignments ma
-                JOIN personnel p ON p.id = ma.personnel_id
-                JOIN missions m ON m.id = ma.mission_id
+                JOIN personnel p
+                  ON p.id = ma.personnel_id
+                JOIN missions m
+                  ON m.id = ma.mission_id
                 WHERE ma.mission_id = ?
                   AND ma.personnel_id = ?
                 ORDER BY ma.id DESC
                 LIMIT 1;
                 `,
-                [missionId, personnelId]
+                [
+                  missionId,
+                  personnelId
+                ]
               );
 
               if (!assignment) {
                 replyMessages = [{
                   type: 'text',
-                  text: '❌ ไม่พบข้อมูลการจัดสรรในระบบ กรุณาติดต่อเจ้าหน้าที่ค่ะ'
+                  text:
+                    '❌ ไม่พบข้อมูลการจัดสรรในระบบ ' +
+                    'กรุณาติดต่อเจ้าหน้าที่ค่ะ'
                 }];
-              } else if (assignment.ack_status === 'ACKNOWLEDGED') {
+              }
+              else if (
+                assignment.ack_status === 'ACKNOWLEDGED'
+              ) {
                 replyMessages = [{
                   type: 'text',
-                  text: 'ℹ️ ท่านได้กดรับทราบกิจกรรมนี้แล้วค่ะ'
+                  text:
+                    'ℹ️ ท่านได้กดรับทราบกิจกรรมนี้แล้วค่ะ'
                 }];
-              } else {
+              }
+              else {
                 await dbRun(
                   `
                   UPDATE mission_assignments
-                  SET ack_status = 'ACKNOWLEDGED',
-                      ack_at = CURRENT_TIMESTAMP
+                  SET
+                    ack_status = 'ACKNOWLEDGED',
+                    ack_at = CURRENT_TIMESTAMP
                   WHERE id = ?;
                   `,
                   [assignment.id]
                 );
 
+                const missionDescription = String(
+                  assignment.description || ''
+                ).trim();
+
                 replyMessages = [{
                   type: 'text',
                   text:
-                    `✅ รับทราบแล้วค่ะ คุณ ${assignment.name}\n\n` +
-                    `📋 กิจกรรม: ${assignment.mission_title || '-'}\n\n` +
-                    'ระบบบันทึกการตอบรับเรียบร้อยแล้วค่ะ'
+          `✅ รับทราบแล้วค่ะ คุณ ${assignment.person_name || '-'}
+
+      📋 กิจกรรม:
+      ${assignment.mission_title || '-'}
+
+      📝 รายละเอียด/กำหนดการ:
+      ${missionDescription || 'ไม่มีรายละเอียดเพิ่มเติม'}
+
+      ระบบบันทึกการตอบรับเรียบร้อยแล้วค่ะ`
                 }];
               }
             }
@@ -692,7 +726,7 @@ router.post('/line-webhook', async (req, res) => {
                 type: 'text',
                 text:
                   `🔴 แจ้งติดภารกิจ (${assignment.mission_title || '-'})\n\n` +
-                  `คุณ ${assignment.name} กรุณาพิมพ์รหัสพนักงาน ` +
+                  `คุณ ${assignment.name} 🔴กรุณาพิมพ์รหัสพนักงาน ` +
                   '(เช่น EMP-025) ที่ต้องการให้ปฏิบัติงานแทนค่ะ'
               }];
             }

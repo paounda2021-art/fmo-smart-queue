@@ -22,6 +22,33 @@ function formatDate24h(dateStr) {
  * Generate LINE Flex Message Card JSON Payload
  */
 function createLineFlexCardPayload(mission, directors, staff, isReallocation = false, assignedList = []) {
+  const teamLeader =
+    (Array.isArray(directors)
+      ? directors.find(item =>
+          Number(item.is_leader) === 1 ||
+          String(item.role_type || '')
+            .trim()
+            .toUpperCase() === 'DIRECTOR'
+        )
+      : null) ||
+    (Array.isArray(assignedList)
+      ? assignedList.find(item =>
+          Number(item.is_leader) === 1 ||
+          String(item.role_type || '')
+            .trim()
+            .toUpperCase() === 'DIRECTOR'
+        )
+      : null);
+
+  const teamLeaderName =
+    teamLeader?.name ||
+    teamLeader?.person_name ||
+    (Array.isArray(assignedList)
+      ? assignedList.find(item => item?.team_leader_name)
+          ?.team_leader_name
+      : '') ||
+    '-';
+
   const headerTitle = isReallocation
   ? '🚨 แจ้งเตือนจัดสรรคิวแทน'
   : '📢 แจ้งคำสั่งจัดสรรคิวกิจกรรม อสป.';
@@ -67,19 +94,26 @@ function createLineFlexCardPayload(mission, directors, staff, isReallocation = f
             spacing: 'xs',
             contents: [
               {
-                type: 'text',
-                text: '👔 หัวหน้าทีม:',
-                color: '#64748b',
-                size: 'xs',
-                flex: 2
-              },
-              {
                 type: 'box',
                 layout: 'baseline',
                 spacing: 'sm',
                 contents: [
-                  { type: 'text', text: '📍 สถานที่:', color: '#64748b', size: 'xs', flex: 2 },
-                  { type: 'text', text: mission.location || 'สะพานปลา อสป.', color: '#1e293b', size: 'xs', flex: 5, wrap: true, weight: 'bold' }
+                  {
+                    type: 'text',
+                    text: '👔 หัวหน้าทีม:',
+                    color: '#64748b',
+                    size: 'xs',
+                    flex: 2
+                  },
+                  {
+                    type: 'text',
+                    text: teamLeaderName,
+                    color: '#1e293b',
+                    size: 'xs',
+                    flex: 5,
+                    wrap: true,
+                    weight: 'bold'
+                  }
                 ]
               },
               {
@@ -87,8 +121,22 @@ function createLineFlexCardPayload(mission, directors, staff, isReallocation = f
                 layout: 'baseline',
                 spacing: 'sm',
                 contents: [
-                  { type: 'text', text: '⏰ เวลา (24 ชม.):', color: '#64748b', size: 'xs', flex: 2 },
-                  { type: 'text', text: timeStr, color: '#0284c7', size: 'xs', flex: 5, wrap: true, weight: 'bold' }
+                  {
+                    type: 'text',
+                    text: '📍 สถานที่:',
+                    color: '#64748b',
+                    size: 'xs',
+                    flex: 2
+                  },
+                  {
+                    type: 'text',
+                    text: mission.location || 'สะพานปลา อสป.',
+                    color: '#1e293b',
+                    size: 'xs',
+                    flex: 5,
+                    wrap: true,
+                    weight: 'bold'
+                  }
                 ]
               },
               {
@@ -176,7 +224,8 @@ function createLineFlexCardPayload(mission, directors, staff, isReallocation = f
 function createPersonalizedFlexCard(
   mission,
   person,
-  isReallocation = false
+  isReallocation = false,
+  teamLeaderName = '-'
 ) {
   const missionId = mission.id;
   const personnelId = person.personnel_id || person.id;
@@ -284,7 +333,7 @@ function createPersonalizedFlexCard(
 
             contents: [
               // แสดงหัวหน้าทีมเฉพาะเมื่อมีข้อมูล
-              ...(person.team_leader_name
+              ...((person.team_leader_name || teamLeaderName !== '-')
                 ? [
                     {
                       type: 'box',
@@ -300,7 +349,7 @@ function createPersonalizedFlexCard(
                         },
                         {
                           type: 'text',
-                          text: person.team_leader_name,
+                          text: person.team_leader_name || teamLeaderName || '-',
                           color: '#1e293b',
                           size: 'xs',
                           flex: 5,
@@ -482,14 +531,42 @@ function createPersonalizedFlexCard(
 
 async function sendMissionNotification(mission, assignedList, isReallocation = false) {
   try {
-    const directors = assignedList.filter(a => a.role_type === 'DIRECTOR' || a.is_leader === 1);
-    const staff = assignedList.filter(a => a.role_type === 'STAFF' && a.is_leader !== 1);
+    const directors = assignedList.filter(
+      a =>
+        String(a.role_type || '').trim().toUpperCase() === 'DIRECTOR' ||
+        Number(a.is_leader) === 1
+    );
+
+    const staff = assignedList.filter(
+      a =>
+        String(a.role_type || '').trim().toUpperCase() === 'STAFF' &&
+        Number(a.is_leader) !== 1
+    );
+
+    const teamLeader =
+      directors.find(item => Number(item.is_leader) === 1) ||
+      directors[0] ||
+      null;
+
+    const teamLeaderName =
+      teamLeader?.name ||
+      teamLeader?.person_name ||
+      assignedList.find(item => item?.team_leader_name)
+        ?.team_leader_name ||
+      '-';
 
     const timeStr = `${formatDate24h(mission.start_date)} - ${formatDate24h(mission.end_date)}`;
     const lineHeader = isReallocation ? '🚨 [แจ้งเตือนจัดสรรแทนด่วน]' : '📢 [คำสั่งจัดสรรกิจกรรม อสป.]';
 
     // 1. GENERATE BEAUTIFUL LINE FLEX CARD JSON
-    const flexCardJson = createLineFlexCardPayload(mission, directors, staff, isReallocation);
+    
+    const flexCardJson = createLineFlexCardPayload(
+      mission,
+      directors,
+      staff,
+      isReallocation,
+      assignedList
+    );
 
     // 💡 ส่งจริงเข้ากลุ่ม LINE ถ้ามีการตั้งค่า LINE_GROUP_ID + LINE_CHANNEL_ACCESS_TOKEN ไว้ใน .env
     // (เดิมโค้ดส่วนนี้แค่บันทึกลง log แต่ไม่เคยส่งเข้ากลุ่มจริงเลย เพราะไม่มี groupId ให้ยิงไป)
@@ -572,7 +649,12 @@ async function sendMissionNotification(mission, assignedList, isReallocation = f
       }
 
       // สร้าง Flex Card เฉพาะบุคคล พร้อมปุ่ม postback (ACK|missionId|personnelId)
-      const personalCard = createPersonalizedFlexCard(mission, person, isReallocation);
+      const personalCard = createPersonalizedFlexCard(
+        mission,
+        person,
+        isReallocation,
+        teamLeaderName
+      );
 
       try {
         await axios.post('https://api.line.me/v2/bot/message/push', {
