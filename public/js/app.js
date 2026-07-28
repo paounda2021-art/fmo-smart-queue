@@ -1526,43 +1526,196 @@ async function openMissionDetailModal(missionId) {
       return;
     }
 
-    const { mission, assigned } = result;
+    const { mission, assigned = [] } = result;
 
-    document.getElementById('md-title').innerText = mission.mission_title;
-    document.getElementById('md-location-time').innerText = `สถานที่: ${mission.location || '-'} | ช่วงเวลา: ${formatDate(mission.start_date)} - ${formatDate(mission.end_date)}`;
-    document.getElementById('md-dress-code').innerText = `การแต่งกาย: ${mission.dress_code || 'ชุดปฏิบัติงาน อสป.'}`;
+    document.getElementById('md-title').innerText =
+      mission.mission_title;
 
-    const tbody = document.getElementById('md-assigned-body');
+    document.getElementById('md-location-time').innerText =
+      `สถานที่: ${mission.location || '-'} | ` +
+      `ช่วงเวลา: ${formatDate(mission.start_date)} - ` +
+      `${formatDate(mission.end_date)}`;
+
+    document.getElementById('md-dress-code').innerText =
+      `การแต่งกาย: ` +
+      `${mission.dress_code || 'ชุดปฏิบัติงาน อสป.'}`;
+
+    const tbody =
+      document.getElementById('md-assigned-body');
+
+    if (!tbody) return;
+
     if (assigned.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6">ไม่มีข้อมูลผู้ได้รับจัดสรร</td></tr>';
+      tbody.innerHTML =
+        '<tr><td colspan="6">ไม่มีข้อมูลผู้ได้รับจัดสรร</td></tr>';
     } else {
       let html = '';
+
       assigned.forEach(a => {
-        const roleBadge = a.is_leader === 1 
-          ? '<span class="badge badge-director">หัวหน้าทีม</span>' 
-          : '<span class="badge badge-staff">สมาชิก</span>';
+        const assignmentStatus = String(
+          a.assignment_status || ''
+        )
+          .trim()
+          .toUpperCase();
 
+        const ackStatus = String(
+          a.ack_status || ''
+        )
+          .trim()
+          .toUpperCase();
+
+        const roleBadge =
+          Number(a.is_leader) === 1
+            ? '<span class="badge badge-director">หัวหน้าทีม</span>'
+            : '<span class="badge badge-staff">สมาชิก</span>';
+
+        // ---------------------------------------------------
+        // สถานะที่แสดงในตาราง
+        //
+        // คนเดิม:
+        // SUBSTITUTED / DECLINED_BUSY = ติดภารกิจ
+        //
+        // คนแทน:
+        // JOINED + ACKNOWLEDGED = รับทราบแล้ว
+        // ---------------------------------------------------
         let ackStatusBadge = '';
-        if (a.ack_status === 'ACKNOWLEDGED') {
-          ackStatusBadge = '<span class="badge badge-hold"><i class="fa-solid fa-circle-xmark"></i> ติดภารกิจ</span>';
+
+        if (
+          assignmentStatus === 'SUBSTITUTED' ||
+          ackStatus === 'DECLINED_BUSY'
+        ) {
+          ackStatusBadge = `
+            <span class="badge badge-hold">
+              <i class="fa-solid fa-circle-xmark"></i>
+              ติดภารกิจ
+            </span>
+          `;
+        } else if (ackStatus === 'ACKNOWLEDGED') {
+          ackStatusBadge = `
+            <span class="badge badge-completed">
+              <i class="fa-solid fa-circle-check"></i>
+              รับทราบแล้ว
+            </span>
+          `;
         } else {
-          ackStatusBadge = '<span class="badge badge-waiting"><i class="fa-solid fa-clock"></i> รอการตอบรับ</span>';
+          ackStatusBadge = `
+            <span class="badge badge-waiting">
+              <i class="fa-solid fa-clock"></i>
+              รอการตอบรับ
+            </span>
+          `;
         }
 
-        let notesText = a.notes ? `<small style="color:var(--warning);">${escapeHtml(a.notes)}</small>` : '-';
-        if (a.assignment_status === 'SUBSTITUTED') {
-          notesText = `<span class="badge badge-hold">ถูกสลับคิวแทนแล้ว</span><br>${notesText}`;
+        // ---------------------------------------------------
+        // หมายเหตุ
+        // ---------------------------------------------------
+        let notesText = '-';
+
+if (
+  a.assignment_status === 'JOINED' &&
+  a.substituted_for_personnel_id
+) {
+  notesText = `
+    <small style="color:var(--warning);">
+      ปฏิบัติงานแทน
+      ${escapeHtml(
+        a.substitute_for_name ||
+        a.original_name ||
+        ''
+      )}
+    </small>
+  `;
+}
+else if (a.notes) {
+  let cleanedNote = String(a.notes).trim();
+
+  // ปฏิบัติงานแทน นาย ก (นาย ก)
+  // ให้เหลือ ปฏิบัติงานแทน นาย ก
+  cleanedNote = cleanedNote.replace(
+    /^ปฏิบัติงานแทน\s+(.+?)\s*\(\s*\1\s*\)\s*$/i,
+    'ปฏิบัติงานแทน $1'
+  );
+
+  notesText = `
+    <small style="color:var(--warning);">
+      ${escapeHtml(cleanedNote)}
+    </small>
+  `;
+}
+
+        if (
+          assignmentStatus === 'SUBSTITUTED' ||
+          ackStatus === 'DECLINED_BUSY'
+        ) {
+          notesText = `
+            <span class="badge badge-hold">
+              ส่งตัวแทนแล้ว
+            </span>
+            <br>
+            ${notesText}
+          `;
+        } else if (
+          assignmentStatus === 'JOINED' &&
+          a.substituted_for_personnel_id
+        ) {
+          notesText = `
+            <span
+              class="badge badge-completed"
+              style="margin-bottom:4px;"
+            >
+              ผู้ปฏิบัติงานแทน
+            </span>
+            <br>
+            ${notesText}
+          `;
         }
 
+        // ---------------------------------------------------
+        // ปุ่มดำเนินการ
+        //
+        // แสดงเฉพาะแถว JOINED ที่ยังรอการตอบรับ
+        // เมื่อรับทราบแล้วจะไม่แสดงปุ่มซ้ำ
+        // ---------------------------------------------------
         let actionBtn = '-';
-        if (a.assignment_status === 'JOINED') {
+
+        if (
+          assignmentStatus === 'JOINED' &&
+          ackStatus !== 'ACKNOWLEDGED'
+        ) {
           actionBtn = `
-            <div style="display:flex; gap:4px; flex-wrap:wrap;">
-              <button class="btn btn-primary btn-sm" onclick="respondToMission(${mission.id}, ${a.personnel_id}, 'ACKNOWLEDGED')">
-                <i class="fa-solid fa-check"></i> รับทราบ
+            <div
+              style="
+                display:flex;
+                gap:4px;
+                flex-wrap:wrap;
+              "
+            >
+              <button
+                class="btn btn-primary btn-sm"
+                onclick="
+                  respondToMission(
+                    ${mission.id},
+                    ${a.personnel_id},
+                    'ACKNOWLEDGED'
+                  )
+                "
+              >
+                <i class="fa-solid fa-check"></i>
+                รับทราบ
               </button>
-              <button class="btn btn-warning btn-sm" onclick="respondToMission(${mission.id}, ${a.personnel_id}, 'DECLINED_BUSY')">
-                <i class="fa-solid fa-pause"></i> ติดภารกิจ
+
+              <button
+                class="btn btn-warning btn-sm"
+                onclick="
+                  respondToMission(
+                    ${mission.id},
+                    ${a.personnel_id},
+                    'DECLINED_BUSY'
+                  )
+                "
+              >
+                <i class="fa-solid fa-pause"></i>
+                ติดภารกิจ
               </button>
             </div>
           `;
@@ -1571,20 +1724,49 @@ async function openMissionDetailModal(missionId) {
         html += `
           <tr>
             <td>${roleBadge}</td>
-            <td><code>${a.emp_code}</code></td>
-            <td><strong style="color:var(--text-heading);">${escapeHtml(a.name)}</strong></td>
-            <td>${escapeHtml(a.position)} (${escapeHtml(a.department)})</td>
-            <td>${ackStatusBadge}<br>${notesText}</td>
-            <td class="no-print">${actionBtn}</td>
+
+            <td>
+              <code>${escapeHtml(a.emp_code || '-')}</code>
+            </td>
+
+            <td>
+              <strong style="color:var(--text-heading);">
+                ${escapeHtml(a.name || '-')}
+              </strong>
+            </td>
+
+            <td>
+              ${escapeHtml(a.position || '-')}
+              (${escapeHtml(a.department || '-')})
+            </td>
+
+            <td>
+              ${ackStatusBadge}
+              <br>
+              ${notesText}
+            </td>
+
+            <td class="no-print">
+              ${actionBtn}
+            </td>
           </tr>
         `;
       });
+
       tbody.innerHTML = html;
     }
 
     openModal('modal-mission-detail');
   } catch (err) {
-    console.error('Error loading activity details:', err);
+    console.error(
+      'Error loading activity details:',
+      err
+    );
+
+    showToast(
+      'ไม่สามารถโหลดรายละเอียดกิจกรรมได้',
+      'danger'
+    );
   }
 }
 
