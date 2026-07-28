@@ -608,3 +608,37 @@ table.custom-table tbody tr:hover {
   from { opacity: 1; transform: translateX(0) scale(1); }
   to { opacity: 0; transform: translateX(50px) scale(0.95); }
 }
+
+/* แต่งหน้าต่าง Popup ให้โค้งมน */
+.rounded-popup {
+    border-radius: 24px !important; /* ปรับความมนของกรอบหน้าต่าง */
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1) !important; /* เงานุ่มๆ */
+    padding: 1.5em !important; /* ลดความกว้างของระยะขอบด้านใน */
+}
+
+/* แต่งกล่องกรอกข้อความ (Input) */
+.rounded-input {
+    border-radius: 12px !important; /* ขอบกล่องข้อความมน */
+    border: 1px solid #d1d5db !important;
+    text-align: center !important; /* จัดข้อความให้อยู่ตรงกลาง */
+}
+.rounded-input:focus {
+    border-color: #3b82f6 !important;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
+}
+
+/* แต่งปุ่มกดให้โค้งมนเข้าชุดกัน */
+.rounded-confirm-btn {
+    border-radius: 12px !important;
+    background-color: #3b82f6 !important; /* สีฟ้า */
+    border: none !important;
+}
+.rounded-cancel-btn {
+    border-radius: 12px !important;
+    background-color: #6b7280 !important; /* สีเทา */
+    border: none !important;
+}
+.rounded-title {
+    font-size: 20px !important; /* 💡 ลองเปลี่ยนตัวเลขตรงนี้ เช่น 16px (เล็กลง) หรือ 24px (ใหญ่ขึ้น) */
+    color: #374151 !important; 
+}

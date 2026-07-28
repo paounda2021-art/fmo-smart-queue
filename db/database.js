@@ -32,7 +32,6 @@ const dbAll = (sql, params = []) => {
   });
 };
 
-// Initialize Schema Function
 async function initSchema() {
   await dbRun(`PRAGMA foreign_keys = ON;`);
 
@@ -50,9 +49,6 @@ async function initSchema() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   `);
-
-  // Add line_user_id to personnel table
-  try { await dbRun(`ALTER TABLE personnel ADD COLUMN line_user_id TEXT NULL;`); } catch (e) {}
 
   // Queue State Table
   await dbRun(`
@@ -123,6 +119,7 @@ async function initSchema() {
   try { await dbRun(`ALTER TABLE mission_assignments ADD COLUMN ack_status VARCHAR(20) DEFAULT 'PENDING_ACK';`); } catch (e) {}
   try { await dbRun(`ALTER TABLE mission_assignments ADD COLUMN ack_at DATETIME;`); } catch (e) {}
   try { await dbRun(`ALTER TABLE mission_assignments ADD COLUMN decline_reason TEXT;`); } catch (e) {}
+  try { await dbRun(`ALTER TABLE missions ADD COLUMN mission_code VARCHAR(50);`); } catch (e) {}
 
   // Notification Logs Table
   await dbRun(`

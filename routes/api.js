@@ -1,9 +1,40 @@
-﻿const express = require('express');
+const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 const { dbRun, dbGet, dbAll } = require('../db/database');
 const { sendMissionNotification } = require('../services/notification');
 
+// Helper: Generate Auto-Running Mission Code (FMO-ATMMYY-XXX)
+async function generateMissionCode() {
+    const now = new Date();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    // ดึงปีปัจจุบัน (เช่น 2026 + 543 = 2569) แล้วตัดเอาแค่ 2 หลักท้าย ('69')
+    const thaiYear = now.getFullYear() + 543;
+    const shortYear = String(thaiYear).slice(-2);
+    const prefix = `FMO-AT${month}${shortYear}-`;
+
+    try {
+        // ใช้ dbGet ดึงข้อมูลรหัสล่าสุดของเดือนนี้
+        const row = await dbGet(
+            `SELECT mission_code FROM missions WHERE mission_code LIKE ? ORDER BY id DESC LIMIT 1`,
+            [`${prefix}%`]
+        );
+        
+        let nextNumber = 1;
+        // ถ้าระบบค้นเจอข้อมูลเก่า ให้เอาเลข 3 หลักท้ายมาบวก 1
+        if (row && row.mission_code) {
+            const lastCode = row.mission_code;
+            const lastNumberStr = lastCode.split('-').pop(); // ตัดเอาเฉพาะส่วนท้าย
+            nextNumber = parseInt(lastNumberStr, 10) + 1;
+        }
+        
+        // ประกอบร่างรหัสใหม่ พร้อมเติมเลข 0 ด้านหน้าให้ครบ 3 หลัก (001, 002, ...)
+        return prefix + String(nextNumber).padStart(3, '0');
+    } catch (error) {
+        console.error('Error generating mission code:', error);
+        throw error; // โยน Error กลับไปให้ Route จัดการ
+    }
+}
 // Helper: Auto-advance round if everyone completed
 async function checkAndAdvanceRound(roleType) {
   const state = await dbGet(`SELECT current_round FROM queue_state WHERE role_type = ?;`, [roleType]);
@@ -177,7 +208,6 @@ router.get('/queue/:roleType', async (req, res) => {
 // LINE Webhook Endpoint
 router.post('/line-webhook', async (req, res) => {
   // ตอบ LINE กลับไปทันทีว่าเซิร์ฟเวอร์รับข้อมูลแล้ว (ป้องกัน timeout ถ้าประมวลผลช้า)
-  // ส่วนที่เหลือประมวลผลแบบ fire-and-forget ด้านล่าง
   res.status(200).send('OK');
 
   try {
@@ -185,161 +215,559 @@ router.post('/line-webhook', async (req, res) => {
 
     if (events && events.length > 0) {
       for (const event of events) {
-        // ครอบ try/catch รายอีเวนต์ กัน event เดียวพังแล้ว event อื่นในชุดเดียวกันไม่ถูกประมวลผลต่อ
         try {
-        // เช็กว่าผู้ใช้ส่ง "ข้อความตัวอักษร" เข้ามาหรือไม่
-        if (event.type === 'message' && event.message.type === 'text') {
-          const userMessage = event.message.text.trim().toUpperCase();
-          const lineUserId = event.source.userId;
-          const replyToken = event.replyToken;
-          
-          let messagesPayload = []; // ตัวแปรสำหรับเก็บก้อนข้อความที่จะตอบกลับ
 
-          // ---------------------------------------------------------
-          // 1. รับรหัสพนักงาน -> เช็กซ้ำ -> ส่ง Flex Message ขอความยินยอม (PDPA)
-          // ---------------------------------------------------------
-          if (userMessage.startsWith('EMP-') || userMessage.startsWith('DIR-')) {
-            const person = await dbGet(`SELECT * FROM personnel WHERE UPPER(emp_code) = ?`, [userMessage]);
+          // =============================================================
+          // A. POSTBACK EVENT: รองรับปุ่มกดรับทราบ / ติดภารกิจ จาก Flex Card
+          // =============================================================
+          if (event.type === 'postback') {
+            const postbackData = (event.postback && event.postback.data) ? event.postback.data : '';
+            const lineUserId = event.source?.userId;
+            const replyToken = event.replyToken;
+            let replyMessages = [];
 
-            if (person) {
-              // เช็กระบบป้องกันการผูกซ้ำ (ถ้ามี line_user_id อยู่แล้ว จะไม่ให้ผูกใหม่)
-              if (person.line_user_id) {
-                messagesPayload = [{
-                  type: 'text',
-                  text: `⚠️ รหัสรับคิว ${userMessage} ถูกผูกกับบัญชี LINE อื่นไปแล้วค่ะ\n\nหากต้องการแก้ไขหรือเปลี่ยนบัญชี กรุณาติดต่อทีม IT นะคะ 🛠️`
-                }];
-              } else {
-                // ยังไม่เคยผูก: ส่ง Flex Message ขอความยินยอม PDPA
-                messagesPayload = [{
-                  type: "flex",
-                  altText: "ขอความยินยอมการใช้ข้อมูลส่วนบุคคล (PDPA)",
-                  contents: {
-                    type: "bubble",
-                    header: {
-                      type: "box",
-                      layout: "vertical",
-                      backgroundColor: "#0056A0",
-                      contents: [
-                        { type: "text", text: "นโยบายความเป็นส่วนตัว (PDPA)", weight: "bold", color: "#FFFFFF", size: "sm" },
-                        { type: "text", text: "FMO Smart Queue", weight: "bold", size: "xl", color: "#FFFFFF", margin: "sm" }
-                      ]
-                    },
-                    body: {
-                      type: "box",
-                      layout: "vertical",
-                      contents: [
-                        { type: "text", text: `สวัสดีคุณ ${person.name}`, weight: "bold", size: "md", color: "#111111", wrap: true },
-                        { type: "text", text: "เพื่อความสะดวกในการรับแจ้งเตือนคิวและภารกิจ องค์การสะพานปลา (อสป.) มีความจำเป็นต้องจัดเก็บข้อมูล LINE User ID ของท่าน", wrap: true, size: "sm", color: "#666666", margin: "md" },
-                        { type: "text", text: "ข้อมูลนี้จะถูกใช้เพื่อการแจ้งเตือนภายในระบบ FMO Smart Queue เท่านั้น และจะถูกเก็บรักษาตามมาตรฐานความปลอดภัย", wrap: true, size: "sm", color: "#666666", margin: "md" },
-                        { type: "text", text: "ท่านยินยอมให้ระบบจัดเก็บข้อมูลหรือไม่?", wrap: true, weight: "bold", size: "sm", color: "#0056A0", margin: "lg" }
-                      ]
-                    },
-                    footer: {
-                      type: "box",
-                      layout: "vertical",
-                      spacing: "sm",
-                      contents: [
-                        {
-                          type: "button",
-                          style: "primary",
-                          color: "#0056A0",
-                          action: { type: "message", label: "✅ ยินยอม (ผูกบัญชี)", text: `CONFIRM-${userMessage}` }
-                        },
-                        {
-                          type: "button",
-                          style: "secondary",
-                          action: { type: "message", label: "❌ ไม่ยินยอม (ส่งเมลแทน)", text: `CANCEL-${userMessage}` }
-                        }
-                      ]
-                    }
-                  }
-                }];
-              }
-            } else {
-              messagesPayload = [{
-                type: 'text',
-                text: `❌ ไม่พบรหัสรับคิว "${userMessage}" ในระบบ 🥺\n\n🔍 กรุณาตรวจสอบและพิมพ์รหัสใหม่อีกครั้งค่ะ 💡`
-              }];
-            }
-          } 
-          // ---------------------------------------------------------
-          // 2. เมื่อกดปุ่ม "✅ ยินยอม (ผูกบัญชี)" -> บันทึกข้อมูลลงฐานข้อมูล
-          // ---------------------------------------------------------
-          else if (userMessage.startsWith('CONFIRM-')) {
-            const targetEmpCode = userMessage.replace('CONFIRM-', '');
-            const person = await dbGet(`SELECT * FROM personnel WHERE UPPER(emp_code) = ?`, [targetEmpCode]);
+            // 📍 เพิ่ม Log เพื่อตรวจสอบค่าที่ส่งมาจากปุ่มกด
+            console.log(`[DEBUG] 📩 ได้รับข้อมูล Postback จาก LINE:`, postbackData);
 
-            if (person) {
-              // ใช้ atomic UPDATE พร้อมเงื่อนไข line_user_id IS NULL ใน WHERE
-              // กันปัญหากดยืนยันซ้อนกันพอดีแล้วผูกบัญชีทับกัน (race condition)
-              const bindResult = await dbRun(
-                `UPDATE personnel SET line_user_id = ? WHERE id = ? AND line_user_id IS NULL`,
-                [lineUserId, person.id]
+            // --- ACK: รับทราบ ---
+            if (postbackData.startsWith('ACK|')) {
+              const parts = postbackData.split('|');
+              const missionId = parseInt(parts[1], 10);
+              const personnelId = parseInt(parts[2], 10);
+
+              console.log(`[DEBUG] 🔍 กำลังค้นหาคิว: Mission ID = ${missionId}, Personnel ID = ${personnelId}`);
+
+              // 💡 นำเงื่อนไข AND ma.assignment_status = 'JOINED' ออกชั่วคราว เพื่อให้ค้นหาเจอแน่นอน
+              const assignment = await dbGet(
+                `SELECT ma.*, p.name FROM mission_assignments ma
+                 JOIN personnel p ON ma.personnel_id = p.id
+                 WHERE ma.mission_id = ? AND ma.personnel_id = ?;`,
+                [missionId, personnelId]
               );
 
-              if (bindResult && bindResult.changes > 0) {
-                messagesPayload = [{
-                  type: 'text',
-                  text: `🎉 ยืนยันการผูกบัญชีสำเร็จ! ✅\n\n👋 สวัสดีค่ะ\n👤 ${person.name}\n\n🐟 ระบบ FMO Smart Queue ได้เชื่อมต่อกับ LINE ของคุณเรียบร้อยแล้ว 📱✨\n\n🚀 พร้อมรับการแจ้งเตือนคิวและภารกิจต่างๆ ได้ทันทีค่ะ!`
-                }];
-              } else {
-                messagesPayload = [{ type: 'text', text: `⚠️ รหัสรับคิว ${targetEmpCode} ถูกผูกบัญชีไปแล้วค่ะ` }];
-              }
-            } else {
-              messagesPayload = [{ type: 'text', text: `❌ เกิดข้อผิดพลาด ไม่พบข้อมูลรหัสรับคิวค่ะ` }];
-            }
-          } 
-          // ---------------------------------------------------------
-          // 3. เมื่อกดปุ่ม "❌ ไม่ยินยอม (ส่งเมลแทน)" -> แจ้งเปลี่ยนช่องทาง
-          // ---------------------------------------------------------
-          else if (userMessage.startsWith('CANCEL-')) {
-            const targetEmpCode = userMessage.replace('CANCEL-', '');
-            const person = await dbGet(`SELECT * FROM personnel WHERE UPPER(emp_code) = ?`, [targetEmpCode]);
+              console.log(`[DEBUG] 📦 ข้อมูลที่ค้นพบในฐานข้อมูล:`, assignment);
 
-            if (person) {
-              const userEmail = person.email ? person.email : 'อีเมลองค์กรของคุณ';
-              messagesPayload = [{
-                type: 'text',
-                text: `❌ ท่านไม่ยินยอมให้จัดเก็บข้อมูล (PDPA)\n\nระบบจะไม่มีการผูกบัญชี LINE ค่ะ 🛡️\n\n📧 อย่างไรก็ตาม เพื่อไม่ให้ท่านพลาดการติดต่อ ระบบจะทำการส่งการแจ้งเตือนคิวและภารกิจต่างๆ ไปยังอีเมล:\n👉 ${userEmail}\nโดยอัตโนมัติแทนนะคะ 😊`
-              }];
-            } else {
-              messagesPayload = [{ type: 'text', text: `❌ ยกเลิกการทำรายการเรียบร้อยแล้วค่ะ` }];
-            }
-          } 
-          // ---------------------------------------------------------
-          // 4. กรณีพิมพ์ข้อความอื่นๆ ที่ไม่เข้าระบบ
-          // ---------------------------------------------------------
-          else {
-             messagesPayload = [{
-               type: 'text',
-               text: `ℹ️ หากต้องการผูกบัญชีเข้ากับระบบ FMO Smart Queue กรุณาพิมพ์รหัสพนักงานของคุณ (เช่น EMP-025) ได้เลยค่ะ`
-             }];
-          }
+              if (assignment) {
+                if (assignment.ack_status !== 'ACKNOWLEDGED') {
+                  await dbRun(
+                    `UPDATE mission_assignments
+                    SET ack_status = 'ACKNOWLEDGED',
+                        ack_at = CURRENT_TIMESTAMP
+                    WHERE id = ?;`,
+                    [assignment.id]
+                  );
 
-          // ---------------------------------------------------------
-          // ยิง API สั่งให้ LINE ตอบกลับข้อความทั้งหมด
-          // ---------------------------------------------------------
-          if (messagesPayload.length > 0) {
-            try {
-              await axios.post('https://api.line.me/v2/bot/message/reply', {
-                replyToken: replyToken,
-                messages: messagesPayload
-              }, {
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}`
+                  const mission = await dbGet(
+                    `SELECT mission_title
+                    FROM missions
+                    WHERE id = ?;`,
+                    [missionId]
+                  );
+
+                  console.log('========== ACK DEBUG ==========');
+                  console.log('mission_id =', missionId);
+                  console.log('personnel_id =', personnelId);
+                  console.log('assignment_id =', assignment.id);
+                  console.log('employee_name =', assignment.name);
+                  console.log('mission =', mission);
+                  console.log('================================');
+
+                  replyMessages = [{
+                    type: 'text',
+                    text:
+                      `✅ รับทราบแล้วค่ะ คุณ ${assignment.name}\n\n` +
+                      `📋 กิจกรรม: ${mission?.mission_title || '-'}\n\n` +
+                      `ระบบได้บันทึกการตอบรับของท่านเรียบร้อยแล้ว ขอบคุณค่ะ 🙏`
+                  }];
+
+                  console.log(
+                    `✅ LINE Postback ACK Success: ${assignment.name} (mission #${missionId})`
+                  );
+                } else {
+                  replyMessages = [{
+                    type: 'text',
+                    text: 'ℹ️ ท่านได้กดรับทราบกิจกรรมนี้ไปแล้วค่ะ'
+                  }];
+
+                  console.log(
+                    `ℹ️ LINE Postback ACK Duplicate: ${assignment.name} (mission #${missionId})`
+                  );
                 }
-              });
-            } catch (replyErr) {
-              // LINE จะส่งรายละเอียด error ที่แท้จริงมาใน response.data
-              // เช่น invalid reply token, invalid channel access token ฯลฯ
-              console.error(
-                'LINE Reply API Error:',
-                replyErr.response ? replyErr.response.data : replyErr.message
+              } else {
+                replyMessages = [{
+                  type: 'text',
+                  text:
+                    `❌ ไม่พบข้อมูลการจัดสรรในระบบ กรุณาติดต่อเจ้าหน้าที่ค่ะ\n` +
+                    `(Debug: Act=${missionId}, Emp=${personnelId})`
+                }];
+
+                console.log(
+                  `❌ LINE Postback ACK Failed: ไม่พบข้อมูล Mission=${missionId}, Personnel=${personnelId}`
+                );
+              }
+            }
+
+            // --- BUSY: ติดภารกิจ → เปลี่ยนสถานะเป็นรอพิมพ์รหัสตัวแทนในแชท ---
+            else if (postbackData.startsWith('BUSY|')) {
+              const parts = postbackData.split('|');
+              const missionId = parseInt(parts[1], 10);
+              const personnelId = parseInt(parts[2], 10);
+
+              console.log(`[DEBUG] 🔴 แจ้งติดภารกิจ: Mission ID = ${missionId}, Personnel ID = ${personnelId}`);
+
+              const assignment = await dbGet(
+                `SELECT ma.*, p.name FROM mission_assignments ma
+                 JOIN personnel p ON ma.personnel_id = p.id
+                 WHERE ma.mission_id = ? AND ma.personnel_id = ?;`,
+                [missionId, personnelId]
               );
+
+              if (assignment) {
+                try {
+                  // เปลี่ยนสถานะเป็น BUSY_PENDING (รอรับรหัสตัวแทน)
+                  // หมายเหตุ: หากคอลัมน์สถานะของคุณรณิดาชื่ออื่น เช่น 'status' หรือ 'assignment_status' ให้แก้ตรง SET ให้ตรงกันนะครับ
+                  await dbRun(
+                    `UPDATE mission_assignments SET assignment_status = 'BUSY_PENDING' WHERE id = ?;`,
+                    [assignment.id]
+                  );
+                  
+                  const mission = await dbGet(`SELECT mission_title FROM missions WHERE id = ?;`, [missionId]);
+                  
+                  replyMessages = [{
+                    type: 'text',
+                    text: `🔴 แจ้งติดภารกิจ (${mission?.mission_title || '-'})\n\nคุณ ${assignment.name} กรุณาพิมพ์ "รหัสพนักงาน" (เช่น EMP-025) ที่ต้องการให้ปฏิบัติงานแทนส่งมาในแชทนี้ได้เลยค่ะ 🙏`
+                  }];
+                  console.log(`[DEBUG] 🔴 LINE Postback BUSY: ${assignment.name} -> อัปเดตสถานะเป็น BUSY_PENDING แล้ว (รอพิมพ์รหัส)`);
+                } catch (dbErr) {
+                  console.error('[DB ERROR ตอนกดปุ่มติดภารกิจ]:', dbErr);
+                  replyMessages = [{ type: 'text', text: `❌ เกิดข้อผิดพลาดในการบันทึกสถานะ กรุณาตรวจสอบ Log หลังบ้านค่ะ` }];
+                }
+              } else {
+                replyMessages = [{ type: 'text', text: `❌ ไม่พบข้อมูลในระบบ (Debug: Act=${missionId}, Emp=${personnelId})` }];
+              }
             }
           }
+          // ==========================================
+          // 📌 2. โค้ดส่วนรับข้อความพิมพ์ (Text Message)
+          // ==========================================
+          else if (event.type === 'message' && event.message.type === 'text') {
+            const userText = event.message.text.trim();
+            const lineUserId = event.source.userId;
+            const replyToken = event.replyToken;
+            let replyMessages = []; // สร้างตัวแปรเตรียมส่งข้อความ
+
+            // 📍 เพิ่ม Log ให้โชว์ใน Terminal เวลามีคนพิมพ์เข้ามา
+            console.log(`[DEBUG] 💬 ได้รับข้อความจากแชท: "${userText}"`);
+
+            // --- 2.1 ดักจับเมื่อผู้ใช้พิมพ์คำว่า "แจ้งติดภารกิจ" ---
+            if (userText.includes('แจ้งติดภารกิจ')) {
+              try {
+                const latestAssignment = await dbGet(`
+                  SELECT ma.*, p.name FROM mission_assignments ma
+                  JOIN personnel p ON ma.personnel_id = p.id
+                  WHERE p.line_user_id = ? AND ma.assignment_status != 'ACKNOWLEDGED' AND ma.assignment_status != 'REPLACED'
+                  ORDER BY ma.id DESC LIMIT 1
+                `, [lineUserId]);
+
+                if (latestAssignment) {
+                  await dbRun(
+                    `UPDATE mission_assignments SET assignment_status = 'BUSY_PENDING' WHERE id = ?;`,
+                    [latestAssignment.id]
+                  );
+
+                  replyMessages = [{
+                    type: 'text',
+                    text: `🔴 รับทราบการติดภารกิจค่ะ\n\nคุณ ${latestAssignment.name} กรุณาพิมพ์ "รหัสพนักงาน" (เช่น EMP-025) ที่ต้องการให้ปฏิบัติงานแทนส่งมาได้เลยค่ะ 🙏`
+                  }];
+                  console.log(`[DEBUG] 🔴 อัปเดตสถานะเป็น BUSY_PENDING จากข้อความพิมพ์`);
+                } else {
+                  replyMessages = [{ type: 'text', text: `❌ ไม่พบรายการกิจกรรมที่ต้องปฏิบัติในขณะนี้ค่ะ` }];
+                }
+              } catch (dbError) {
+                console.error("[DB ERROR ตอนพิมพ์แจ้งติดภารกิจ]:", dbError);
+                replyMessages = [{ type: 'text', text: `❌ เกิดข้อผิดพลาดในการดึงข้อมูลค่ะ` }];
+              }
+            }
+            
+            // --- 2.2 ผู้ใช้พิมพ์รหัสตัวแทน เช่น EMP-025 ---
+            else if (/^(EMP|DIR)-\d+$/i.test(userText)) {
+
+              try {
+
+                  // ค้นหารายการที่กำลังรอตัวแทน
+                  const pendingAssignment = await dbGet(`
+                    SELECT
+                        ma.*,
+                        p.name AS original_name,
+                        p.emp_code AS original_emp_code
+                    FROM mission_assignments ma
+                    JOIN personnel p
+                        ON ma.personnel_id = p.id
+                    WHERE ma.assignment_status='BUSY_PENDING'
+                    AND p.line_user_id=?
+                    ORDER BY ma.id DESC
+                    LIMIT 1
+                `, [lineUserId]);
+
+                  if(!pendingAssignment){
+
+                      replyMessages=[{
+                          type:'text',
+                          text:'⚠️ ไม่พบรายการที่กำลังรอระบุตัวแทน กรุณากด "ติดภารกิจ" ใหม่อีกครั้งค่ะ'
+                      }];
+
+                  }else{
+
+            // ค้นหารหัส EMP-025
+            const substituteUser = await dbGet(
+                `SELECT * FROM personnel WHERE emp_code=?`,
+                [userText.toUpperCase()]
+            );
+
+            if(!substituteUser){
+
+                replyMessages=[{
+                    type:'text',
+                    text:`❌ ไม่พบรหัส ${userText}`
+                }];
+
+            }else{
+
+                //------------------------------------------------------
+                // 1. เปลี่ยนสถานะคนเดิมเป็น "ติดภารกิจ ส่งตัวแทน"
+                //------------------------------------------------------
+
+                await dbRun(`
+                    UPDATE mission_assignments
+                    SET
+                        assignment_status = 'SUBSTITUTED',
+                        ack_status = 'DECLINED_BUSY',
+                        decline_reason = ?,
+                        notes = ?,
+                        substituted_for_personnel_id = ?,
+                        ack_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                `,
+                [
+                    `ติดภารกิจ ส่งตัวแทน ${substituteUser.name} (${substituteUser.emp_code})`,
+                    `ส่ง ${substituteUser.name} (${substituteUser.emp_code}) ปฏิบัติงานแทน`,
+                    substituteUser.id,
+                    pendingAssignment.id
+                ]);
+
+                console.log(
+                    `🔄 ${pendingAssignment.original_name} ติดภารกิจ และส่ง ${substituteUser.name} (${substituteUser.emp_code}) ปฏิบัติงานแทน`
+                );
+
+                //------------------------------------------------------
+                // 2. เพิ่มผู้ปฏิบัติงานแทนเข้ากิจกรรม
+                //------------------------------------------------------
+
+                await dbRun(`
+                    INSERT INTO mission_assignments
+                    (
+                        mission_id,
+                        personnel_id,
+                        role_type,
+                        assigned_round,
+                        is_leader,
+                        assignment_status,
+                        substituted_for_personnel_id,
+                        ack_status,
+                        notes
+                    )
+                    VALUES
+                    (
+                        ?, ?, ?, ?, ?,
+                        'JOINED',
+                        ?,
+                        'PENDING_ACK',
+                        ?
+                    )
+                `,
+                [
+                    pendingAssignment.mission_id,
+                    substituteUser.id,
+                    pendingAssignment.role_type,
+                    pendingAssignment.assigned_round,
+                    pendingAssignment.is_leader,
+
+                    // อ้างอิงถึงคนเดิมที่ติดภารกิจ
+                    pendingAssignment.personnel_id,
+
+                    // แสดงในหน้ารายงาน
+                    `ปฏิบัติงานแทน ${pendingAssignment.original_name} (${pendingAssignment.original_name || ''})`
+                ]);
+
+                console.log(
+                    `✅ เพิ่ม ${substituteUser.name} เป็นผู้ปฏิบัติงานแทน ${pendingAssignment.original_name}`
+                );
+
+
+                //------------------------------------------------------
+                // 3. โหลดข้อมูลกิจกรรม
+                //------------------------------------------------------
+
+                const mission = await dbGet(
+                    `SELECT * FROM missions WHERE id=?`,
+                    [pendingAssignment.mission_id]
+                );
+
+
+          //------------------------------------------------------
+          // 4. ส่ง LINE สีส้มให้ผู้ปฏิบัติงานแทน
+          //------------------------------------------------------
+          if (mission) {
+            console.log('🚀 ก่อนส่ง LINE');
+            console.log('📌 Mission ID:', pendingAssignment.mission_id);
+            console.log('👤 ผู้ปฏิบัติงานแทน:', substituteUser.name);
+            console.log('🔄 ปฏิบัติงานแทน:', pendingAssignment.original_name);
+
+            try {
+              const notificationResult = await sendMissionNotification(
+                mission,
+                [
+                  {
+                    ...substituteUser,
+
+                    // ID ของผู้ปฏิบัติงานแทน
+                    personnel_id: substituteUser.id,
+
+                    // ใช้บทบาทและสถานะหัวหน้าทีมตามงานของคนเดิม
+                    role_type: pendingAssignment.role_type,
+                    is_leader: pendingAssignment.is_leader,
+
+                    // นำไปแสดงบนหัวการ์ดสีส้ม
+                    substitute_for_name:
+                      pendingAssignment.original_name || '-',
+
+                    // นำไปแสดงในเนื้อหาการ์ด
+                    // หากยังไม่ได้ดึงชื่อหัวหน้าทีม จะแสดงเป็น "-"
+                    team_leader_name:
+                      pendingAssignment.team_leader_name || '-'
+                  }
+                ],
+                true // true = การ์ดจัดสรรแทนสีส้ม
+              );
+
+                if (notificationResult) {
+                  console.log(
+                    `✅ ส่ง LINE แจ้งผู้ปฏิบัติงานแทนสำเร็จ: ${substituteUser.name}`
+                  );
+                } else {
+                  console.error(
+                    `❌ ส่ง LINE แจ้งผู้ปฏิบัติงานแทนไม่สำเร็จ: ${substituteUser.name}`
+                  );
+                }
+              } catch (err) {
+                console.error(
+                  '❌ sendMissionNotification Error:',
+                  err.response?.data || err.message || err
+                );
+              }
+            } else {
+              console.error(
+                '❌ ไม่พบข้อมูลกิจกรรม mission_id =',
+                pendingAssignment.mission_id
+              );
+            }
+                //------------------------------------------------------
+                // 5. ตอบกลับคนที่แจ้งติดภารกิจ
+                //------------------------------------------------------
+
+                replyMessages=[{
+                    type:'text',
+                    text:
+`✅ ระบบได้บันทึกให้
+
+${substituteUser.name}
+(${substituteUser.emp_code})
+
+ปฏิบัติงานแทน : ${pendingAssignment.original_name}
+
+เรียบร้อยแล้วค่ะ
+
+📩 ระบบได้ส่ง LINE แจ้งเตือนไปยังผู้ปฏิบัติงานแทนเรียบร้อยแล้ว`
+                }];
+
+            }
+
         }
+
+    }catch(err){
+
+        console.error(err);
+
+        replyMessages=[{
+            type:'text',
+            text:'❌ เกิดข้อผิดพลาดในการบันทึกตัวแทน'
+        }];
+
+    }
+
+}
+            // ==========================================
+            // 🚀 คำสั่งส่งข้อความกลับหาผู้ใช้ (ต้องมีส่วนนี้ บอทถึงจะตอบ)
+            // ==========================================
+            if (replyMessages.length > 0 && replyToken) {
+              try {
+                await axios.post('https://api.line.me/v2/bot/message/reply', {
+                  replyToken: replyToken,
+                  messages: replyMessages
+                }, {
+                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}` }
+                });
+                console.log(`[DEBUG] 📤 ส่งข้อความตอบกลับ LINE สำเร็จ!`);
+              } catch (replyErr) {
+                console.error('[LINE Reply Error (message)]:', replyErr.response?.data || replyErr.message);
+              }
+            }
+          }
+          
+          // =============================================================
+          // B. MESSAGE EVENT: รับรหัสพนักงาน / ยืนยัน PDPA
+          // =============================================================
+          else if (event.type === 'message' && event.message.type === 'text') {
+            const userMessage = event.message.text.trim().toUpperCase();
+            const lineUserId = event.source.userId;
+            const replyToken = event.replyToken;
+            
+            let messagesPayload = [];
+
+            // ---------------------------------------------------------
+            // 1. รับรหัสพนักงาน -> เช็กซ้ำ -> ส่ง Flex Message ขอความยินยอม (PDPA)
+            // ---------------------------------------------------------
+            if (userMessage.startsWith('EMP-') || userMessage.startsWith('DIR-')) {
+              const person = await dbGet(`SELECT * FROM personnel WHERE UPPER(emp_code) = ?`, [userMessage]);
+
+              if (person) {
+                if (person.line_user_id) {
+                  messagesPayload = [{
+                    type: 'text',
+                    text: `⚠️ รหัสรับคิว ${userMessage} ถูกผูกกับบัญชี LINE อื่นไปแล้วค่ะ\n\nหากต้องการแก้ไขหรือเปลี่ยนบัญชี กรุณาติดต่อทีม IT นะคะ 🛠️`
+                  }];
+                } else {
+                  messagesPayload = [{
+                    type: "flex",
+                    altText: "ขอความยินยอมการใช้ข้อมูลส่วนบุคคล (PDPA)",
+                    contents: {
+                      type: "bubble",
+                      header: {
+                        type: "box",
+                        layout: "vertical",
+                        backgroundColor: "#0056A0",
+                        contents: [
+                          { type: "text", text: "นโยบายความเป็นส่วนตัว (PDPA)", weight: "bold", color: "#FFFFFF", size: "sm" },
+                          { type: "text", text: "FMO Smart Queue", weight: "bold", size: "xl", color: "#FFFFFF", margin: "sm" }
+                        ]
+                      },
+                      body: {
+                        type: "box",
+                        layout: "vertical",
+                        contents: [
+                          { type: "text", text: `สวัสดีคุณ ${person.name}`, weight: "bold", size: "md", color: "#111111", wrap: true },
+                          { type: "text", text: "เพื่อความสะดวกในการรับแจ้งเตือนคิวและภารกิจ องค์การสะพานปลา (อสป.) มีความจำเป็นต้องจัดเก็บข้อมูล LINE User ID ของท่าน", wrap: true, size: "sm", color: "#666666", margin: "md" },
+                          { type: "text", text: "ข้อมูลนี้จะถูกใช้เพื่อการแจ้งเตือนภายในระบบ FMO Smart Queue เท่านั้น และจะถูกเก็บรักษาตามมาตรฐานความปลอดภัย", wrap: true, size: "sm", color: "#666666", margin: "md" },
+                          { type: "text", text: "ท่านยินยอมให้ระบบจัดเก็บข้อมูลหรือไม่?", wrap: true, weight: "bold", size: "sm", color: "#0056A0", margin: "lg" }
+                        ]
+                      },
+                      footer: {
+                        type: "box",
+                        layout: "vertical",
+                        spacing: "sm",
+                        contents: [
+                          {
+                            type: "button",
+                            style: "primary",
+                            color: "#0056A0",
+                            action: { type: "message", label: "✅ ยินยอม (ผูกบัญชี)", text: `CONFIRM-${userMessage}` }
+                          },
+                          {
+                            type: "button",
+                            style: "secondary",
+                            action: { type: "message", label: "❌ ไม่ยินยอม (ส่งเมลแทน)", text: `CANCEL-${userMessage}` }
+                          }
+                        ]
+                      }
+                    }
+                  }];
+                }
+              } else {
+                messagesPayload = [{
+                  type: 'text',
+                  text: `❌ ไม่พบรหัสรับคิว "${userMessage}" ในระบบ 🥺\n\n🔍 กรุณาตรวจสอบและพิมพ์รหัสใหม่อีกครั้งค่ะ 💡`
+                }];
+              }
+            } 
+            // ---------------------------------------------------------
+            // 2. เมื่อกดปุ่ม "✅ ยินยอม (ผูกบัญชี)" -> บันทึกข้อมูลลงฐานข้อมูล
+            // ---------------------------------------------------------
+            else if (userMessage.startsWith('CONFIRM-')) {
+              const targetEmpCode = userMessage.replace('CONFIRM-', '');
+              const person = await dbGet(`SELECT * FROM personnel WHERE UPPER(emp_code) = ?`, [targetEmpCode]);
+
+              if (person) {
+                const bindResult = await dbRun(
+                  `UPDATE personnel SET line_user_id = ? WHERE id = ? AND line_user_id IS NULL`,
+                  [lineUserId, person.id]
+                );
+
+                if (bindResult && bindResult.changes > 0) {
+                  messagesPayload = [{
+                    type: 'text',
+                    text: `🎉 ยืนยันการผูกบัญชีสำเร็จ! ✅\n\n👋 สวัสดีค่ะ\n👤 ${person.name}\n\n🐟 ระบบ FMO Smart Queue ได้เชื่อมต่อกับ LINE ของคุณเรียบร้อยแล้ว 📱✨\n\n🚀 พร้อมรับการแจ้งเตือนคิวและภารกิจต่างๆ ได้ทันทีค่ะ!`
+                  }];
+                } else {
+                  messagesPayload = [{ type: 'text', text: `⚠️ รหัสรับคิว ${targetEmpCode} ถูกผูกบัญชีไปแล้วค่ะ` }];
+                }
+              } else {
+                messagesPayload = [{ type: 'text', text: `❌ เกิดข้อผิดพลาด ไม่พบข้อมูลรหัสรับคิวค่ะ` }];
+              }
+            } 
+            // ---------------------------------------------------------
+            // 3. เมื่อกดปุ่ม "❌ ไม่ยินยอม (ส่งเมลแทน)" -> แจ้งเปลี่ยนช่องทาง
+            // ---------------------------------------------------------
+            else if (userMessage.startsWith('CANCEL-')) {
+              const targetEmpCode = userMessage.replace('CANCEL-', '');
+              const person = await dbGet(`SELECT * FROM personnel WHERE UPPER(emp_code) = ?`, [targetEmpCode]);
+
+              if (person) {
+                const userEmail = person.email ? person.email : 'อีเมลองค์กรของคุณ';
+                messagesPayload = [{
+                  type: 'text',
+                  text: `❌ ท่านไม่ยินยอมให้จัดเก็บข้อมูล (PDPA)\n\nระบบจะไม่มีการผูกบัญชี LINE ค่ะ 🛡️\n\n📧 อย่างไรก็ตาม เพื่อไม่ให้ท่านพลาดการติดต่อ ระบบจะทำการส่งการแจ้งเตือนคิวและภารกิจต่างๆ ไปยังอีเมล:\n👉 ${userEmail}\nโดยอัตโนมัติแทนนะคะ 😊`
+                }];
+              } else {
+                messagesPayload = [{ type: 'text', text: `❌ ยกเลิกการทำรายการเรียบร้อยแล้วค่ะ` }];
+              }
+            } 
+            // ---------------------------------------------------------
+            // 4. กรณีพิมพ์ข้อความอื่นๆ ที่ไม่เข้าระบบ
+            // ---------------------------------------------------------
+            else {
+              messagesPayload = [{
+                type: 'text',
+                text: `ℹ️ หากต้องการผูกบัญชีเข้ากับระบบ FMO Smart Queue กรุณาพิมพ์รหัสพนักงานของคุณ (เช่น EMP-025) ได้เลยค่ะ`
+              }];
+            }
+
+            if (messagesPayload.length > 0) {
+              try {
+                await axios.post('https://api.line.me/v2/bot/message/reply', {
+                  replyToken: replyToken,
+                  messages: messagesPayload
+                }, {
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}`
+                  }
+                });
+              } catch (replyErr) {
+                console.error('LINE Reply API Error:', replyErr.response ? replyErr.response.data : replyErr.message);
+              }
+            }
+          }
+
         } catch (eventErr) {
           console.error('Event processing error:', eventErr);
         }
@@ -430,11 +858,17 @@ router.post('/missions/create', async (req, res) => {
       }
     }
 
-    // 2. Insert Mission Record
+    // -------------------------------------------------------------
+    // สร้างรหัสกิจกรรมอัตโนมัติ (เช่น FMO-AT0769-001)
+    // -------------------------------------------------------------
+    const newMissionCode = await generateMissionCode();
+
+    // 2. Insert Mission Record (เพิ่ม mission_code เข้าไปในฐานข้อมูล)
     const mRes = await dbRun(
-      `INSERT INTO missions (mission_title, description, location, dress_code, start_date, end_date, required_directors, required_staff, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'SCHEDULED');`,
+      `INSERT INTO missions (mission_code, mission_title, description, location, dress_code, start_date, end_date, required_directors, required_staff, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'SCHEDULED');`,
       [
+        newMissionCode,  // <--- แทรกตัวแปรรหัสกิจกรรมตรงนี้
         mission_title,
         description || '',
         location || '',
@@ -453,8 +887,8 @@ router.post('/missions/create', async (req, res) => {
 
     for (const pId of assigned_director_ids) {
       await dbRun(
-        `INSERT INTO mission_assignments (mission_id, personnel_id, role_type, assigned_round, is_leader, assignment_status)
-         VALUES (?, ?, 'DIRECTOR', ?, 1, 'JOINED');`,
+        `INSERT INTO mission_assignments (mission_id, personnel_id, role_type, assigned_round, is_leader, assignment_status, ack_status)
+         VALUES (?, ?, 'DIRECTOR', ?, 1, 'JOINED', 'PENDING_ACK');`,
         [missionId, pId, currentDirRound]
       );
 
@@ -472,8 +906,8 @@ router.post('/missions/create', async (req, res) => {
 
     for (const pId of assigned_staff_ids) {
       await dbRun(
-        `INSERT INTO mission_assignments (mission_id, personnel_id, role_type, assigned_round, is_leader, assignment_status)
-         VALUES (?, ?, 'STAFF', ?, 0, 'JOINED');`,
+        `INSERT INTO mission_assignments (mission_id, personnel_id, role_type, assigned_round, is_leader, assignment_status, ack_status)
+         VALUES (?, ?, 'STAFF', ?, 0, 'JOINED', 'PENDING_ACK');`,
         [missionId, pId, currentStaffRound]
       );
 
@@ -485,37 +919,56 @@ router.post('/missions/create', async (req, res) => {
       );
     }
 
-    // 5. Strict Round Control Progression Check
-    const dirAdvance = await checkAndAdvanceRound('DIRECTOR');
-    const staffAdvance = await checkAndAdvanceRound('STAFF');
+    // 5. ส่งแจ้งเตือน LINE & Email ให้คิวที่ถูกจัดสรร
+    try {
+      const allAssignedIds = [...assigned_director_ids, ...assigned_staff_ids];
+      if (allAssignedIds.length > 0) {
+        // ดึงข้อมูล personnel ของทุกคนที่ถูกจัดสรร
+        const placeholders = allAssignedIds.map(() => '?').join(',');
+        const assignedPersonnel = await dbAll(
+          `SELECT p.*, qm.status as queue_status
+           FROM personnel p
+           LEFT JOIN queue_members qm ON p.id = qm.personnel_id
+           WHERE p.id IN (${placeholders});`,
+          allAssignedIds
+        );
 
-    // 6. Dispatch LINE Group & Email Notifications
-    const createdMission = await dbGet(`SELECT * FROM missions WHERE id = ?;`, [missionId]);
-    const assignedPersonnel = await dbAll(
-      `SELECT ma.*, p.emp_code, p.name, p.role_type, p.department, p.position, p.email, p.phone
-       FROM mission_assignments ma
-       JOIN personnel p ON ma.personnel_id = p.id
-       WHERE ma.mission_id = ? AND ma.assignment_status = 'JOINED';`,
-      [missionId]
-    );
+        // สร้าง assignedList พร้อม role_type และ is_leader
+        const assignedList = assignedPersonnel.map(p => ({
+          ...p,
+          personnel_id: p.id,
+          role_type: assigned_director_ids.includes(p.id) ? 'DIRECTOR' : 'STAFF',
+          is_leader: assigned_director_ids.includes(p.id) ? 1 : 0
+        }));
 
-    sendMissionNotification(createdMission, assignedPersonnel).catch(e => console.error('Notification dispatch error:', e));
+        const missionData = await dbGet(`SELECT * FROM missions WHERE id = ?;`, [missionId]);
+        if (missionData) {
+          sendMissionNotification(missionData, assignedList, false)
+            .catch(e => console.error('❌ Notification dispatch error (create mission):', e));
+          console.log(`📢 ส่งแจ้งเตือนกิจกรรม "${mission_title}" ให้ ${assignedList.length} คน (LINE + Email)`);
+        }
+      }
+    } catch (notifErr) {
+      console.error('❌ เกิดข้อผิดพลาดตอนส่งแจ้งเตือน:', notifErr);
+      // ไม่ block response ถ้า notification ล้มเหลว
+    }
 
     res.json({
       success: true,
-      message: 'สร้างกิจกรรม จัดสรรคิว และส่งการแจ้งเตือน Email & LINE Group เรียบร้อยแล้ว',
-      missionId,
-      roundAdvance: { director: dirAdvance, staff: staffAdvance }
+      message: `สร้างกิจกรรม "${mission_title}" สำเร็จ! ส่งแจ้งเตือน LINE & Email ให้ผู้ที่ถูกจัดสรรแล้ว`,
+      mission_id: missionId,
+      mission_code: newMissionCode
     });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+
+  } catch (error) {
+    console.error('Error creating mission:', error);
+    res.status(500).json({ success: false, error: 'เกิดข้อผิดพลาดในการสร้างกิจกรรม' });
   }
 });
-
 // -------------------------------------------------------------
 // 5. EMERGENCY SUBSTITUTION (การเปลี่ยนตัวกะทันหัน)
 // -------------------------------------------------------------
-router.post('/missions/substitute', async (req, res) => {
+/* router.post('/missions/substitute', async (req, res) => {
   try {
     const { mission_id, original_personnel_id, reason } = req.body;
 
@@ -580,6 +1033,58 @@ router.post('/missions/substitute', async (req, res) => {
       [substitute.personnel_id]
     );
 
+    // 🚀 เพิ่มส่วนส่งแจ้งเตือน LINE / Email ไปยังพนักงานตัวแทนที่ถูกเลือกโดยอัตโนมัติ
+    try {
+      const missionData = await dbGet(`SELECT * FROM missions WHERE id = ?;`, [mission_id]);
+      const substitutePerson = await dbGet(`SELECT * FROM personnel WHERE id = ?;`, [substitute.personnel_id]);
+      await dbRun(
+      `UPDATE queue_members 
+       SET status = 'COMPLETED', hold_reason = NULL, hold_timestamp = NULL, last_assigned_at = CURRENT_TIMESTAMP 
+       WHERE personnel_id = ?;`,
+      [substitute.personnel_id]
+    );
+
+    // ==========================================
+    // 📌 นำโค้ด DEBUG แจ้งเตือนมาวางแทรกไว้ตรงนี้ครับ!
+    // ==========================================
+    try {
+      const missionData = await dbGet(`SELECT * FROM missions WHERE id = ?;`, [mission_id]);
+      const substitutePerson = await dbGet(`SELECT * FROM personnel WHERE id = ?;`, [substitute.personnel_id]);
+      
+      console.log("🔍 [DEBUG] missionData:", missionData);
+      console.log("🔍 [DEBUG] substitutePerson:", substitutePerson);
+
+      if (missionData && substitutePerson) {
+        console.log("🟢 [DEBUG] กำลังสั่งยิง sendMissionNotification...");
+        await sendMissionNotification(missionData, [substitutePerson], true);
+        console.log("✅ [DEBUG] ส่งแจ้งเตือน LINE สำเร็จเรียบร้อย!");
+      } else {
+        console.log("⚠️ [DEBUG] ข้อมูล missionData หรือ substitutePerson ไม่ครบถ้วน");
+      }
+    } catch (notifErr) {
+      console.error('❌ [DEBUG] Error catching notification:', notifErr);
+    }
+    // ==========================================
+
+    // จากนั้นจะเป็นคำสั่ง res.json เดิมที่มีอยู่แล้ว
+    res.json({
+      success: true,
+      message: `เปลี่ยนตัวเรียบร้อยแล้ว: ${substitute.name} ได้รับจัดสรรปฏิบัติงานแทน ${origPerson.name}`,
+      substitute: {
+        id: substitute.personnel_id,
+        name: substitute.name,
+        emp_code: substitute.emp_code
+      }
+    });
+      if (missionData && substitutePerson) {
+        // ส่งแจ้งเตือนแบบระบุตัวแทน (isReallocation = true เพื่อขึ้นหัวข้อสีส้มเตือนด่วน)
+        await sendMissionNotification(missionData, [substitutePerson], true);
+      }
+    } catch (notifErr) {
+      console.error('Error sending substitution notification:', notifErr);
+      // ป้องกันไม่ให้ข้อผิดพลาดจากการส่งแจ้งเตือนมาขัดขวางการตอบกลับหลักของ API
+    }
+
     res.json({
       success: true,
       message: `เปลี่ยนตัวเรียบร้อยแล้ว: ${substitute.name} ได้รับจัดสรรปฏิบัติงานแทน ${origPerson.name}`,
@@ -592,7 +1097,7 @@ router.post('/missions/substitute', async (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
-});
+});*/
 
 // -------------------------------------------------------------
 // 6. SKIP & UNHOLD QUEUE CONTROLS
@@ -767,6 +1272,9 @@ router.get('/missions/:id', async (req, res) => {
         ma.assigned_round,
         ma.is_leader,
         ma.assignment_status,
+        ma.ack_status,
+        ma.ack_at,
+        ma.decline_reason,
         ma.notes,
         ma.assigned_at,
         p.id as personnel_id,
@@ -838,7 +1346,8 @@ router.get('/personnel', async (req, res) => {
 // -------------------------------------------------------------
 router.post('/missions/respond', async (req, res) => {
   try {
-    const { mission_id, personnel_id, response_status, decline_reason } = req.body;
+    // 💡 เพิ่มรับค่า substitute_emp_code จากหน้าเว็บ
+    const { mission_id, personnel_id, response_status, substitute_emp_code } = req.body;
 
     if (!mission_id || !personnel_id || !response_status) {
       return res.status(400).json({ success: false, error: 'ข้อมูลไม่ครบถ้วน' });
@@ -856,8 +1365,6 @@ router.post('/missions/respond', async (req, res) => {
       return res.status(404).json({ success: false, error: 'ไม่พบรายการจัดสรรที่ใช้งานอยู่ของบุคลากรท่านนี้' });
     }
 
-    const mission = await dbGet(`SELECT * FROM missions WHERE id = ?;`, [mission_id]);
-
     if (response_status === 'ACKNOWLEDGED') {
       await dbRun(
         `UPDATE mission_assignments 
@@ -870,93 +1377,76 @@ router.post('/missions/respond', async (req, res) => {
         success: true,
         message: `บันทึกการรับทราบเข้าร่วมกิจกรรมของ ${assignment.name} เรียบร้อยแล้ว`
       });
-    } else if (response_status === 'DECLINED_BUSY') {
-      const reasonText = decline_reason || 'ติดภารกิจซ้อน (ขอสลับคิวอัตโนมัติ)';
 
+    } else if (response_status === 'DECLINED_BUSY') {
+      // 1. ตรวจสอบว่ามีการส่งรหัสตัวแทนมาหรือไม่
+      if (!substitute_emp_code) {
+        return res.status(400).json({ success: false, error: '📝 กรุณาพิมพ์รหัสผู้ปฏิบัติงานแทน' });
+      }
+
+      // 2. ค้นหาข้อมูลพนักงาน "ตัวแทน" จากฐานข้อมูล
+      const substitutePerson = await dbGet(`SELECT * FROM personnel WHERE emp_code = ?;`, [substitute_emp_code]);
+      
+      if (!substitutePerson) {
+        return res.status(404).json({ success: false, error: 'ไม่พบรหัสพนักงานตัวแทนนี้ในระบบ' });
+      }
+
+      // 3. อัปเดตแถวของ "คนเดิม" ให้สถานะเป็น 'SUBSTITUTED'
       await dbRun(
         `UPDATE mission_assignments 
          SET assignment_status = 'SUBSTITUTED', ack_status = 'DECLINED_BUSY', decline_reason = ?, ack_at = CURRENT_TIMESTAMP 
          WHERE id = ?;`,
-        [reasonText, assignment.id]
+        [`ให้ ${substitutePerson.name} ทำแทน`, assignment.id]
       );
 
+      // 4. คิวของ "คนเดิม" ถือว่าใช้คิวไปแล้ว -> ตั้งเป็น COMPLETED (ไม่ใช่ WAITING)
+      //    เพื่อไม่ให้ระบบเลือกคนเดิมขึ้นมาเป็น "คิวถัดไป" ซ้ำอีกในรอบเดียวกัน
       await dbRun(
         `UPDATE queue_members 
-         SET status = 'HOLD', hold_reason = ?, hold_timestamp = CURRENT_TIMESTAMP 
+         SET status = 'COMPLETED', hold_reason = NULL, hold_timestamp = NULL, last_assigned_at = CURRENT_TIMESTAMP 
          WHERE personnel_id = ?;`,
-        [reasonText, personnel_id]
+        [personnel_id]
       );
 
-      const roleType = assignment.role_type;
-      const state = await dbGet(`SELECT current_round FROM queue_state WHERE role_type = ?;`, [roleType]);
-      const currentRound = state ? state.current_round : 1;
-
-      const nextCandidate = await dbGet(
-        `SELECT qm.*, p.name, p.emp_code, p.department, p.position, p.email, p.phone
-         FROM queue_members qm
-         JOIN personnel p ON qm.personnel_id = p.id
-         WHERE qm.role_type = ? AND qm.status IN ('HOLD', 'WAITING')
-           AND qm.personnel_id NOT IN (
-             SELECT personnel_id FROM mission_assignments WHERE mission_id = ? AND assignment_status = 'JOINED'
-           )
-         ORDER BY CASE qm.status WHEN 'HOLD' THEN 1 WHEN 'WAITING' THEN 2 END, qm.queue_order ASC
-         LIMIT 1;`,
-        [roleType, mission_id]
+      // 5. เพิ่มแถวใหม่! นำชื่อ "ตัวแทน" เข้าตารางกิจกรรม เพื่อให้แสดงบนหน้าเว็บ
+      await dbRun(
+        `INSERT INTO mission_assignments 
+         (mission_id, personnel_id, role_type, assigned_round, is_leader, assignment_status, substituted_for_personnel_id, notes, ack_status)
+         VALUES (?, ?, ?, ?, ?, 'JOINED', ?, ?, 'PENDING_ACK');`,
+        [
+          mission_id,
+          substitutePerson.id,           // รหัสอ้างอิงของตัวแทน
+          assignment.role_type,          // บทบาทเดิม
+          assignment.assigned_round,
+          assignment.is_leader,
+          personnel_id,                  // เก็บประวัติว่ามาแทนใคร
+          `มาเป็นตัวแทนของ [${assignment.name}]` // ขึ้นตรงช่องสถานะ/หมายเหตุ
+        ]
       );
 
-      let replacementName = '';
-      if (nextCandidate) {
-        replacementName = nextCandidate.name;
-        await dbRun(
-          `INSERT INTO mission_assignments (mission_id, personnel_id, role_type, assigned_round, is_leader, assignment_status, substituted_for_personnel_id, notes, ack_status)
-           VALUES (?, ?, ?, ?, ?, 'JOINED', ?, ?, 'PENDING_ACK');`,
-          [
-            mission_id,
-            nextCandidate.personnel_id,
-            roleType,
-            currentRound,
-            assignment.is_leader,
-            personnel_id,
-            `จัดสรรทดแทนอัตโนมัติ เนื่องจาก [${assignment.name}] ติดภารกิจ`
-          ]
-        );
+      // 💡 (ไม่แตะคิวของตัวแทนเลย สิทธิ์ในการรอคิวของตัวแทนจึงยังอยู่เหมือนเดิม)
 
-        await dbRun(
-          `UPDATE queue_members 
-           SET status = 'COMPLETED', hold_reason = NULL, hold_timestamp = NULL, last_assigned_at = CURRENT_TIMESTAMP 
-           WHERE personnel_id = ?;`,
-          [nextCandidate.personnel_id]
-        );
+      // 6. เช็คว่าทุกคนในรอบนี้เสร็จหมดหรือยัง (คนเดิมเพิ่ง COMPLETED ไปเมื่อกี้ อาจทำให้ครบรอบพอดี)
+      await checkAndAdvanceRound(assignment.role_type);
 
-        await checkAndAdvanceRound(roleType);
-        sendMissionNotification(mission, [nextCandidate], true).catch(e => console.error('Notification dispatch error:', e));
+      // 7. 💡 แจ้งเตือนตัวแทนทั้งทาง Email และ LINE (จุดที่ขาดไปเดิม ทำให้ตัวแทนไม่เคยได้รับแจ้งเตือนเลย)
+      const mission = await dbGet(`SELECT * FROM missions WHERE id = ?;`, [mission_id]);
+      if (mission) {
+        sendMissionNotification(
+          mission,
+          [{ ...substitutePerson, personnel_id: substitutePerson.id }],
+          true
+        ).catch(e => console.error('Notification dispatch error:', e));
       }
 
       return res.json({
         success: true,
-        message: `บันทึกการติดภารกิจของ ${assignment.name} เรียบร้อยแล้ว ➔ ระบบสลับสิทธิ์เป็น HOLD และจัดสรร ${replacementName || 'พนักงานคิวถัดไป'} เข้ามาทำแทนให้อัตโนมัติ!`,
-        replacementPerson: replacementName
+        message: `ส่งตัวแทนสำเร็จ! เพิ่มชื่อ ${substitutePerson.name} เข้าสู่กิจกรรมแล้ว และส่งแจ้งเตือนให้ตัวแทนเรียบร้อย`,
+        replacementPerson: substitutePerson.name
       });
     }
 
     res.status(400).json({ success: false, error: 'สถานะตอบรับไม่ถูกต้อง' });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-// GET NOTIFICATION LOGS
-router.get('/notifications/logs', async (req, res) => {
-  try {
-    const logs = await dbAll(
-      `SELECT nl.*, m.mission_title, p.name as person_name 
-       FROM notification_logs nl
-       LEFT JOIN missions m ON nl.mission_id = m.id
-       LEFT JOIN personnel p ON nl.personnel_id = p.id
-       ORDER BY nl.sent_at DESC
-       LIMIT 20;`
-    );
-    res.json({ success: true, logs });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -979,10 +1469,30 @@ router.get('/reports/export', async (req, res) => {
 
     const personnel = await dbAll(
       `SELECT p.emp_code, p.name, p.role_type, p.department, p.position, qm.queue_order, qm.status as queue_status, qm.last_assigned_at,
-        (SELECT COUNT(*) FROM mission_assignments ma WHERE ma.personnel_id = p.id AND ma.assignment_status = 'JOINED') as total_missions_joined
+        (SELECT COUNT(*) FROM mission_assignments ma WHERE ma.personnel_id = p.id AND ma.assignment_status = 'JOINED') as total_missions_joined,
+        (SELECT COUNT(*) FROM mission_assignments ma WHERE ma.personnel_id = p.id AND (ma.assignment_status = 'SUBSTITUTED' OR ma.ack_status = 'DECLINED_BUSY')) as total_substituted
        FROM personnel p
        LEFT JOIN queue_members qm ON p.id = qm.personnel_id
        ORDER BY p.role_type DESC, qm.queue_order ASC;`
+    );
+
+    // 💡 สิ่งที่เพิ่มใหม่ 1: ดึงประวัติการส่งตัวแทนและการสลับคิวทั้งหมด
+    const swapHistory = await dbAll(
+      `SELECT 
+         m.mission_title, 
+         p.emp_code, 
+         p.name as original_person, 
+         ma.assignment_status, 
+         ma.decline_reason as substitute_note, 
+         ma.notes as additional_notes,
+         ma.ack_at as action_date
+       FROM mission_assignments ma
+       JOIN personnel p ON ma.personnel_id = p.id
+       JOIN missions m ON ma.mission_id = m.id
+       WHERE ma.ack_status = 'DECLINED_BUSY' 
+          OR ma.assignment_status = 'SUBSTITUTED'
+          OR ma.notes LIKE '%มาเป็นตัวแทน%'
+       ORDER BY ma.ack_at DESC;`
     );
 
     const notificationLogs = await dbAll(
@@ -1000,6 +1510,7 @@ router.get('/reports/export', async (req, res) => {
       },
       missions,
       personnel,
+      swapHistory, // 💡 สิ่งที่เพิ่มใหม่ 2: ส่งข้อมูลประวัติการสลับคิวออกไปพร้อมกับ JSON
       notificationLogs
     });
   } catch (err) {
@@ -1075,12 +1586,10 @@ router.post('/personnel/import-csv', async (req, res) => {
   }
 });
 
-<<<<<<< HEAD
-=======
 // -------------------------------------------------------------
 // 12. LINE OA WEBHOOK ENDPOINT
 // -------------------------------------------------------------
-router.post('/line-webhook', async (req, res) => {
+/*router.post('/line-webhook', async (req, res) => {
   res.status(200).send('OK');
 
   const events = req.body.events || [];
@@ -1117,7 +1626,6 @@ router.post('/line-webhook', async (req, res) => {
       }
     }
   }
-});
+});*/
 
->>>>>>> 47cd7ac0e6b11d808d7c33713a91005f114fa2db
 module.exports = router;

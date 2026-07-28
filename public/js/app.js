@@ -1,4 +1,4 @@
-﻿// FMO Smart Queue Application Logic (K2D & 1-Page Mobile Quick Allocation with Explicit 24-Hour Time)
+// FMO Smart Queue Application Logic (K2D & 1-Page Mobile Quick Allocation with Explicit 24-Hour Time)
 
 let currentQueueRole = 'DIRECTOR';
 let allPersonnelList = [];
@@ -7,155 +7,10 @@ let previewedStaff = [];
 let autoFetchDebounceTimer = null;
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Show logged-in user label and apply RBAC
-  try {
-    const user = JSON.parse(sessionStorage.getItem('fmo_user') || '{}');
-    const labelEl = document.getElementById('user-label');
-    if (labelEl && user.label) {
-      const roleTag = user.role === 'staff'
-        ? '<span style="margin-left:6px;background:#f59e0b;color:#fff;font-size:0.7rem;padding:2px 7px;border-radius:10px;font-weight:700;">STAFF</span>'
-        : '<span style="margin-left:6px;background:#0284c7;color:#fff;font-size:0.7rem;padding:2px 7px;border-radius:10px;font-weight:700;">ADMIN</span>';
-      labelEl.innerHTML = user.username + roleTag;
-    }
-    applyRBAC(user.role || 'admin');
-  } catch(e) {}
-
   initApp();
   initTheme();
-  loadQueueView('STAFF');
+  checkUrlActionParams(); // ตรวจสอบ URL query params จาก LINE redirect (เช่น ?action=busy)
 });
-
-// ─── Role-Based Access Control ───
-// staff → แสดงเฉพาะ จัดสรรคิว + กระดานวนคิว
-// admin → แสดงทุกเมนู
-function applyRBAC(role) {
-  if (role === 'staff') {
-    // ซ่อนเมนูที่มี data-role="admin"
-    document.querySelectorAll('[data-role="admin"]').forEach(btn => {
-      btn.style.display = 'none';
-    });
-    // ถ้าแท็บปัจจุบันเป็น admin-only ให้ redirect กลับไปที่ quick
-    const adminTabs = ['dashboard', 'individual', 'reports'];
-    // block direct URL hash access to admin tabs
-    window._staffRestrictedTabs = adminTabs;
-  }
-}
-
-// Logout function — shows a toast-style confirmation
-function handleLogout() {
-  // Remove existing logout toast if any
-  const existing = document.getElementById('logout-toast');
-  if (existing) existing.remove();
-
-  const toast = document.createElement('div');
-  toast.id = 'logout-toast';
-  toast.innerHTML = `
-    <div style="
-      display: flex;
-      align-items: center;
-      gap: 14px;
-    ">
-      <div style="
-        width: 40px; height: 40px;
-        border-radius: 50%;
-        background: rgba(239,68,68,0.15);
-        display: flex; align-items: center; justify-content: center;
-        flex-shrink: 0;
-      ">
-        <i class="fa-solid fa-right-from-bracket" style="color:#ef4444; font-size:1rem;"></i>
-      </div>
-      <div style="flex:1; min-width:0;">
-        <div style="font-weight:700; font-size:0.92rem; color:var(--text-heading); margin-bottom:2px;">ออกจากระบบ</div>
-        <div style="font-size:0.82rem; color:var(--text-muted);">ต้องการออกจากระบบ FMO Smart Queue หรือไม่?</div>
-      </div>
-    </div>
-    <div style="display:flex; gap:8px; margin-top:14px; justify-content:flex-end;">
-      <button id="logout-cancel-btn" style="
-        padding: 7px 18px;
-        border-radius: 8px;
-        border: 1px solid var(--card-border);
-        background: transparent;
-        color: var(--text-muted);
-        font-family: inherit;
-        font-size: 0.84rem;
-        cursor: pointer;
-        transition: background 0.2s;
-      " onmouseover="this.style.background='rgba(148,163,184,0.1)'" onmouseout="this.style.background='transparent'">
-        <i class="fa-solid fa-xmark"></i> ยกเลิก
-      </button>
-      <button id="logout-confirm-btn" style="
-        padding: 7px 18px;
-        border-radius: 8px;
-        border: none;
-        background: #ef4444;
-        color: #fff;
-        font-family: inherit;
-        font-size: 0.84rem;
-        font-weight: 600;
-        cursor: pointer;
-        transition: background 0.2s, transform 0.15s;
-        box-shadow: 0 2px 10px rgba(239,68,68,0.35);
-      " onmouseover="this.style.background='#dc2626'" onmouseout="this.style.background='#ef4444'">
-        <i class="fa-solid fa-right-from-bracket"></i> ออกจากระบบ
-      </button>
-    </div>
-  `;
-
-  Object.assign(toast.style, {
-    position: 'fixed',
-    bottom: '24px',
-    right: '24px',
-    zIndex: '99999',
-    background: 'var(--card-bg)',
-    backdropFilter: 'blur(20px)',
-    webkitBackdropFilter: 'blur(20px)',
-    border: '1px solid rgba(239,68,68,0.25)',
-    borderRadius: '16px',
-    padding: '18px 20px',
-    width: '320px',
-    boxShadow: '0 8px 40px rgba(0,0,0,0.2), 0 0 0 1px rgba(239,68,68,0.1)',
-    animation: 'toast-slide-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both',
-  });
-
-  // Add keyframe animation if not already added
-  if (!document.getElementById('logout-toast-style')) {
-    const style = document.createElement('style');
-    style.id = 'logout-toast-style';
-    style.textContent = `
-      @keyframes toast-slide-in {
-        from { opacity: 0; transform: translateX(60px) scale(0.95); }
-        to   { opacity: 1; transform: translateX(0)    scale(1); }
-      }
-      @keyframes toast-slide-out {
-        from { opacity: 1; transform: translateX(0)    scale(1); }
-        to   { opacity: 0; transform: translateX(60px) scale(0.95); }
-      }
-    `;
-    document.head.appendChild(style);
-  }
-
-  document.body.appendChild(toast);
-
-  // Cancel button
-  document.getElementById('logout-cancel-btn').addEventListener('click', () => {
-    toast.style.animation = 'toast-slide-out 0.25s ease forwards';
-    setTimeout(() => toast.remove(), 260);
-  });
-
-  // Confirm button
-  document.getElementById('logout-confirm-btn').addEventListener('click', () => {
-    sessionStorage.removeItem('fmo_user');
-    window.location.replace('/login');
-  });
-
-  // Auto-dismiss after 8 seconds if no action
-  setTimeout(() => {
-    if (document.getElementById('logout-toast')) {
-      toast.style.animation = 'toast-slide-out 0.25s ease forwards';
-      setTimeout(() => toast.remove(), 260);
-    }
-  }, 8000);
-}
 
 function initApp() {
   populate24HourTimeOptions('alloc-start-time', '09:00');
@@ -168,6 +23,73 @@ function initApp() {
   loadPersonnelDropdown();
   loadAllMissions();
 }
+
+// -------------------------------------------------------------
+// LINE REDIRECT HANDLER: ?action=busy&mission_id=X&personnel_id=Y
+// รองรับการกดปุ่ม "ติดภารกิจ" จาก LINE แล้ว redirect มาเปิดหน้าเว็บสำหรับป้อนตัวแทน
+// -------------------------------------------------------------
+async function checkUrlActionParams() {
+  const params = new URLSearchParams(window.location.search);
+  const action = params.get('action');
+  const missionId = params.get('mission_id');
+  const personnelId = params.get('personnel_id');
+
+  if (action === 'busy' && missionId && personnelId) {
+    // ลบ query params ออกจาก URL เพื่อความสะอาด
+    window.history.replaceState({}, document.title, window.location.pathname);
+
+    // หน่วงเล็กน้อยให้ UI โหลดก่อน
+    await new Promise(r => setTimeout(r, 600));
+
+    // เปิด SweetAlert2 ถามรหัสตัวแทน
+    const { value: empCode } = await Swal.fire({
+      title: '<span style="font-size: 20px;">🔴 แจ้งติดภารกิจ - ป้อนผู้ปฏิบัติงานแทน</span>',
+      html: '<p style="color:#64748b; font-size:14px;">การแจ้งผ่านปุ่มใน LINE<br>กรุณาระบุรหัสพนักงานผู้มาทำหน้าที่แทน</p>',
+      input: 'text',
+      inputLabel: 'รหัสพนักงานตัวแทน (EMP-XXX)',
+      inputPlaceholder: 'เช่น EMP-001',
+      showCancelButton: true,
+      confirmButtonText: '✅ ยืนยันส่งตัวแทน',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: '#dc2626',
+      width: '380px',
+      customClass: { popup: 'rounded-popup', input: 'rounded-input' },
+      inputValidator: (val) => { if (!val) return 'กรุณาระบุรหัสพนักงานตัวแทน'; }
+    });
+
+    if (!empCode) return;
+
+    try {
+      const res = await fetch('/api/missions/respond', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mission_id: parseInt(missionId),
+          personnel_id: parseInt(personnelId),
+          response_status: 'DECLINED_BUSY',
+          substitute_emp_code: empCode.trim()
+        })
+      });
+      const result = await res.json();
+
+      if (result.success) {
+        showToast(`🎉 ${result.message}`, 'success');
+        // สลับไปหน้ารายงานและเปิด modal กิจกรรม
+        setTimeout(() => {
+          switchTab('reports');
+          loadDashboardStats();
+          openMissionDetailModal(parseInt(missionId));
+        }, 800);
+      } else {
+        showToast(`❌ ${result.error}`, 'danger');
+      }
+    } catch (err) {
+      console.error('Error processing LINE busy action:', err);
+      showToast('เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง', 'danger');
+    }
+  }
+}
+
 
 // -------------------------------------------------------------
 // 24-HOUR TIME DROPDOWN POPULATOR
@@ -194,14 +116,10 @@ function populate24HourTimeOptions(selectId, defaultTime = '09:00') {
 // -------------------------------------------------------------
 function initTheme() {
   const savedTheme = localStorage.getItem('fmo_theme');
-  // Default is light mode; only go dark if user explicitly saved 'dark'
-  const isLight = savedTheme !== 'dark';
-  if (isLight) {
+  if (savedTheme === 'light') {
     document.body.classList.add('light-mode');
-  } else {
-    document.body.classList.remove('light-mode');
+    updateThemeIcon(true);
   }
-  updateThemeIcon(isLight);
 }
 
 function toggleTheme() {
@@ -226,12 +144,6 @@ function updateThemeIcon(isLight) {
 // TAB NAVIGATION
 // -------------------------------------------------------------
 function switchTab(tabId) {
-  // RBAC guard: staff ไม่สามารถเข้าถึง admin-only tabs
-  if (window._staffRestrictedTabs && window._staffRestrictedTabs.includes(tabId)) {
-    showToast('⛔ คุณไม่มีสิทธิ์เข้าถึงเมนูนี้ กรุณาติดต่อผู้ดูแลระบบ', 'danger');
-    return;
-  }
-
   document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
   const activeBtn = Array.from(document.querySelectorAll('.nav-btn')).find(btn => btn.getAttribute('onclick')?.includes(tabId));
   if (activeBtn) activeBtn.classList.add('active');
@@ -444,10 +356,7 @@ async function loadQueueView(roleType) {
       tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--danger);">${result.error}</td></tr>`;
       return;
     }
-    // ดึงจำนวนจาก totalCount หรือ members.length โดยตรง
-    const count = result.totalCount || (result.members ? result.members.length : 0);
 
-<<<<<<< HEAD
     const members = result.data || result.members || [];
     const waitingCount = countWaiting(members);
     const totalCount = members.length;
@@ -464,16 +373,6 @@ async function loadQueueView(roleType) {
        return;
     }
 
-=======
-    if (roleType === 'DIRECTOR') {
-      const btnText = document.getElementById('tab-btn-director-text');
-      if (btnText) btnText.innerText = `คิว ผู้บริหารและ ผอ.ฝ่าย (${count} ท่าน)`;
-    } else if (roleType === 'STAFF') {
-      const btnText = document.getElementById('tab-btn-staff-text');
-      if (btnText) btnText.innerText = `คิว พนักงาน (${count} ท่าน)`;
-    }
-    
->>>>>>> 47cd7ac0e6b11d808d7c33713a91005f114fa2db
     let html = '';
     members.forEach((m, idx) => {
       let statusBadge = '';
@@ -800,11 +699,18 @@ async function handleCreateMission(event) {
     const result = await res.json();
 
     if (result.success) {
+      // 1. โชว์ Toast แจ้งเตือน
       showToast(`🎉 ${result.message}<br>⏰ เวลาปฏิบัติงาน: ${startTime} น. - ${endTime} น.`, 'success');
+      
+      // 2. เคลียร์ฟอร์ม
       document.getElementById('form-quick-mission').reset();
       setDefaultMissionTimes();
-      switchTab('reports');
-      loadDashboardStats();
+      
+      // 3. หน่วงเวลา 1.5 วินาที ให้ผู้ใช้อ่าน Toast ทัน แล้วค่อยสลับไปหน้ารายงาน
+      setTimeout(() => {
+        switchTab('reports');
+        loadDashboardStats();
+      }, 1500); 
     } else {
       showToast(`Error: ${result.error}`, 'danger');
     }
@@ -1025,7 +931,7 @@ async function loadAllMissions() {
 
       html += `
         <tr>
-          <td><code>ACT-${m.id}</code></td>
+          <td><code>${m.mission_code || 'ACT-' + m.id}</code></td>
           <td><strong style="color:var(--text-heading);">${escapeHtml(m.mission_title)}</strong></td>
           <td>${escapeHtml(m.location || '-')}</td>
           <td><code>${escapeHtml(m.dress_code || 'ชุดปฏิบัติงาน อสป.')}</code></td>
@@ -1078,7 +984,7 @@ async function openMissionDetailModal(missionId) {
         if (a.ack_status === 'ACKNOWLEDGED') {
           ackStatusBadge = '<span class="badge badge-completed"><i class="fa-solid fa-circle-check"></i> รับทราบแล้ว</span>';
         } else if (a.ack_status === 'DECLINED_BUSY') {
-          ackStatusBadge = '<span class="badge badge-hold"><i class="fa-solid fa-circle-xmark"></i> ติดภารกิจซ้อน</span>';
+          ackStatusBadge = '<span class="badge badge-hold"><i class="fa-solid fa-circle-xmark"></i> ติดภารกิจ</span>';
         } else {
           ackStatusBadge = '<span class="badge badge-waiting"><i class="fa-solid fa-clock"></i> รอการตอบรับ</span>';
         }
@@ -1123,12 +1029,39 @@ async function openMissionDetailModal(missionId) {
 }
 
 async function respondToMission(missionId, personnelId, status) {
-  let declineReason = '';
-  if (status === 'DECLINED_BUSY') {
-    declineReason = prompt('กรุณาระบุเหตุผลการติดภารกิจ (ระบบจะปรับสถานะเป็น HOLD และจัดสรรพนักงานคิวถัดไปมาทำแทนให้อัตโนมัติ):', 'ติดกิจกรรมตรวจสะพานปลาต่างจังหวัด');
-    if (declineReason === null) return; // User pressed Cancel
+  let substituteEmpCode = '';
+
+  // 1. ถ้ากดปุ่ม "ติดภารกิจ" ให้ใช้ SweetAlert2 ถามหารหัสตัวแทน
+  if (status === 'DECLINED_BUSY') { 
+    const { value: empCode } = await Swal.fire({
+      title: '<span style="font-size: 22px;">ระบุตัวแทนปฏิบัติหน้าที่</span>',
+      input: 'text',
+      inputLabel: 'กรุณากรอกรหัสพนักงาน (EMP-XXX)',
+      inputPlaceholder: 'เช่น EMP-001',
+      showCancelButton: true,
+      confirmButtonText: 'บันทึกข้อมูล',
+      cancelButtonText: 'ยกเลิก',
+      // 💡 1. กำหนดขนาดความกว้างไม่ให้ใหญ่เกินไป (ค่าปกติคือประมาณ 500px กว่าๆ)
+      width: '380px', 
+      // 💡 2. เรียกใช้ CSS แบบมนโค้ง
+      customClass: {
+        popup: 'rounded-popup',
+        input: 'rounded-input',
+        confirmButton: 'rounded-confirm-btn',
+        cancelButton: 'rounded-cancel-btn'
+      },
+      inputValidator: (value) => {
+        if (!value) {
+          return 'กรุณาระบุรหัสพนักงานตัวแทน!';
+        }
+      }
+    });
+
+    if (!empCode) return; // ถ้ากดยกเลิก หรือปิดหน้าต่าง ให้หยุดการทำงาน
+    substituteEmpCode = empCode.trim();
   }
 
+  // 2. ส่งข้อมูลไปที่หลังบ้าน
   try {
     const res = await fetch('/api/missions/respond', {
       method: 'POST',
@@ -1136,12 +1069,13 @@ async function respondToMission(missionId, personnelId, status) {
       body: JSON.stringify({
         mission_id: missionId,
         personnel_id: personnelId,
-        response_status: status,
-        decline_reason: declineReason
+        response_status: status, 
+        substitute_emp_code: substituteEmpCode // ส่งรหัสตัวแทนไปแทนเหตุผลเดิม
       })
     });
     const result = await res.json();
 
+    // 3. จัดการแสดงผล Toast แบบเดิมที่ระบบมีอยู่แล้ว
     if (result.success) {
       showToast(`🎉 ${result.message}`, 'success');
       openMissionDetailModal(missionId);
@@ -1225,7 +1159,7 @@ function renderLineFlexCardHtml(jsonStr) {
         </div>
         <div style="padding:8px 12px; background:#f8fafc; border-top:1px solid #e2e8f0; display:flex; gap:6px;">
           <button style="flex:1; background:#10b981; color:#fff; border:none; padding:6px; border-radius:6px; font-weight:bold; font-size:0.75rem;">🟢 กดรับทราบ</button>
-          <button style="flex:1; background:#ef4444; color:#fff; border:none; padding:6px; border-radius:6px; font-weight:bold; font-size:0.75rem;">🔴 ติดภารกิจ</button>
+          <button style="flex:1; background:#ef4444; color:#fff; border:none; padding:6px; border-radius:6px; font-weight:bold; font-size:0.75rem;">🔴 ติดภารกิจ(ส่งคนแทน)</button>
         </div>
       </div>
     `;
@@ -1247,7 +1181,8 @@ async function exportSummaryData() {
       return;
     }
 
-    const { missions = [], personnel = [] } = result;
+    // 💡 1. เพิ่มการรับค่า swapHistory ที่ส่งมาจากหลังบ้าน
+    const { missions = [], personnel = [], swapHistory = [] } = result;
 
     // UTF-8 BOM for Thai language in Microsoft Excel
     let csvContent = '\uFEFF';
@@ -1268,8 +1203,10 @@ async function exportSummaryData() {
       csvContent += `"ACT-${m.id}",${title},${location},${dress},${startDate},${dirCount},${staffCount},${status}\n`;
     });
 
+    // SECTION 2: PERSONNEL QUEUE REPORT
     csvContent += '\n=== รายงานสรุปประวัติบุคลากรและการวนคิว (PERSONNEL QUEUE REPORT) ===\n';
-    csvContent += '"รหัสพนักงาน","ชื่อ-นามสกุล","ตำแหน่ง","หน่วยงาน/ฝ่าย","บทบาท","ลำดับคิว","สถานะในคิว","เข้าร่วมกิจกรรมสะสม (ครั้ง)","เข้าร่วมล่าสุด"\n';
+    // 💡 2. เพิ่มคอลัมน์ "ส่งตัวแทน/ติดภารกิจ (ครั้ง)"
+    csvContent += '"รหัสพนักงาน","ชื่อ-นามสกุล","ตำแหน่ง","หน่วยงาน/ฝ่าย","บทบาท","ลำดับคิว","สถานะในคิว","เข้าร่วมกิจกรรมสะสม (ครั้ง)","ส่งตัวแทน/ติดภารกิจ (ครั้ง)","เข้าร่วมล่าสุด"\n';
 
     personnel.forEach(p => {
       const code = `"${(p.emp_code || '').replace(/"/g, '""')}"`;
@@ -1280,11 +1217,31 @@ async function exportSummaryData() {
       const qOrder = `"${p.queue_order || '-'}"`;
       const qStatus = `"${p.queue_status || 'WAITING'}"`;
       const totalJoined = `"${p.total_missions_joined || 0}"`;
+      const totalSubstituted = `"${p.total_substituted || 0}"`; // 💡 ดึงค่านับจำนวนครั้งที่ส่งตัวแทน
       const lastAssigned = `"${p.last_assigned_at ? formatDate(p.last_assigned_at) : '-'}"`;
 
-      csvContent += `${code},${name},${pos},${dept},${role},${qOrder},${qStatus},${totalJoined},${lastAssigned}\n`;
+      csvContent += `${code},${name},${pos},${dept},${role},${qOrder},${qStatus},${totalJoined},${totalSubstituted},${lastAssigned}\n`;
     });
 
+    // 💡 3. SECTION 3: SWAP HISTORY (เพิ่มส่วนใหม่สำหรับประวัติการสลับคิวโดยเฉพาะ)
+    csvContent += '\n=== รายงานประวัติการส่งตัวแทนและสลับคิว (SWAP & SUBSTITUTE HISTORY) ===\n';
+    csvContent += '"ชื่อกิจกรรม","รหัสพนักงาน (เดิม)","ชื่อ-นามสกุล (ผู้ติดภารกิจ)","สถานะ","หมายเหตุ/ชื่อตัวแทน","วันที่ทำรายการ"\n';
+
+    swapHistory.forEach(s => {
+      const mTitle = `"${(s.mission_title || '').replace(/"/g, '""')}"`;
+      const pCode = `"${(s.emp_code || '').replace(/"/g, '""')}"`;
+      const pName = `"${(s.original_person || '').replace(/"/g, '""')}"`;
+      const aStatus = `"${(s.assignment_status || '').replace(/"/g, '""')}"`;
+      
+      // ดึงหมายเหตุจากฐานข้อมูล (ช่อง decline_reason หรือ notes)
+      const noteStr = s.substitute_note || s.additional_notes || '-';
+      const pNote = `"${noteStr.replace(/"/g, '""')}"`;
+      const actionDate = `"${s.action_date ? formatDate(s.action_date) : '-'}"`;
+
+      csvContent += `${mTitle},${pCode},${pName},${aStatus},${pNote},${actionDate}\n`;
+    });
+
+    // สร้างไฟล์และดาวน์โหลด
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const downloadAnchor = document.createElement('a');
@@ -1295,13 +1252,12 @@ async function exportSummaryData() {
     downloadAnchor.remove();
     URL.revokeObjectURL(url);
 
-    showToast('📊 ส่งออกข้อมูลสรุปเป็นไฟล์ CSV (รองรับภาษาไทยใน Microsoft Excel) เรียบร้อยแล้ว!', 'success');
+    showToast('📊 ส่งออกข้อมูลสรุปเป็นไฟล์ CSV (พร้อมประวัติการส่งตัวแทน) เรียบร้อยแล้ว!', 'success');
   } catch (err) {
     console.error('Export CSV error:', err);
     showToast('เกิดข้อผิดพลาดในการส่งออกไฟล์ CSV', 'danger');
   }
 }
-
 // -------------------------------------------------------------
 // HELPERS & MODALS
 // -------------------------------------------------------------
