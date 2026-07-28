@@ -238,7 +238,7 @@ function createPersonalizedFlexCard(
                 {
                   type: 'text',
                   text:
-                    `👤 ปฏิบัติงานแทน: ` +
+                    `👤 ปฏิบัติงานแทน : ` +
                     `${person.substitute_for_name || '-'}`,
                   color: '#ffffff',
                   size: 'xs',

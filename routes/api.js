@@ -36,7 +36,7 @@ async function generateMissionCode() {
     }
 }
 // Helper: Auto-advance round if everyone completed
-async function checkAndAdvanceRound(roleType) {
+/*async function checkAndAdvanceRound(roleType) {
   const state = await dbGet(`SELECT current_round FROM queue_state WHERE role_type = ?;`, [roleType]);
   const currentRound = state ? state.current_round : 1;
 
@@ -62,6 +62,233 @@ async function checkAndAdvanceRound(roleType) {
   }
 
   return { roundAdvanced: false, currentRound };
+}*/
+
+// -------------------------------------------------------------
+// Helper: Fisher–Yates Shuffle
+// ใช้สุ่มลำดับพนักงานอย่างทั่วถึง
+// -------------------------------------------------------------
+function shuffleArray(items) {
+  const shuffled = [...items];
+
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const randomIndex = Math.floor(Math.random() * (i + 1));
+
+    [shuffled[i], shuffled[randomIndex]] = [
+      shuffled[randomIndex],
+      shuffled[i]
+    ];
+  }
+
+  return shuffled;
+}
+
+
+// -------------------------------------------------------------
+// Helper: Auto-advance round if everyone completed
+//
+// DIRECTOR:
+// - ใช้เฉพาะ DIR-01 ถึง DIR-08
+// - DIR-09 และ DIR-10 เป็นสำรอง ไม่เข้าคิวอัตโนมัติ
+// - เมื่อขึ้นรอบใหม่ เริ่มเรียงจาก DIR-01 เสมอ
+//
+// STAFF:
+// - คนที่ได้รับจัดสรรแล้วเป็น COMPLETED
+// - ไม่ถูกเลือกซ้ำภายในรอบเดิม
+// - เมื่อครบทุกคน จึงขึ้นรอบใหม่และสุ่มลำดับใหม่ทั้งหมด
+// -------------------------------------------------------------
+async function checkAndAdvanceRound(roleType) {
+  const normalizedRoleType = String(roleType || '').toUpperCase();
+
+  if (!['DIRECTOR', 'STAFF'].includes(normalizedRoleType)) {
+    throw new Error(`Invalid role type: ${roleType}`);
+  }
+
+  // อ่านรอบปัจจุบัน
+  const state = await dbGet(
+    `SELECT current_round
+     FROM queue_state
+     WHERE role_type = ?;`,
+    [normalizedRoleType]
+  );
+
+  const currentRound = state ? state.current_round : 1;
+
+  let remaining;
+
+  // -----------------------------------------------------------
+  // ตรวจจำนวนคนที่ยังไม่จบรอบ
+  // -----------------------------------------------------------
+  if (normalizedRoleType === 'DIRECTOR') {
+    // DIR-09 และ DIR-10 เป็นสำรอง
+    // จึงไม่นำมานับว่าต้อง COMPLETED ก่อนขึ้นรอบใหม่
+    remaining = await dbGet(
+      `SELECT COUNT(*) AS count
+       FROM queue_members qm
+       JOIN personnel p
+         ON p.id = qm.personnel_id
+       WHERE qm.role_type = 'DIRECTOR'
+         AND qm.current_round = ?
+         AND UPPER(p.emp_code) NOT IN ('DIR-09', 'DIR-10')
+         AND qm.status != 'COMPLETED';`,
+      [currentRound]
+    );
+  } else {
+    // STAFF ทุกคนต้องได้รับการจัดสรรครบก่อนเริ่มสุ่มรอบใหม่
+    remaining = await dbGet(
+      `SELECT COUNT(*) AS count
+       FROM queue_members qm
+       WHERE qm.role_type = 'STAFF'
+         AND qm.current_round = ?
+         AND qm.status != 'COMPLETED';`,
+      [currentRound]
+    );
+  }
+
+  // ยังมีคนที่ไม่ได้รับการจัดสรรในรอบปัจจุบัน
+  if (!remaining || remaining.count > 0) {
+    return {
+      roundAdvanced: false,
+      currentRound,
+      remainingCount: remaining ? remaining.count : 0
+    };
+  }
+
+  // -----------------------------------------------------------
+  // ทุกคนในรอบครบแล้ว → เริ่มรอบใหม่
+  // -----------------------------------------------------------
+  const nextRound = currentRound + 1;
+
+  console.log(
+    `🔄 ${normalizedRoleType}: ครบรอบ ${currentRound} แล้ว กำลังเริ่มรอบ ${nextRound}`
+  );
+
+  await dbRun(
+    `UPDATE queue_state
+     SET current_round = ?,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE role_type = ?;`,
+    [nextRound, normalizedRoleType]
+  );
+
+  // -----------------------------------------------------------
+  // STAFF: สุ่มลำดับใหม่ทั้งหมดในรอบใหม่
+  // -----------------------------------------------------------
+  if (normalizedRoleType === 'STAFF') {
+    const staffMembers = await dbAll(
+      `SELECT
+         qm.id AS queue_id,
+         qm.personnel_id,
+         p.emp_code,
+         p.name
+       FROM queue_members qm
+       JOIN personnel p
+         ON p.id = qm.personnel_id
+       WHERE qm.role_type = 'STAFF'
+       ORDER BY qm.queue_order ASC, p.emp_code ASC;`
+    );
+
+    const shuffledStaff = shuffleArray(staffMembers);
+
+    for (let index = 0; index < shuffledStaff.length; index++) {
+      const member = shuffledStaff[index];
+
+      await dbRun(
+        `UPDATE queue_members
+         SET current_round = ?,
+             queue_order = ?,
+             status = 'WAITING',
+             hold_reason = NULL,
+             hold_timestamp = NULL
+         WHERE id = ?;`,
+        [
+          nextRound,
+          index + 1,
+          member.queue_id
+        ]
+      );
+    }
+
+    console.log(
+      `🎲 STAFF รอบ ${nextRound}: สุ่มลำดับพนักงานใหม่จำนวน ${shuffledStaff.length} คนเรียบร้อยแล้ว`
+    );
+
+    console.log(
+      '🎲 ลำดับ STAFF ใหม่:',
+      shuffledStaff.map((member, index) =>
+        `${index + 1}. ${member.emp_code}`
+      ).join(' | ')
+    );
+  }
+
+  // -----------------------------------------------------------
+  // DIRECTOR: เรียงใหม่จาก DIR-01 และกัน DIR-09, DIR-10 เป็นสำรอง
+  // -----------------------------------------------------------
+  if (normalizedRoleType === 'DIRECTOR') {
+    const directors = await dbAll(
+      `SELECT
+         qm.id AS queue_id,
+         p.emp_code,
+         p.name
+       FROM queue_members qm
+       JOIN personnel p
+         ON p.id = qm.personnel_id
+       WHERE qm.role_type = 'DIRECTOR'
+         AND UPPER(p.emp_code) NOT IN ('DIR-09', 'DIR-10')
+       ORDER BY
+         CAST(
+           REPLACE(UPPER(p.emp_code), 'DIR-', '')
+           AS INTEGER
+         ) ASC;`
+    );
+
+    // กำหนด DIR-01 เป็นลำดับแรกทุกครั้งที่เริ่มรอบใหม่
+    for (let index = 0; index < directors.length; index++) {
+      const director = directors[index];
+
+      await dbRun(
+        `UPDATE queue_members
+         SET current_round = ?,
+             queue_order = ?,
+             status = 'WAITING',
+             hold_reason = NULL,
+             hold_timestamp = NULL
+         WHERE id = ?;`,
+        [
+          nextRound,
+          index + 1,
+          director.queue_id
+        ]
+      );
+    }
+
+    // DIR-09 และ DIR-10 เป็นสำรอง
+    // ไม่ให้ระบบเลือกเข้าคิวอัตโนมัติ
+    await dbRun(
+      `UPDATE queue_members
+       SET current_round = ?,
+           status = 'HOLD',
+           hold_reason = 'สำรอง ไม่เข้าคิวอัตโนมัติ',
+           hold_timestamp = CURRENT_TIMESTAMP
+       WHERE personnel_id IN (
+         SELECT id
+         FROM personnel
+         WHERE UPPER(emp_code) IN ('DIR-09', 'DIR-10')
+       );`,
+      [nextRound]
+    );
+
+    console.log(
+      `🔁 DIRECTOR รอบ ${nextRound}: เริ่มลำดับใหม่จาก DIR-01 และยกเว้น DIR-09, DIR-10`
+    );
+  }
+
+  return {
+    roundAdvanced: true,
+    previousRound: currentRound,
+    newRound: nextRound,
+    roleType: normalizedRoleType
+  };
 }
 
 // -------------------------------------------------------------
@@ -778,55 +1005,279 @@ ${substituteUser.name}
   }
 });
 
+// -------------------------------------------------------------
+// 3. PREVIEW CANDIDATES
+// -------------------------------------------------------------
 router.post('/missions/preview-candidates', async (req, res) => {
   try {
-    const { required_directors = 1, required_staff = 1 } = req.body;
+    const {
+      required_directors = 1,
+      required_staff = 1
+    } = req.body;
 
-    const selectCandidatesForRole = async (roleType, count) => {
-      if (count <= 0) return [];
+    const directorCount = Math.max(
+      0,
+      Number.parseInt(required_directors, 10) || 0
+    );
 
-      const candidates = await dbAll(
-        `SELECT 
-           qm.personnel_id, 
-           qm.role_type, 
-           qm.current_round,
-           p.emp_code,
-           p.name,
-           p.department,
-           p.position,
-           p.email,
-           p.phone
+    const staffCount = Math.max(
+      0,
+      Number.parseInt(required_staff, 10) || 0
+    );
+
+    //----------------------------------------------------------
+    // ตรวจว่าคิวเดิมครบรอบหรือยัง
+    // ถ้าครบ ระบบจะเริ่มรอบใหม่ก่อนเลือกผู้สมัคร
+    //----------------------------------------------------------
+    await checkAndAdvanceRound('DIRECTOR');
+    await checkAndAdvanceRound('STAFF');
+
+    //----------------------------------------------------------
+    // อ่านรอบปัจจุบัน
+    //----------------------------------------------------------
+    const directorState = await dbGet(`
+      SELECT current_round
+      FROM queue_state
+      WHERE role_type = 'DIRECTOR';
+    `);
+
+    const staffState = await dbGet(`
+      SELECT current_round
+      FROM queue_state
+      WHERE role_type = 'STAFF';
+    `);
+
+    const currentDirectorRound =
+      directorState?.current_round || 1;
+
+    const currentStaffRound =
+      staffState?.current_round || 1;
+
+    //----------------------------------------------------------
+    // เลือก ผอ.ฝ่าย
+    //
+    // - เลือกเฉพาะ WAITING
+    // - เฉพาะรอบปัจจุบัน
+    // - ไม่เลือก DIR-09 และ DIR-10
+    // - เรียงตามลำดับ DIR-01 → DIR-08
+    //----------------------------------------------------------
+    let directors = [];
+
+      if (directorCount > 0) {
+        directors = await dbAll(
+          `
+          SELECT
+            qm.personnel_id,
+            qm.role_type,
+            qm.current_round,
+            qm.queue_order,
+            qm.status AS queue_status,
+            p.emp_code,
+            p.name,
+            p.department,
+            p.position,
+            p.email,
+            p.phone
           FROM queue_members qm
-          JOIN personnel p ON qm.personnel_id = p.id
-          WHERE UPPER(qm.role_type) = UPPER(?) AND qm.status IN ('HOLD', 'WAITING')
-          ORDER BY qm.current_round ASC, qm.queue_order ASC
-          LIMIT ?`,
-          [roleType, count]
-      );
+          JOIN personnel p
+            ON p.id = qm.personnel_id
+          WHERE UPPER(qm.role_type) = 'DIRECTOR'
+            AND qm.current_round = ?
+            AND qm.status = 'WAITING'
 
-      return candidates;
-    };
+            -- ระบบอัตโนมัติใช้เฉพาะ DIR-01 ถึง DIR-08
+            AND CAST(
+              REPLACE(UPPER(TRIM(p.emp_code)), 'DIR-', '')
+              AS INTEGER
+            ) BETWEEN 1 AND 8
 
-    const directors = await selectCandidatesForRole('DIRECTOR', required_directors);
-    const staff = await selectCandidatesForRole('STAFF', required_staff);
-
-    res.json({
-      success: true,
-      data: {
-        directors,
-        staff
+          ORDER BY
+            CAST(
+              REPLACE(UPPER(TRIM(p.emp_code)), 'DIR-', '')
+              AS INTEGER
+            ) ASC
+          LIMIT ?;
+          `,
+          [
+            currentDirectorRound,
+            directorCount
+          ]
+        );
       }
-    });
+
+    //----------------------------------------------------------
+// เลือกพนักงานแบบผสม
+//
+// 1. เลือกจากหัวคิวปัจจุบัน 2 คน
+// 2. เลือกจากท้ายคิวให้ครบจำนวนที่ระบุ
+// 3. ไม่ให้ personnel_id ซ้ำกัน
+//----------------------------------------------------------
+let staff = [];
+
+if (staffCount > 0) {
+  // จำนวนที่เลือกจากหัวคิว
+  const frontCount = Math.min(
+    2,
+    staffCount
+  );
+
+  // จำนวนที่ต้องเลือกเพิ่มจากท้ายคิว
+  const backCount = Math.max(
+    0,
+    staffCount - frontCount
+  );
+
+  //--------------------------------------------------------
+  // 1. ดึงจากหัวคิว 2 คนแรก
+  //--------------------------------------------------------
+  const frontStaff = await dbAll(
+    `
+    SELECT
+      qm.personnel_id,
+      qm.role_type,
+      qm.current_round,
+      qm.queue_order,
+      qm.status AS queue_status,
+      p.emp_code,
+      p.name,
+      p.department,
+      p.position,
+      p.email,
+      p.phone
+    FROM queue_members qm
+    JOIN personnel p
+      ON p.id = qm.personnel_id
+    WHERE UPPER(qm.role_type) = 'STAFF'
+      AND qm.current_round = ?
+      AND qm.status = 'WAITING'
+    ORDER BY
+      qm.queue_order ASC,
+      qm.personnel_id ASC
+    LIMIT ?;
+    `,
+    [
+      currentStaffRound,
+      frontCount
+    ]
+  );
+
+  //--------------------------------------------------------
+  // 2. ดึงจากท้ายคิว
+  //
+  // ต้องไม่ซ้ำกับคนที่เลือกจากหัวคิวแล้ว
+  //--------------------------------------------------------
+  let backStaff = [];
+
+  if (backCount > 0) {
+    const frontIds = frontStaff.map(
+      person => person.personnel_id
+    );
+
+    let excludeSql = '';
+    const backParams = [
+      currentStaffRound
+    ];
+
+    if (frontIds.length > 0) {
+      const placeholders = frontIds
+        .map(() => '?')
+        .join(',');
+
+      excludeSql = `
+        AND qm.personnel_id
+            NOT IN (${placeholders})
+      `;
+
+      backParams.push(...frontIds);
+    }
+
+    backParams.push(backCount);
+
+    backStaff = await dbAll(
+      `
+      SELECT
+        qm.personnel_id,
+        qm.role_type,
+        qm.current_round,
+        qm.queue_order,
+        qm.status AS queue_status,
+        p.emp_code,
+        p.name,
+        p.department,
+        p.position,
+        p.email,
+        p.phone
+      FROM queue_members qm
+      JOIN personnel p
+        ON p.id = qm.personnel_id
+      WHERE UPPER(qm.role_type) = 'STAFF'
+        AND qm.current_round = ?
+        AND qm.status = 'WAITING'
+        ${excludeSql}
+      ORDER BY
+        qm.queue_order DESC,
+        qm.personnel_id DESC
+      LIMIT ?;
+      `,
+      backParams
+    );
+  }
+
+  //--------------------------------------------------------
+  // 3. รวมตามลำดับที่ต้องการ
+  //
+  // หัวคิวก่อน แล้วตามด้วยท้ายคิว
+  //--------------------------------------------------------
+  staff = [
+    ...frontStaff,
+    ...backStaff
+  ];
+
+  console.log(
+    '👥 STAFF จากหัวคิว:',
+    frontStaff.map(person =>
+      person.emp_code
+    )
+  );
+
+  console.log(
+    '🔚 STAFF จากท้ายคิว:',
+    backStaff.map(person =>
+      person.emp_code
+    )
+  );
+
+  console.log(
+    '✅ STAFF ที่จัดสรรทั้งหมด:',
+    staff.map(person =>
+      person.emp_code
+    )
+  );
+}
+
+   res.json({
+  success: true,
+  data: {
+    directors,
+    staff
+  }
+});
+
   } catch (err) {
     console.error('Preview Candidates Error:', err);
-    res.status(500).json({ success: false, message: 'Internal Server Error' });
+
+    res.status(500).json({
+      success: false,
+      message: 'Internal Server Error',
+      error: err.message
+    });
   }
 });
 
 // -------------------------------------------------------------
 // 4. CREATE MISSION & CONFIRM ASSIGNMENTS
 // -------------------------------------------------------------
-router.post('/missions/create', async (req, res) => {
+/*router.post('/missions/create', async (req, res) => {
   try {
     const {
       mission_title,
@@ -963,6 +1414,430 @@ router.post('/missions/create', async (req, res) => {
   } catch (error) {
     console.error('Error creating mission:', error);
     res.status(500).json({ success: false, error: 'เกิดข้อผิดพลาดในการสร้างกิจกรรม' });
+  }
+});*/
+// -------------------------------------------------------------
+// 4. CREATE MISSION & CONFIRM ASSIGNMENTS
+// -------------------------------------------------------------
+router.post('/missions/create', async (req, res) => {
+  try {
+    const {
+      mission_title,
+      description,
+      location,
+      dress_code,
+      start_date,
+      end_date,
+      required_directors,
+      required_staff,
+      assigned_director_ids = [],
+      assigned_staff_ids = [],
+      skipped_personnel = []
+    } = req.body;
+
+    //----------------------------------------------------------
+    // ปรับ ID ให้เป็นตัวเลขทั้งหมด
+    //----------------------------------------------------------
+    const directorIds = assigned_director_ids
+      .map(id => Number(id))
+      .filter(Number.isInteger);
+
+    const staffIds = assigned_staff_ids
+      .map(id => Number(id))
+      .filter(Number.isInteger);
+
+    if (!mission_title || !start_date || !end_date) {
+      return res.status(400).json({
+        success: false,
+        error:
+          'กรุณากรอกชื่อกิจกรรม วันที่เริ่มต้น และวันที่สิ้นสุด'
+      });
+    }
+
+    //----------------------------------------------------------
+    // 1. พักผู้ที่ถูกข้าม
+    //
+    // HOLD จะไม่ถูกเลือกซ้ำในรอบปัจจุบัน
+    // เมื่อระบบขึ้นรอบใหม่ จึงกลับเป็น WAITING
+    //----------------------------------------------------------
+    for (const skipItem of skipped_personnel) {
+      const personnelId = Number(skipItem.personnel_id);
+
+      if (!Number.isInteger(personnelId)) {
+        continue;
+      }
+
+      await dbRun(
+        `
+        UPDATE queue_members
+        SET
+          status = 'HOLD',
+          hold_reason = ?,
+          hold_timestamp = CURRENT_TIMESTAMP
+        WHERE personnel_id = ?;
+        `,
+        [
+          skipItem.reason ||
+            'ติดกิจกรรมซ้อน (Hold_In_Round)',
+          personnelId
+        ]
+      );
+    }
+
+    //----------------------------------------------------------
+    // 2. สร้างรหัสกิจกรรม
+    //----------------------------------------------------------
+    const newMissionCode = await generateMissionCode();
+
+    //----------------------------------------------------------
+    // 3. บันทึกกิจกรรม
+    //----------------------------------------------------------
+    const missionResult = await dbRun(
+      `
+      INSERT INTO missions
+      (
+        mission_code,
+        mission_title,
+        description,
+        location,
+        dress_code,
+        start_date,
+        end_date,
+        required_directors,
+        required_staff,
+        status
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'SCHEDULED');
+      `,
+      [
+        newMissionCode,
+        mission_title,
+        description || '',
+        location || '',
+        dress_code ||
+          'ชุดสุภาพ / ชุดปฏิบัติงาน อสป.',
+        start_date,
+        end_date,
+        Number(required_directors) || directorIds.length,
+        Number(required_staff) || staffIds.length
+      ]
+    );
+
+    const missionId = missionResult.lastID;
+
+    //----------------------------------------------------------
+    // อ่านรอบปัจจุบัน
+    //----------------------------------------------------------
+    const directorState = await dbGet(`
+      SELECT current_round
+      FROM queue_state
+      WHERE role_type = 'DIRECTOR';
+    `);
+
+    const staffState = await dbGet(`
+      SELECT current_round
+      FROM queue_state
+      WHERE role_type = 'STAFF';
+    `);
+
+    const currentDirectorRound =
+      directorState?.current_round || 1;
+
+    const currentStaffRound =
+      staffState?.current_round || 1;
+
+    //----------------------------------------------------------
+    // 4. บันทึก ผอ.ฝ่าย
+    //----------------------------------------------------------
+    for (const personnelId of directorIds) {
+      //--------------------------------------------------------
+      // ป้องกัน DIR-09 และ DIR-10 ถูกจัดอัตโนมัติ
+      //--------------------------------------------------------
+      const director = await dbGet(
+        `
+        SELECT id, emp_code, name
+        FROM personnel
+        WHERE id = ?;
+        `,
+        [personnelId]
+      );
+
+      if (!director) {
+        console.warn(
+          `⚠️ ไม่พบข้อมูล DIRECTOR personnel_id=${personnelId}`
+        );
+        continue;
+      }
+
+      await dbRun(
+        `
+        INSERT INTO mission_assignments
+        (
+          mission_id,
+          personnel_id,
+          role_type,
+          assigned_round,
+          is_leader,
+          assignment_status,
+          ack_status
+        )
+        VALUES
+        (
+          ?, ?, 'DIRECTOR', ?, 1,
+          'JOINED',
+          'PENDING_ACK'
+        );
+        `,
+        [
+          missionId,
+          personnelId,
+          currentDirectorRound
+        ]
+      );
+
+      //--------------------------------------------------------
+      // เปลี่ยนเป็น COMPLETED
+      // ทำให้ไม่ถูกเลือกซ้ำในรอบเดิม
+      //--------------------------------------------------------
+      await dbRun(
+        `
+        UPDATE queue_members
+        SET
+          status = 'COMPLETED',
+          hold_reason = NULL,
+          hold_timestamp = NULL,
+          last_assigned_at = CURRENT_TIMESTAMP
+        WHERE personnel_id = ?
+          AND UPPER(role_type) = 'DIRECTOR'
+          AND current_round = ?;
+        `,
+        [
+          personnelId,
+          currentDirectorRound
+        ]
+      );
+    }
+
+    //----------------------------------------------------------
+    // 5. บันทึกพนักงาน
+    //----------------------------------------------------------
+    for (const personnelId of staffIds) {
+      //--------------------------------------------------------
+      // ตรวจว่ายังเป็น WAITING จริง
+      // ป้องกันการส่ง ID ซ้ำหรือเลือกซ้ำจากหน้าจอเก่า
+      //--------------------------------------------------------
+      const queueMember = await dbGet(
+        `
+        SELECT id, status, current_round
+        FROM queue_members
+        WHERE personnel_id = ?
+          AND UPPER(role_type) = 'STAFF'
+          AND current_round = ?;
+        `,
+        [
+          personnelId,
+          currentStaffRound
+        ]
+      );
+
+      if (!queueMember) {
+        console.warn(
+          `⚠️ ไม่พบ STAFF personnel_id=${personnelId} ` +
+          `ในรอบ ${currentStaffRound}`
+        );
+        continue;
+      }
+
+      if (queueMember.status !== 'WAITING') {
+        console.warn(
+          `⏭️ ข้าม STAFF personnel_id=${personnelId} ` +
+          `เพราะสถานะเป็น ${queueMember.status}`
+        );
+        continue;
+      }
+
+      await dbRun(
+        `
+        INSERT INTO mission_assignments
+        (
+          mission_id,
+          personnel_id,
+          role_type,
+          assigned_round,
+          is_leader,
+          assignment_status,
+          ack_status
+        )
+        VALUES
+        (
+          ?, ?, 'STAFF', ?, 0,
+          'JOINED',
+          'PENDING_ACK'
+        );
+        `,
+        [
+          missionId,
+          personnelId,
+          currentStaffRound
+        ]
+      );
+
+      //--------------------------------------------------------
+      // เปลี่ยนเป็น COMPLETED
+      // พนักงานคนนี้จะไม่ถูกสุ่มซ้ำในรอบเดิม
+      //--------------------------------------------------------
+      await dbRun(
+        `
+        UPDATE queue_members
+        SET
+          status = 'COMPLETED',
+          hold_reason = NULL,
+          hold_timestamp = NULL,
+          last_assigned_at = CURRENT_TIMESTAMP
+        WHERE id = ?;
+        `,
+        [queueMember.id]
+      );
+    }
+
+    //----------------------------------------------------------
+    // 6. ตรวจว่าครบรอบหลังบันทึกหรือยัง
+    //
+    // ถ้าครบ:
+    // DIRECTOR → รอบใหม่เริ่ม DIR-01
+    // STAFF    → รอบใหม่สุ่ม queue_order ใหม่ทั้งหมด
+    //----------------------------------------------------------
+    const directorRoundResult =
+      await checkAndAdvanceRound('DIRECTOR');
+
+    const staffRoundResult =
+      await checkAndAdvanceRound('STAFF');
+
+    if (directorRoundResult.roundAdvanced) {
+      console.log(
+        `🔁 DIRECTOR ขึ้นรอบใหม่ ` +
+        `${directorRoundResult.newRound}`
+      );
+    }
+
+    if (staffRoundResult.roundAdvanced) {
+      console.log(
+        `🎲 STAFF ขึ้นรอบใหม่และสุ่มใหม่ รอบ ` +
+        `${staffRoundResult.newRound}`
+      );
+    }
+
+    //----------------------------------------------------------
+    // 7. ส่ง LINE และ Email
+    //
+    // ใช้เฉพาะคนที่บันทึก Assignment สำเร็จจริง
+    //----------------------------------------------------------
+    try {
+      const insertedAssignments = await dbAll(
+        `
+        SELECT
+          ma.personnel_id,
+          ma.role_type,
+          ma.is_leader
+        FROM mission_assignments ma
+        WHERE ma.mission_id = ?;
+        `,
+        [missionId]
+      );
+
+      const allAssignedIds = insertedAssignments.map(
+        item => item.personnel_id
+      );
+
+      if (allAssignedIds.length > 0) {
+        const placeholders = allAssignedIds
+          .map(() => '?')
+          .join(',');
+
+        const assignedPersonnel = await dbAll(
+          `
+          SELECT p.*
+          FROM personnel p
+          WHERE p.id IN (${placeholders});
+          `,
+          allAssignedIds
+        );
+
+        const assignmentMap = new Map(
+          insertedAssignments.map(item => [
+            Number(item.personnel_id),
+            item
+          ])
+        );
+
+        const assignedList = assignedPersonnel.map(person => {
+          const assignment =
+            assignmentMap.get(Number(person.id));
+
+          return {
+            ...person,
+            personnel_id: person.id,
+            role_type:
+              assignment?.role_type || 'STAFF',
+            is_leader:
+              assignment?.is_leader || 0
+          };
+        });
+
+        const missionData = await dbGet(
+          `
+          SELECT *
+          FROM missions
+          WHERE id = ?;
+          `,
+          [missionId]
+        );
+
+        if (missionData) {
+          sendMissionNotification(
+            missionData,
+            assignedList,
+            false
+          ).catch(error => {
+            console.error(
+              '❌ Notification dispatch error:',
+              error
+            );
+          });
+
+          console.log(
+            `📢 ส่งแจ้งเตือนกิจกรรม "${mission_title}" ` +
+            `ให้ ${assignedList.length} คน`
+          );
+        }
+      }
+    } catch (notificationError) {
+      console.error(
+        '❌ เกิดข้อผิดพลาดตอนส่งแจ้งเตือน:',
+        notificationError
+      );
+    }
+
+    res.json({
+      success: true,
+      message:
+        `สร้างกิจกรรม "${mission_title}" สำเร็จ! ` +
+        `ส่งแจ้งเตือนให้ผู้ที่ถูกจัดสรรแล้ว`,
+      mission_id: missionId,
+      mission_code: newMissionCode,
+      round_status: {
+        director: directorRoundResult,
+        staff: staffRoundResult
+      }
+    });
+  } catch (error) {
+    console.error('Error creating mission:', error);
+
+    res.status(500).json({
+      success: false,
+      error: 'เกิดข้อผิดพลาดในการสร้างกิจกรรม',
+      details: error.message
+    });
   }
 });
 // -------------------------------------------------------------

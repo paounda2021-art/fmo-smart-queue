@@ -523,53 +523,548 @@ async function confirmSubstitution() {
   }
 }
 
-// -------------------------------------------------------------
-// TEAM LEADER MANUAL MULTI-SELECT FUNCTIONS
-// -------------------------------------------------------------
-let allDirectorsList = [];
-
 async function loadDirectorSelectList() {
-  const container = document.getElementById('director-select-list');
-  if (!container) return;
+  const container =
+    document.getElementById('director-select-list');
+
+  if (!container) {
+    console.error('❌ ไม่พบ element: director-select-list');
+    return;
+  }
 
   try {
     const res = await fetch('/api/queue/DIRECTOR');
-    const result = await res.json();
-    if (result.success && result.members) {
-      allDirectorsList = result.members;
-      let html = '';
-      allDirectorsList.forEach((d, idx) => {
-        const isChecked = idx === 0 ? 'checked' : '';
-        html += `
-          <label style="display: flex; align-items: center; gap: 10px; background: var(--input-bg); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--card-border); cursor: pointer; transition: all 0.2s;">
-            <input type="checkbox" class="director-checkbox" value="${d.personnel_id}" ${isChecked} onchange="onDirectorSelectionChange()" style="accent-color: var(--primary); width: 18px; height: 18px;">
-            <div style="flex: 1; min-width: 0;">
-              <div style="font-size: 0.88rem; font-weight: 700; color: var(--text-heading); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(d.name)}</div>
-              <div style="font-size: 0.76rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(d.position)}</div>
-            </div>
-            <span class="badge badge-purple" style="font-size: 0.7rem;">${escapeHtml(d.emp_code)}</span>
-          </label>
-        `;
-      });
-      container.innerHTML = html;
-      onDirectorSelectionChange();
+
+    if (!res.ok) {
+      throw new Error(
+        `เซิร์ฟเวอร์ตอบกลับด้วยสถานะ ${res.status}`
+      );
     }
+
+    const result = await res.json();
+
+    if (
+      !result.success ||
+      !Array.isArray(result.members)
+    ) {
+      throw new Error(
+        result.message ||
+        'ไม่สามารถโหลดรายชื่อ ผอ.ฝ่ายได้'
+      );
+    }
+
+    allDirectorsList = result.members;
+
+    // ---------------------------------------------------------
+    // 1. หาหัวหน้าตามคิวจริง
+    //
+    // - ใช้เฉพาะ DIR-01 ถึง DIR-08
+    // - ใช้เฉพาะสถานะ WAITING
+    // - เรียง DIR-01 → DIR-08
+    // ---------------------------------------------------------
+    const fixedDirector =
+      allDirectorsList
+        .filter(person => {
+          const empCode = String(
+            person.emp_code || ''
+          )
+            .trim()
+            .toUpperCase();
+
+          const queueStatus = String(
+            person.queue_status ||
+            person.status ||
+            ''
+          )
+            .trim()
+            .toUpperCase();
+
+          return (
+            /^DIR-0[1-8]$/.test(empCode) &&
+            queueStatus === 'WAITING'
+          );
+        })
+        .sort((a, b) => {
+          const codeA = Number(
+            String(a.emp_code || '')
+              .replace(/\D/g, '')
+          );
+
+          const codeB = Number(
+            String(b.emp_code || '')
+              .replace(/\D/g, '')
+          );
+
+          return codeA - codeB;
+        })[0] || null;
+
+    // ---------------------------------------------------------
+    // 2. ผอ.ฝ่ายสำรอง
+    //
+    // แสดง DIR-10 ก่อน DIR-09
+    // ไม่ถูกเลือกอัตโนมัติ แต่เลือกเพิ่มได้
+    // ---------------------------------------------------------
+    const reserveOrder = {
+      'DIR-10': 1,
+      'DIR-09': 2
+    };
+
+    const reserveDirectors =
+      allDirectorsList
+        .filter(person => {
+          const empCode = String(
+            person.emp_code || ''
+          )
+            .trim()
+            .toUpperCase();
+
+          return [
+            'DIR-10',
+            'DIR-09'
+          ].includes(empCode);
+        })
+        .sort((a, b) => {
+          const codeA = String(
+            a.emp_code || ''
+          )
+            .trim()
+            .toUpperCase();
+
+          const codeB = String(
+            b.emp_code || ''
+          )
+            .trim()
+            .toUpperCase();
+
+          return (
+            (reserveOrder[codeA] || 99) -
+            (reserveOrder[codeB] || 99)
+          );
+        });
+
+    // ---------------------------------------------------------
+    // 3. ลำดับรายการด้านซ้าย
+    //
+    // DIR-10 → DIR-09 → หัวหน้าตามคิวปัจจุบัน
+    // ---------------------------------------------------------
+    const displayedDirectors = [
+      ...reserveDirectors,
+      ...(fixedDirector
+        ? [fixedDirector]
+        : [])
+    ];
+
+    console.log(
+      '✅ หัวหน้าตามคิวปัจจุบัน:',
+      fixedDirector
+        ? {
+            emp_code:
+              fixedDirector.emp_code,
+            status:
+              fixedDirector.queue_status ||
+              fixedDirector.status
+          }
+        : 'ไม่พบ DIRECTOR สถานะ WAITING'
+    );
+
+    console.log(
+      '➕ ผอ.ฝ่ายสำรอง:',
+      reserveDirectors.map(
+        person => person.emp_code
+      )
+    );
+
+    // ---------------------------------------------------------
+    // 4. กรณีไม่พบข้อมูล
+    // ---------------------------------------------------------
+    if (displayedDirectors.length === 0) {
+      container.innerHTML = `
+        <p
+          style="
+            color: var(--text-muted);
+            font-size: 0.82rem;
+            margin: 0;
+          "
+        >
+          ไม่พบรายชื่อ ผอ.ฝ่าย
+        </p>
+      `;
+
+      previewedDirectors = [];
+
+      renderCandidatesList(
+        'preview-directors-list',
+        previewedDirectors
+      );
+
+      const badge = document.getElementById(
+        'selected-directors-badge'
+      );
+
+      if (badge) {
+        badge.textContent = 'เลือกแล้ว 0 ท่าน';
+      }
+
+      return;
+    }
+
+    // ID ของหัวหน้าตามคิวในรอบปัจจุบัน
+    const fixedPersonnelId = String(
+      fixedDirector?.personnel_id ||
+      fixedDirector?.id ||
+      ''
+    );
+
+    // ---------------------------------------------------------
+    // 5. สร้างรายการ Checkbox
+    // ---------------------------------------------------------
+    container.innerHTML =
+      displayedDirectors
+        .map(person => {
+          const personnelId = String(
+            person.personnel_id ||
+            person.id ||
+            ''
+          );
+
+          const empCode = String(
+            person.emp_code || ''
+          )
+            .trim()
+            .toUpperCase();
+
+          // ห้ามฟิกด้วย empCode === DIR-01
+          // เพราะรอบต่อไปอาจเป็น DIR-02, DIR-03 เป็นต้น
+          const isFixed =
+            Boolean(fixedPersonnelId) &&
+            personnelId === fixedPersonnelId;
+
+          const description = isFixed
+            ? 'ผอ.ฝ่ายรันคิวอัตโนมัติ'
+            : 'ผู้บริหารระดับสูง';
+
+          return `
+            <label
+              class="${
+                isFixed
+                  ? 'director-auto-selected'
+                  : 'director-reserve-option'
+              }"
+              style="
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                background: ${
+                  isFixed
+                    ? '#e5e7eb'
+                    : 'var(--input-bg)'
+                };
+                padding: 12px 14px;
+                border-radius: 10px;
+                border: 1px solid var(--card-border);
+                cursor: ${
+                  isFixed
+                    ? 'default'
+                    : 'pointer'
+                };
+                transition: all 0.2s;
+              "
+            >
+              <input
+                type="checkbox"
+                class="director-checkbox"
+                name="assigned_director_ids"
+                value="${personnelId}"
+                data-emp-code="${empCode}"
+                data-fixed="${
+                  isFixed ? '1' : '0'
+                }"
+                ${isFixed ? 'checked' : ''}
+                onchange="onDirectorSelectionChange(this)"
+                style="
+                  accent-color: var(--primary);
+                  width: 18px;
+                  height: 18px;
+                "
+              >
+
+              <div
+                style="
+                  flex: 1;
+                  min-width: 0;
+                "
+              >
+                <div
+                  style="
+                    font-size: 0.88rem;
+                    font-weight: 700;
+                    color: var(--text-heading);
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                  "
+                >
+                  ${escapeHtml(person.name || '-')}
+                </div>
+
+                <div
+                  style="
+                    font-size: 0.76rem;
+                    color: var(--text-muted);
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                  "
+                >
+                  ${escapeHtml(person.position || '-')}
+                </div>
+              </div>
+
+              <div
+                style="
+                  display: flex;
+                  flex-direction: column;
+                  align-items: flex-end;
+                  gap: 2px;
+                "
+              >
+                <strong
+                  style="
+                    font-size: 0.78rem;
+                    color: var(--text-muted);
+                  "
+                >
+                  ${escapeHtml(empCode)}
+                </strong>
+
+                <small
+                  style="
+                    font-size: 0.68rem;
+                    color: ${
+                      isFixed
+                        ? '#64748b'
+                        : '#d97706'
+                    };
+                    white-space: nowrap;
+                  "
+                >
+                  ${description}
+                </small>
+              </div>
+            </label>
+          `;
+        })
+        .join('');
+
+    // อัปเดตจำนวนที่เลือกและการ์ดด้านขวา
+    onDirectorSelectionChange();
   } catch (err) {
-    console.error('Error loading director select list:', err);
+    console.error(
+      'Error loading director select list:',
+      err
+    );
+
+    container.innerHTML = `
+      <p
+        style="
+          color: #dc2626;
+          font-size: 0.82rem;
+          margin: 0;
+        "
+      >
+        ไม่สามารถโหลดรายชื่อ ผอ.ฝ่ายได้
+      </p>
+    `;
   }
 }
 
-function onDirectorSelectionChange() {
-  const checkboxes = document.querySelectorAll('.director-checkbox:checked');
-  const selectedIds = Array.from(checkboxes).map(cb => parseInt(cb.value, 10));
-
-  const badge = document.getElementById('selected-directors-badge');
-  if (badge) {
-    badge.textContent = `เลือกแล้ว ${selectedIds.length} ท่าน`;
+function onDirectorSelectionChange(
+  changedCheckbox = null
+) {
+  // ---------------------------------------------------------
+  // DIR-01 เป็นหัวหน้าฟิก ห้ามยกเลิก
+  // ---------------------------------------------------------
+  if (
+    changedCheckbox &&
+    changedCheckbox.dataset.fixed === '1'
+  ) {
+    changedCheckbox.checked = true;
   }
 
-  previewedDirectors = allDirectorsList.filter(d => selectedIds.includes(d.personnel_id));
-  renderCandidatesList('preview-directors-list', previewedDirectors);
+  const checkedBoxes =
+    document.querySelectorAll(
+      '#director-select-list ' +
+      '.director-checkbox:checked'
+    );
+
+  const selectedIds =
+    Array.from(checkedBoxes)
+      .map(checkbox =>
+        Number.parseInt(
+          checkbox.value,
+          10
+        )
+      )
+      .filter(Number.isInteger);
+
+  // ---------------------------------------------------------
+  // อัปเดตป้ายจำนวนผู้ถูกเลือก
+  // ---------------------------------------------------------
+  const badge =
+    document.getElementById(
+      'selected-directors-badge'
+    );
+
+  if (badge) {
+    badge.textContent =
+      `เลือกแล้ว ${selectedIds.length} ท่าน`;
+  }
+
+  // ---------------------------------------------------------
+  // ดึงข้อมูลเฉพาะผู้ที่ถูกเลือก
+  // ---------------------------------------------------------
+  previewedDirectors =
+    allDirectorsList.filter(person => {
+      const personnelId = Number(
+        person.personnel_id ||
+        person.id
+      );
+
+      return selectedIds.includes(
+        personnelId
+      );
+    });
+
+    // 3. ลำดับด้านซ้าย:
+    //    DIR-10 → DIR-09 → DIR-01
+    // ---------------------------------------------------------
+    const displayedDirectors = [
+      ...reserveDirectors,
+      ...(fixedDirector
+        ? [fixedDirector]
+        : [])
+    ];
+  
+    // ---------------------------------------------------------
+  // เรียงการ์ดด้านขวา:
+  // 1. DIR-01 เป็นคิว #1
+  // 2. ตัวสำรองที่เลือกเพิ่ม เช่น DIR-10 เป็นคิว #2
+  // 3. DIR-09 เป็นลำดับถัดไป
+  // ---------------------------------------------------------
+  previewedDirectors.sort((a, b) => {
+    const order = {
+      'DIR-01': 1,
+      'DIR-10': 2,
+      'DIR-09': 3
+    };
+
+    const codeA = String(
+      a.emp_code || ''
+    )
+      .trim()
+      .toUpperCase();
+
+    const codeB = String(
+      b.emp_code || ''
+    )
+      .trim()
+      .toUpperCase();
+
+    return (
+      (order[codeA] || 99) -
+      (order[codeB] || 99)
+    );
+  });
+
+  // แสดงหัวหน้าทีมทางขวาตามที่เลือกจริง
+  renderCandidatesList(
+    'preview-directors-list',
+    previewedDirectors
+  );
+
+  console.log(
+    '👔 หัวหน้าทีมที่เลือก:',
+    previewedDirectors.map(
+      person => person.emp_code
+    )
+  );
+}
+
+function onDirectorSelectionChange(changedCheckbox = null) {
+  // DIR-01 เป็นหัวหน้าฟิก ห้ามยกเลิก
+  if (
+    changedCheckbox &&
+    changedCheckbox.dataset.fixed === '1'
+  ) {
+    changedCheckbox.checked = true;
+  }
+
+  // อ่าน ID ของ Checkbox ที่เลือก โดยใช้ String ป้องกันชนิดข้อมูลไม่ตรงกัน
+  const selectedIds = Array.from(
+    document.querySelectorAll(
+      '#director-select-list .director-checkbox:checked'
+    )
+  )
+    .map(checkbox => String(checkbox.value))
+    .filter(Boolean);
+
+  // อัปเดตป้ายจำนวนที่เลือก
+  const badge = document.getElementById(
+    'selected-directors-badge'
+  );
+
+  if (badge) {
+    badge.textContent =
+      `เลือกแล้ว ${selectedIds.length} ท่าน`;
+  }
+
+  // ดึงรายชื่อที่เลือกจริง
+  previewedDirectors = (allDirectorsList || [])
+    .filter(person => {
+      const personnelId = String(
+        person.personnel_id ||
+        person.id ||
+        ''
+      );
+
+      return selectedIds.includes(personnelId);
+    });
+
+  // ด้านขวาเรียง DIR-01 ก่อน แล้ว DIR-10 และ DIR-09
+  const directorOrder = {
+    'DIR-01': 1,
+    'DIR-10': 2,
+    'DIR-09': 3
+  };
+
+  previewedDirectors.sort((a, b) => {
+    const codeA = String(a.emp_code || '')
+      .trim()
+      .toUpperCase();
+
+    const codeB = String(b.emp_code || '')
+      .trim()
+      .toUpperCase();
+
+    return (
+      (directorOrder[codeA] || 99) -
+      (directorOrder[codeB] || 99)
+    );
+  });
+
+  // แสดงหัวหน้าทีมด้านขวาตาม Checkbox ที่เลือกจริง
+  renderCandidatesList(
+    'preview-directors-list',
+    previewedDirectors
+  );
+
+  console.log(
+    '👔 หัวหน้าทีมที่เลือกจริง:',
+    previewedDirectors.map(person => ({
+      id: person.personnel_id || person.id,
+      emp_code: person.emp_code
+    }))
+  );
 }
 
 // -------------------------------------------------------------
@@ -591,25 +1086,92 @@ function setDefaultMissionTimes() {
   if (endDateEl) endDateEl.value = dateStr;
 }
 
+// -------------------------------------------------------------
+// PREVIEW STAFF CANDIDATES
+//
+// หน้าที่:
+// - ดึงพนักงานตามคิวสุ่ม
+// - แสดงพนักงานด้านขวา
+//
+// ไม่จัดการ ผอ.ฝ่าย
+// ผอ.ฝ่ายให้ loadDirectorSelectList() และ
+// onDirectorSelectionChange() ดูแลเพียงระบบเดียว
+// -------------------------------------------------------------
 async function previewCandidates() {
-  const reqStaffInput = document.getElementById('alloc-req-staff')?.value;
-  const reqStaff = reqStaffInput !== undefined && reqStaffInput !== '' ? parseInt(reqStaffInput, 10) : 5;
+  const reqStaffInput =
+    document.getElementById('alloc-req-staff')?.value;
+
+  const parsedStaff =
+    Number.parseInt(reqStaffInput, 10);
+
+  const reqStaff =
+    Number.isInteger(parsedStaff) && parsedStaff > 0
+      ? parsedStaff
+      : 5;
 
   try {
-    const res = await fetch('/api/missions/preview-candidates', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ required_directors: 0, required_staff: reqStaff })
-    });
+    const res = await fetch(
+      '/api/missions/preview-candidates',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          // ผอ.ฝ่ายไม่ได้จัดการในฟังก์ชันนี้
+          required_directors: 0,
+          required_staff: reqStaff
+        })
+      }
+    );
+
+    if (!res.ok) {
+      throw new Error(
+        `เซิร์ฟเวอร์ตอบกลับด้วยสถานะ ${res.status}`
+      );
+    }
+
     const result = await res.json();
 
-    if (result.success) {
-      // แก้ไข: ดึงข้อมูลจาก result.data.staff แทน และใช้ || [] ดักเผื่อกรณีไม่มีข้อมูล
-      previewedStaff = result.data.staff || [];
-      renderCandidatesList('preview-staff-list', previewedStaff);
+    if (!result.success) {
+      throw new Error(
+        result.message ||
+        'ไม่สามารถโหลดรายชื่อพนักงานตามคิวได้'
+      );
     }
+
+    // ---------------------------------------------------------
+    // รับเฉพาะพนักงานจาก API
+    // ---------------------------------------------------------
+    previewedStaff =
+      Array.isArray(result.data?.staff)
+        ? result.data.staff
+        : [];
+
+    // ---------------------------------------------------------
+    // แสดงพนักงานด้านขวา
+    // ---------------------------------------------------------
+    renderCandidatesList(
+      'preview-staff-list',
+      previewedStaff
+    );
+
+    console.log(
+      '🎲 พนักงานตามคิวสุ่ม:',
+      previewedStaff.map(
+        person => person.emp_code
+      )
+    );
   } catch (err) {
-    console.error('Error previewing candidates:', err);
+    console.error(
+      'Error previewing staff candidates:',
+      err
+    );
+
+    showToast(
+      `ไม่สามารถโหลดคิวพนักงานได้: ${err.message}`,
+      'danger'
+    );
   }
 }
 
@@ -982,8 +1544,6 @@ async function openMissionDetailModal(missionId) {
 
         let ackStatusBadge = '';
         if (a.ack_status === 'ACKNOWLEDGED') {
-          ackStatusBadge = '<span class="badge badge-completed"><i class="fa-solid fa-circle-check"></i> รับทราบแล้ว</span>';
-        } else if (a.ack_status === 'DECLINED_BUSY') {
           ackStatusBadge = '<span class="badge badge-hold"><i class="fa-solid fa-circle-xmark"></i> ติดภารกิจ</span>';
         } else {
           ackStatusBadge = '<span class="badge badge-waiting"><i class="fa-solid fa-clock"></i> รอการตอบรับ</span>';

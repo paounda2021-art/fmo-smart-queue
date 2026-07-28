@@ -127,25 +127,81 @@
               </div>
 
               <div class="form-group" style="margin-bottom: 0;">
-                <label style="font-size: 0.85rem;"><i class="fa-solid fa-align-left text-muted"></i> รายละเอียดเพิ่มเติม (ถ้ามี)</label>
-                <input type="text" id="alloc-desc" class="form-control" placeholder="วัตถุประสงค์สั้น ๆ">
+                <label style="font-size: 0.85rem;"><i class="fa-solid fa-align-left text-muted"></i> รายละเอียดกำหนดการ (ถ้ามี)</label>
+                <input type="text" id="alloc-desc" class="form-control" placeholder="รายละเอียดเพิ่มเติม เช่น กำหนดการเดินทาง / กำหนดการตรวจราชการ">
               </div>
 
             </div>
 
             <!-- Staff & Team Leader Selection Box -->
-            <div style="background: var(--primary-light); padding: 1.15rem; border-radius: 14px; border: 1px solid rgba(2, 132, 199, 0.3);">
-              
-              <!-- 1. Select Team Leader (Multi-Select Checkboxes) -->
-              <div class="form-group" style="margin-bottom: 1.25rem;">
-                <label style="font-size: 0.88rem; font-weight: 700; color: var(--text-heading); display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                  <span><i class="fa-solid fa-user-tie text-purple"></i> เลือกหัวหน้าทีม (ผอ.ฝ่าย) - เลือกได้มากกว่า 1 ท่าน</span>
-                  <span class="badge badge-purple" id="selected-directors-badge" style="font-size: 0.78rem;">เลือกแล้ว 0 ท่าน</span>
-                </label>
-                <div id="director-select-list" style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 10px; max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;">
-                  <p style="color: var(--text-muted); font-size: 0.82rem;">กำลังโหลดรายชื่อ ผอ.ฝ่าย...</p>
-                </div>
-              </div>
+<div
+  style="
+    background: var(--primary-light);
+    padding: 1.35rem;
+    border-radius: 14px;
+    border: 1px solid rgba(2,132,199,.30);
+    margin-top: 0.5rem;
+    margin-bottom: 1.25rem;
+  "
+>
+
+  <!-- 1. Select Team Leader (Multi-Select Checkboxes) -->
+  <div
+    class="form-group"
+    style="margin-bottom: 1.75rem;"
+  >
+    <label
+      style="
+        font-size: .88rem;
+        font-weight: 700;
+        color: var(--text-heading);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: .75rem;
+      "
+    >
+      <span>
+        <i class="fa-solid fa-user-tie text-purple"></i>
+        เลือกหัวหน้าทีม (ผอ.ฝ่าย) - เลือกได้มากกว่า 1 ท่าน
+      </span>
+
+      <span
+        class="badge badge-purple"
+        id="selected-directors-badge"
+        style="font-size:.78rem;"
+      >
+        เลือกแล้ว 0 ท่าน
+      </span>
+    </label>
+
+    <div
+      id="director-select-list"
+      style="
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: 12px;
+        padding: 10px;
+        min-height: 285px;
+        height: auto;
+        max-height: none;
+        overflow: visible;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      "
+    >
+      <p
+        style="
+          color: var(--text-muted);
+          font-size: .82rem;
+          margin: .35rem 0;
+        "
+      >
+        กำลังโหลดรายชื่อ ผอ.ฝ่าย...
+      </p>
+    </div>
+  </div>
 
               <!-- 2. Staff Count for Fair Queue Rotation -->
               <div class="form-group" style="margin-bottom: 0;">
