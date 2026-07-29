@@ -2317,13 +2317,23 @@ router.post('/queue/peer-swap', async (req, res) => {
       return res.status(400).json({ success: false, error: 'การสลับคิวทำได้เฉพาะบุคลากรในกลุ่มประเภทเดียวกันเท่านั้น (ผอ. สลับกับ ผอ. / พนักงาน สลับกับ พนักงาน)' });
     }
 
-    await dbRun(`UPDATE queue_members SET queue_order = ?, current_round = ? WHERE personnel_id = ?`, [q2.queue_order, q2.current_round, q1.personnel_id]);
-    await dbRun(`UPDATE queue_members SET queue_order = ?, current_round = ? WHERE personnel_id = ?`, [q1.queue_order, q1.current_round, q2.personnel_id]);
+    // สลับคิว SQLite แบบ 2 ทางด้วย Atomic Transaction
+    await dbRun('BEGIN TRANSACTION;');
+    try {
+      await dbRun(`UPDATE queue_members SET queue_order = ?, current_round = ? WHERE personnel_id = ?`, [q2.queue_order, q2.current_round, q1.personnel_id]);
+      await dbRun(`UPDATE queue_members SET queue_order = ?, current_round = ? WHERE personnel_id = ?`, [q1.queue_order, q1.current_round, q2.personnel_id]);
 
-    await dbRun(`
-      INSERT INTO queue_swaps (requester_id, target_id, role_type, reason, status, approved_by)
-      VALUES (?, ?, ?, ?, 'APPROVED', 'ADMIN')
-    `, [requester_id, target_id, q1.role_type, reason || 'สลับคิวถั่วเฉลี่ยภารกิจ']);
+      await dbRun(`
+        INSERT INTO queue_swaps (requester_id, target_id, role_type, reason, status, approved_by)
+        VALUES (?, ?, ?, ?, 'APPROVED', 'ADMIN')
+      `, [requester_id, target_id, q1.role_type, reason || 'สลับคิวถั่วเฉลี่ยภารกิจ']);
+
+      await dbRun('COMMIT;');
+    } catch (txErr) {
+      await dbRun('ROLLBACK;');
+      throw txErr;
+    }
+
 
     try {
       const lineToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
