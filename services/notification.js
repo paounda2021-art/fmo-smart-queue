@@ -763,13 +763,39 @@ async function sendMissionNotification(mission, assignedList, isReallocation = f
         continue;
       }
 
+      // ดึงชื่อคนที่ถูกแทนถ้าไม่มี substitute_for_name
+      let substituteForName = person.substitute_for_name || null;
+      if (!substituteForName && isReallocation && mission?.id && (person.personnel_id || person.id)) {
+        try {
+          const { dbGet } = require('../db/database');
+          const subRecord = await dbGet(`
+            SELECT orig_p.name AS orig_name
+            FROM mission_assignments ma
+            JOIN personnel orig_p ON orig_p.id = ma.substituted_for_personnel_id
+            WHERE ma.mission_id = ? AND ma.personnel_id = ? AND ma.substituted_for_personnel_id IS NOT NULL;
+          `, [mission.id, person.personnel_id || person.id]);
+
+          if (subRecord && subRecord.orig_name) {
+            substituteForName = subRecord.orig_name;
+          }
+        } catch (e) {
+          console.error('Error fetching substitute_for_name:', e);
+        }
+      }
+
+      const personWithSubName = {
+        ...person,
+        substitute_for_name: substituteForName || person.substitute_for_name || '-'
+      };
+
       // สร้าง Flex Card เฉพาะบุคคล พร้อมปุ่ม postback (ACK|missionId|personnelId)
       const personalCard = createPersonalizedFlexCard(
         mission,
-        person,
+        personWithSubName,
         isReallocation,
         allDirectors
       );
+
 
 
       try {

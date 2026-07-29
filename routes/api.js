@@ -1529,11 +1529,10 @@ router.post('/missions/preview-candidates', async (req, res) => {
             ) BETWEEN 1 AND 8
 
           ORDER BY
-            CAST(
-              REPLACE(UPPER(TRIM(p.emp_code)), 'DIR-', '')
-              AS INTEGER
-            ) ASC
+            qm.queue_order ASC,
+            qm.personnel_id ASC
           LIMIT ?;
+
           `,
           [
             currentDirectorRound,
@@ -2923,10 +2922,11 @@ router.post('/missions/respond', async (req, res) => {
         if (mission) {
           sendMissionNotification(
             mission,
-            [{ ...nextCandidate, personnel_id: nextCandidate.id }],
+            [{ ...nextCandidate, personnel_id: nextCandidate.id, substitute_for_name: assignment.name }],
             true
           ).catch(e => console.error('Notification dispatch error:', e));
         }
+
 
         const channelNotice = (nextCandidate.line_user_id && nextCandidate.line_user_id.toLowerCase() !== 'email') 
           ? 'ทาง LINE และ อีเมล' 
@@ -2994,10 +2994,11 @@ router.post('/missions/respond', async (req, res) => {
       if (mission) {
         sendMissionNotification(
           mission,
-          [{ ...substitutePerson, personnel_id: substitutePerson.id }],
+          [{ ...substitutePerson, personnel_id: substitutePerson.id, substitute_for_name: assignment.name }],
           true
         ).catch(e => console.error('Notification dispatch error:', e));
       }
+
 
       return res.json({
         success: true,
