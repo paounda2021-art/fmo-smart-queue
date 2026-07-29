@@ -245,9 +245,15 @@ function createLineFlexCardPayload(mission, directors, staff, isReallocation = f
 
 function generateGoogleCalendarUrl(mission) {
   if (!mission) return 'https://calendar.google.com';
-  const title = encodeURIComponent(mission.mission_title || 'กิจกรรม อสป.');
-  const location = encodeURIComponent(mission.location || 'สะพานปลา อสป.');
-  const details = encodeURIComponent(`การแต่งกาย: ${mission.dress_code || 'ชุดปฏิบัติงาน อสป.'}\nรายละเอียด: ${mission.description || '-'}`);
+  
+  const titleStr = String(mission.mission_title || 'กิจกรรม อสป.').slice(0, 80);
+  const locationStr = String(mission.location || 'สะพานปลา อสป.').slice(0, 80);
+  const dressStr = String(mission.dress_code || 'ชุดปฏิบัติงาน อสป.').slice(0, 60);
+  const descStr = String(mission.description || '-').slice(0, 120);
+
+  const title = encodeURIComponent(titleStr);
+  const location = encodeURIComponent(locationStr);
+  const details = encodeURIComponent(`การแต่งกาย: ${dressStr}\nรายละเอียด: ${descStr}`);
   
   const formatDateToGCal = (dateStr) => {
     if (!dateStr) return '';
@@ -261,8 +267,14 @@ function generateGoogleCalendarUrl(mission) {
 
   if (!startGCal) return 'https://calendar.google.com';
 
-  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startGCal}/${endGCal}&details=${details}&location=${location}`;
+  let url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startGCal}/${endGCal}&details=${details}&location=${location}`;
+  
+  if (url.length > 950) {
+    url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startGCal}/${endGCal}`;
+  }
+  return url;
 }
+
 
 /**
  * Generate per-person Flex Card with personalized postback buttons
@@ -492,7 +504,8 @@ function createPersonalizedFlexCard(
                       type: 'box',
                       layout: 'vertical',
                       margin: 'sm',
-                      spacing: 'xxs',
+                      spacing: 'xs',
+
                       contents: [
                         {
                           type: 'text',
