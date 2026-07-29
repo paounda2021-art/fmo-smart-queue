@@ -27,9 +27,9 @@ function formatLeaderTitle(person) {
   const cleanName = name.replace(/\s*\([^)]*\)/g, '').trim();
 
   let title = '';
-  if (empCode === 'DIR-09' || pos.includes('ผู้อำนวยการองค์การสะพานปลา') || pos.includes('ผออ.')) {
+  if (empCode === 'DIR-10' || pos.includes('ผออ.') || (pos.includes('ผู้อำนวยการ') && !pos.includes('รอง') && !pos.includes('รผอ.'))) {
     title = 'ผออ.';
-  } else if (empCode === 'DIR-10' || pos.includes('รองผู้อำนวยการ') || pos.includes('รผอ.') || pos.includes('รผอ.บร.')) {
+  } else if (empCode === 'DIR-09' || pos.includes('รผอ.บร.') || pos.includes('รองผู้อำนวยการ') || pos.includes('รผอ.')) {
     title = 'รผอ.บร.';
   } else if (pos) {
     title = pos;
@@ -39,6 +39,7 @@ function formatLeaderTitle(person) {
 
   return title ? `${cleanName} (${title})` : cleanName;
 }
+
 
 function resolveLeaderPerson(directors = [], assignedList = []) {
   const combined = [...(directors || []), ...(assignedList || [])];
