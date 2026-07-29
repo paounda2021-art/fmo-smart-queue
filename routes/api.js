@@ -385,40 +385,83 @@ router.get('/queue/:roleType', async (req, res) => {
     const state = await dbGet(`SELECT current_round FROM queue_state WHERE role_type = ?;`, [roleType]);
     const currentRound = state ? state.current_round : 1;
 
-    const members = await dbAll(
-      `SELECT 
-        qm.id as queue_id,
-        qm.personnel_id,
-        qm.role_type,
-        qm.current_round,
-        qm.queue_order,
-        qm.status,
-        qm.hold_reason,
-        qm.hold_timestamp,
-        qm.last_assigned_at,
-        p.emp_code,
-        p.name,
-        p.department,
-        p.position,
-        p.phone,
-        p.email,
-        (SELECT COUNT(*) FROM mission_assignments ma WHERE ma.personnel_id = p.id) as total_missions_joined
-       FROM queue_members qm
-       JOIN personnel p ON qm.personnel_id = p.id
-       WHERE qm.role_type = ?
-       ORDER BY 
-         CASE 
-           WHEN p.emp_code = 'DIR-10' THEN 1
-           WHEN p.emp_code = 'DIR-09' THEN 2
-           WHEN qm.status = 'HOLD' THEN 3
-           WHEN qm.status = 'WAITING' THEN 4
-           WHEN qm.status = 'COMPLETED' THEN 5
-           ELSE 6
-         END,
-         qm.queue_order ASC;`,
+    let members = [];
 
-      [roleType]
-    );
+    if (roleType === 'DIRECTOR') {
+      const execs = await dbAll(`
+        SELECT 
+          0 as queue_id,
+          p.id as personnel_id,
+          'DIRECTOR' as role_type,
+          1 as current_round,
+          0 as queue_order,
+          'RESERVE_EXEC' as status,
+          NULL as hold_reason,
+          NULL as hold_timestamp,
+          NULL as last_assigned_at,
+          p.emp_code,
+          p.name,
+          p.department,
+          p.position,
+          p.phone,
+          p.email,
+          (SELECT COUNT(*) FROM mission_assignments ma WHERE ma.personnel_id = p.id AND ma.assignment_status = 'JOINED') as total_missions_joined
+        FROM personnel p
+        WHERE UPPER(TRIM(p.emp_code)) IN ('DIR-10', 'DIR-09')
+        ORDER BY CASE WHEN UPPER(TRIM(p.emp_code)) = 'DIR-10' THEN 1 ELSE 2 END;
+      `);
+
+      const regularDirs = await dbAll(`
+        SELECT 
+          qm.id as queue_id,
+          qm.personnel_id,
+          qm.role_type,
+          qm.current_round,
+          qm.queue_order,
+          qm.status,
+          qm.hold_reason,
+          qm.hold_timestamp,
+          qm.last_assigned_at,
+          p.emp_code,
+          p.name,
+          p.department,
+          p.position,
+          p.phone,
+          p.email,
+          (SELECT COUNT(*) FROM mission_assignments ma WHERE ma.personnel_id = p.id AND ma.assignment_status = 'JOINED') as total_missions_joined
+        FROM queue_members qm
+        JOIN personnel p ON qm.personnel_id = p.id
+        WHERE qm.role_type = 'DIRECTOR'
+        ORDER BY qm.queue_order ASC;
+      `);
+
+      members = [...execs, ...regularDirs];
+    } else {
+      members = await dbAll(
+        `SELECT 
+          qm.id as queue_id,
+          qm.personnel_id,
+          qm.role_type,
+          qm.current_round,
+          qm.queue_order,
+          qm.status,
+          qm.hold_reason,
+          qm.hold_timestamp,
+          qm.last_assigned_at,
+          p.emp_code,
+          p.name,
+          p.department,
+          p.position,
+          p.phone,
+          p.email,
+          (SELECT COUNT(*) FROM mission_assignments ma WHERE ma.personnel_id = p.id AND ma.assignment_status = 'JOINED') as total_missions_joined
+         FROM queue_members qm
+         JOIN personnel p ON qm.personnel_id = p.id
+         WHERE qm.role_type = 'STAFF'
+         ORDER BY qm.queue_order ASC;`
+      );
+    }
+
 
     res.json({
       success: true,
