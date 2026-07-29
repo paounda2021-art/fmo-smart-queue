@@ -112,6 +112,8 @@ function handleLogout() {
     }
   }
 }
+window.handleLogout = handleLogout;
+
 
 
 // -------------------------------------------------------------
