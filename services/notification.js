@@ -1051,14 +1051,153 @@ async function dispatchPreEventReminders() {
   }
 }
 
+/**
+ * สร้าง LINE Flex Card สีม่วง ขอคำยินยอมสลับลำดับคิวถาวร (Peer Swap Consent Card)
+ */
+function createPeerSwapConsentFlexCard(swapId, requester, target, reason) {
+  return {
+    type: 'flex',
+    altText: `🔄 คำขอสลับลำดับคิวถาวรจาก คุณ ${requester.name}`,
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      header: {
+        type: 'box',
+        layout: 'vertical',
+        backgroundColor: '#a855f7',
+        paddingAll: '16px',
+        contents: [
+          {
+            type: 'text',
+            text: 'FMO SMART QUEUE SYSTEM',
+            color: '#f3e8ff',
+            size: 'xxs',
+            weight: 'bold'
+          },
+          {
+            type: 'text',
+            text: '🔄 คำขอสลับลำดับคิวถาวร (Peer Swap)',
+            color: '#ffffff',
+            size: 'md',
+            weight: 'bold',
+            margin: 'xs',
+            wrap: true
+          }
+        ]
+      },
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        paddingAll: '16px',
+        spacing: 'md',
+        contents: [
+          {
+            type: 'text',
+            text: `👤 ผู้ขอสลับคิว: คุณ ${requester.name} (${requester.emp_code})`,
+            weight: 'bold',
+            size: 'sm',
+            color: '#0f172a',
+            wrap: true
+          },
+          {
+            type: 'text',
+            text: `📊 ลำดับคิวปัจจุบันของผู้ขอ: คิวที่ #${requester.queue_order}`,
+            size: 'xs',
+            color: '#0284c7',
+            weight: 'bold'
+          },
+          {
+            type: 'separator',
+            color: '#e2e8f0',
+            margin: 'md'
+          },
+          {
+            type: 'text',
+            text: `🔁 มีความประสงค์ขอสลับคิวกับ: คุณ ${target.name} (คิวที่ #${target.queue_order})`,
+            size: 'xs',
+            color: '#a855f7',
+            weight: 'bold',
+            wrap: true
+          },
+          {
+            type: 'text',
+            text: `📝 เหตุผลที่ระบุ: ${reason || 'ขอสลับคิวตามข้อตกลงร่วมกัน'}`,
+            size: 'xs',
+            color: '#475569',
+            wrap: true
+          },
+          {
+            type: 'box',
+            layout: 'vertical',
+            backgroundColor: '#f3e8ff',
+            paddingAll: '10px',
+            cornerRadius: '8px',
+            margin: 'md',
+            contents: [
+              {
+                type: 'text',
+                text: '📌 หมายเหตุการสลับคิว:',
+                size: 'xxs',
+                color: '#7e22ce',
+                weight: 'bold'
+              },
+              {
+                type: 'text',
+                text: `หากคุณกดยินยอม ลำดับคิวของคุณ (${target.name}) จะเปลี่ยนเป็น #${requester.queue_order} และลำดับคิวของคุณ (${requester.name}) จะเปลี่ยนเป็น #${target.queue_order} ในรอบปัจจุบัน`,
+                size: 'xxs',
+                color: '#6b21a8',
+                wrap: true,
+                margin: 'xs'
+              }
+            ]
+          }
+        ]
+      },
+      footer: {
+        type: 'box',
+        layout: 'horizontal',
+        spacing: 'sm',
+        paddingAll: '12px',
+        contents: [
+          {
+            type: 'button',
+            style: 'primary',
+            color: '#10b981',
+            height: 'sm',
+            action: {
+              type: 'postback',
+              label: '🟢 ยินยอมสลับคิว',
+              data: `SWAP_ACCEPT|${swapId}|${requester.id}|${target.id}`,
+              displayText: '✅ ยินยอมสลับลำดับคิว'
+            }
+          },
+          {
+            type: 'button',
+            style: 'secondary',
+            height: 'sm',
+            action: {
+              type: 'postback',
+              label: '🔴 ปฏิเสธการสลับ',
+              data: `SWAP_REJECT|${swapId}|${requester.id}|${target.id}`,
+              displayText: '❌ ไม่สะดวกสลับคิว'
+            }
+          }
+        ]
+      }
+    }
+  };
+}
+
 module.exports = {
   sendMissionNotification,
   sendUpcomingQueueNotice,
   dispatchPreEventReminders,
   formatDate24h,
   createLineFlexCardPayload,
-  createPersonalizedFlexCard
+  createPersonalizedFlexCard,
+  createPeerSwapConsentFlexCard
 };
+
 
 
 

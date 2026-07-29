@@ -891,12 +891,77 @@ router.post('/line-webhook', async (req, res) => {
                 }];
               }
             }
+          } else if (postbackData.startsWith('SWAP_ACCEPT|')) {
+            const [, swapIdRaw, reqIdRaw, targetIdRaw] = postbackData.split('|');
+            const swapId = parseInt(swapIdRaw);
+            const reqId = parseInt(reqIdRaw);
+            const targetId = parseInt(targetIdRaw);
+
+            const q1 = await dbGet(`SELECT qm.*, p.name, p.emp_code, p.line_user_id FROM queue_members qm JOIN personnel p ON qm.personnel_id = p.id WHERE qm.personnel_id = ?`, [reqId]);
+            const q2 = await dbGet(`SELECT qm.*, p.name, p.emp_code, p.line_user_id FROM queue_members qm JOIN personnel p ON qm.personnel_id = p.id WHERE qm.personnel_id = ?`, [targetId]);
+
+            if (!q1 || !q2) {
+              replyMessages = [{ type: 'text', text: '❌ ไม่พบข้อมูลการสลับคิวในระบบ กรุณาติดต่อเจ้าหน้าที่ค่ะ' }];
+            } else {
+              await dbRun('BEGIN TRANSACTION;');
+              try {
+                await dbRun(`UPDATE queue_members SET queue_order = ?, current_round = ? WHERE personnel_id = ?`, [q2.queue_order, q2.current_round, q1.personnel_id]);
+                await dbRun(`UPDATE queue_members SET queue_order = ?, current_round = ? WHERE personnel_id = ?`, [q1.queue_order, q1.current_round, q2.personnel_id]);
+                await dbRun(`UPDATE queue_swaps SET status = 'APPROVED' WHERE id = ?`, [swapId]);
+                await dbRun('COMMIT;');
+              } catch (e) {
+                await dbRun('ROLLBACK;');
+                throw e;
+              }
+
+              if (process.env.LINE_CHANNEL_ACCESS_TOKEN && q1.line_user_id && q1.line_user_id.toLowerCase() !== 'email') {
+                try {
+                  await axios.post('https://api.line.me/v2/bot/message/push', {
+                    to: q1.line_user_id,
+                    messages: [{
+                      type: 'text',
+                      text: `🎉 คุณ ${q2.name} ได้กดยินยอมสลับคิวกับคุณเรียบร้อยแล้วค่ะ!\n\nลำดับคิวใหม่ของคุณ ${q1.name}: คิวที่ #${q2.queue_order}\nลำดับคิวใหม่ของคุณ ${q2.name}: คิวที่ #${q1.queue_order}`
+                    }]
+                  }, { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}` } });
+                } catch (e) { console.error('Error pushing swap notification:', e); }
+              }
+
+              replyMessages = [{
+                type: 'text',
+                text: `✅ อนุมัติสลับลำดับคิวสำเร็จเรียบร้อยแล้วค่ะ!\n\nลำดับคิวใหม่ของคุณ ${q2.name}: คิวที่ #${q1.queue_order}\nลำดับคิวใหม่ของคุณ ${q1.name}: คิวที่ #${q2.queue_order}`
+              }];
+            }
+          } else if (postbackData.startsWith('SWAP_REJECT|')) {
+            const [, swapIdRaw, reqIdRaw, targetIdRaw] = postbackData.split('|');
+            const swapId = parseInt(swapIdRaw);
+            const reqId = parseInt(reqIdRaw);
+
+            await dbRun(`UPDATE queue_swaps SET status = 'REJECTED' WHERE id = ?`, [swapId]);
+
+            const q1 = await dbGet(`SELECT p.name, p.line_user_id FROM personnel p WHERE p.id = ?`, [reqId]);
+            if (q1 && process.env.LINE_CHANNEL_ACCESS_TOKEN && q1.line_user_id && q1.line_user_id.toLowerCase() !== 'email') {
+              try {
+                await axios.post('https://api.line.me/v2/bot/message/push', {
+                  to: q1.line_user_id,
+                  messages: [{
+                    type: 'text',
+                    text: `⚠️ คำขอสลับคิวของคุณถูกปฏิเสธเนื่องจากอีกฝ่ายไม่สะดวกสลับ ลำดับคิวของคุณจึงยังคงเดิมค่ะ`
+                  }]
+                }, { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}` } });
+              } catch (e) { console.error('Error pushing swap reject notification:', e); }
+            }
+
+            replyMessages = [{
+              type: 'text',
+              text: `❌ บันทึกการปฏิเสธคำขอสลับคิวเรียบร้อยแล้วค่ะ ลำดับคิวของทั้งสองฝ่ายยังคงเดิม`
+            }];
           }
 
 
           await replyLine(replyToken, replyMessages);
           continue;
         }
+
 
         // =============================================================
         // B. MESSAGE TEXT
@@ -1216,7 +1281,55 @@ router.post('/line-webhook', async (req, res) => {
                       : '⚠️ บันทึกตัวแทนสำเร็จ แต่ส่ง LINE แจ้งเตือนไม่สำเร็จ กรุณาตรวจสอบ Log')
                 }];
               }
+            } else if (userMessage.startsWith('สลับ ') || userMessage.startsWith('SWAP ')) {
+              const targetQuery = rawText.replace(/^สลับ\s+/i, '').replace(/^SWAP\s+/i, '').trim().toUpperCase();
+              const senderPerson = await dbGet(`SELECT p.*, qm.queue_order FROM personnel p JOIN queue_members qm ON p.id = qm.personnel_id WHERE p.line_user_id = ?`, [lineUserId]);
+              
+              if (!senderPerson) {
+                messagesPayload = [{ type: 'text', text: '❌ ไม่พบบัญชี LINE ของคุณในระบบ กรุณาพิมพ์รหัสพนักงานเพื่อผูกบัญชีก่อนค่ะ (เช่น DIR-01 หรือ EMP-001)' }];
+              } else {
+                const targetPerson = await dbGet(`
+                  SELECT p.*, qm.queue_order 
+                  FROM personnel p 
+                  JOIN queue_members qm ON p.id = qm.personnel_id 
+                  WHERE (UPPER(TRIM(p.emp_code)) = ? OR p.name LIKE ?)
+                `, [targetQuery, `%${targetQuery}%`]);
+
+                if (!targetPerson) {
+                  messagesPayload = [{ type: 'text', text: `❌ ไม่พบข้อมูลเพื่อนพนักงาน "${targetQuery}" ในระบบ กรุณาตรวจสอบรหัสพนักงานอีกครั้งค่ะ` }];
+                } else if (senderPerson.id === targetPerson.id) {
+                  messagesPayload = [{ type: 'text', text: '❌ ไม่สามารถยื่นขอสลับคิวกับตนเองได้ค่ะ' }];
+                } else if (senderPerson.role_type !== targetPerson.role_type) {
+                  messagesPayload = [{ type: 'text', text: '❌ การสลับคิวทำได้เฉพาะบุคลากรในกลุ่มประเภทเดียวกันเท่านั้น (ผอ. สลับกับ ผอ. / พนักงาน สลับกับ พนักงาน)' }];
+                } else if (['DIR-10', 'DIR-09'].includes(senderPerson.emp_code) || ['DIR-10', 'DIR-09'].includes(targetPerson.emp_code)) {
+                  messagesPayload = [{ type: 'text', text: '❌ ตำแหน่งผู้บริหารระดับสูง (DIR-10 และ DIR-09) ไม่เข้าคิวสลับถาวรในระบบค่ะ' }];
+                } else {
+                  const swapRes = await dbRun(`
+                    INSERT INTO queue_swaps (requester_id, target_id, role_type, reason, status, approved_by)
+                    VALUES (?, ?, ?, 'ยื่นขอสลับคิวผ่าน LINE OA', 'PENDING_CONSENT', 'USER')
+                  `, [senderPerson.id, targetPerson.id, senderPerson.role_type]);
+
+                  const swapId = swapRes.lastID;
+                  const { createPeerSwapConsentFlexCard } = require('../services/notification');
+
+                  if (process.env.LINE_CHANNEL_ACCESS_TOKEN && targetPerson.line_user_id && targetPerson.line_user_id.toLowerCase() !== 'email') {
+                    try {
+                      const consentCard = createPeerSwapConsentFlexCard(swapId, senderPerson, targetPerson, 'ขอสลับคิวตามความสะดวกในการปฏิบัติงาน');
+                      await axios.post('https://api.line.me/v2/bot/message/push', {
+                        to: targetPerson.line_user_id,
+                        messages: [consentCard]
+                      }, { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.LINE_CHANNEL_ACCESS_TOKEN}` } });
+                    } catch (e) { console.error('Error pushing swap consent card:', e); }
+                  }
+
+                  messagesPayload = [{
+                    type: 'text',
+                    text: `📩 ส่งคำขอสลับคิวไปยัง คุณ ${targetPerson.name} (${targetPerson.emp_code}) ทาง LINE เรียบร้อยแล้วค่ะ!\n\nเมื่อ คุณ ${targetPerson.name} กดยินยอมใน LINE ระบบจะทำการสลับลำดับคิว 2 ทางให้อัตโนมัติทันทีค่ะ`
+                  }];
+                }
+              }
             } else {
+
               const person = await dbGet(
                 `
                 SELECT *
