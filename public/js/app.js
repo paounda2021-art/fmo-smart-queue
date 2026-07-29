@@ -34,27 +34,8 @@ function showToast(message, type = 'success') {
   setTimeout(() => {
     toast.remove();
   }, 4500);
-
-  // SweetAlert Toast Fallback
-  if (typeof Swal !== 'undefined' && Swal.mixin) {
-    const Toast = Swal.mixin({
-      toast: true,
-      position: 'top-end',
-      showConfirmButton: false,
-      timer: 3500,
-      timerProgressBar: true
-    });
-    let swalIcon = 'success';
-    if (type === 'warning') swalIcon = 'warning';
-    else if (type === 'danger') swalIcon = 'error';
-    else if (type === 'info') swalIcon = 'info';
-
-    Toast.fire({
-      icon: swalIcon,
-      title: String(message).replace(/<br\s*[\/]?>/gi, ' ')
-    });
-  }
 }
+
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -732,14 +713,14 @@ async function loadDirectorSelectList() {
   }
 
   try {
-    const res = await fetch('/api/personnel?role=DIRECTOR');
+    const res = await fetch('/api/queue/DIRECTOR');
 
     if (!res.ok) {
       throw new Error(`เซิร์ฟเวอร์ตอบกลับด้วยสถานะ ${res.status}`);
     }
 
     const result = await res.json();
-    const list = Array.isArray(result.data) ? result.data : (Array.isArray(result.personnel) ? result.personnel : (Array.isArray(result.members) ? result.members : []));
+    const list = Array.isArray(result.members) ? result.members : (Array.isArray(result.data) ? result.data : []);
 
     if (!result.success || !Array.isArray(list)) {
       throw new Error(result.error || result.message || 'ไม่สามารถโหลดรายชื่อ ผอ.ฝ่ายได้');
@@ -747,12 +728,11 @@ async function loadDirectorSelectList() {
 
     allDirectorsList = list;
 
-
-    // 1. หาหัวหน้าตามคิวจริง (DIR-01 ถึง DIR-08)
+    // 1. หาหัวหน้าตามคิวจริง (DIR-01 ถึง DIR-08) คนแรกที่มีสถานะ WAITING
     const fixedDirector = allDirectorsList
       .filter(person => {
         const empCode = String(person.emp_code || '').trim().toUpperCase();
-        const queueStatus = String(person.queue_status || person.status || 'WAITING').trim().toUpperCase();
+        const queueStatus = String(person.status || person.queue_status || 'WAITING').trim().toUpperCase();
         return /^DIR-0[1-8]$/.test(empCode) && queueStatus === 'WAITING';
       })
       .sort((a, b) => (a.queue_order || 99) - (b.queue_order || 99))[0] || null;
@@ -771,11 +751,12 @@ async function loadDirectorSelectList() {
         return (reserveOrder[codeA] || 99) - (reserveOrder[codeB] || 99);
       });
 
-    // 3. ลำดับรายการด้านซ้าย: DIR-10 → DIR-09 → หัวหน้าตามคิวปัจจุบัน (DIR-01)
+    // 3. ลำดับรายการด้านซ้าย: DIR-10 → DIR-09 → หัวหน้าตามคิวปัจจุบัน
     const displayedDirectors = [
       ...reserveDirectors,
       ...(fixedDirector ? [fixedDirector] : [])
     ];
+
 
 
     console.log(

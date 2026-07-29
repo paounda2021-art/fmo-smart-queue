@@ -755,11 +755,21 @@ async function sendMissionNotification(mission, assignedList, isReallocation = f
             'Authorization': `Bearer ${lineToken}`
           }
         });
-        console.log(`✅ ส่ง LINE ให้ ${person.name} สำเร็จ (ปุ่ม Postback ACK/BUSY สำหรับ mission #${mission.id})`);
+        console.log(`✅ ส่ง LINE Flex Card ให้ ${person.name} สำเร็จ (isReallocation = ${isReallocation})`);
+
+        await dbRun(`
+          INSERT INTO notification_logs (mission_id, personnel_id, channel, recipient, subject_title, content_body, status)
+          VALUES (?, ?, 'LINE', ?, ?, ?, 'SENT')
+        `, [mission.id, person.personnel_id || person.id, person.name, `${lineHeader} ${mission.mission_title}`, JSON.stringify(personalCard)]);
       } catch (lineError) {
         console.error(`❌ ส่ง LINE ให้ ${person.name} ไม่สำเร็จ:`, lineError.response?.data || lineError.message);
+        await dbRun(`
+          INSERT INTO notification_logs (mission_id, personnel_id, channel, recipient, subject_title, content_body, status)
+          VALUES (?, ?, 'LINE', ?, ?, ?, 'FAILED')
+        `, [mission.id, person.personnel_id || person.id, person.name, `${lineHeader} ${mission.mission_title}`, lineError.message]);
       }
     }
+
 
     return true;
 
@@ -956,7 +966,7 @@ async function dispatchPreEventReminders() {
               header: {
                 type: 'box',
                 layout: 'vertical',
-                backgroundColor: isUrgent2h ? '#dc2626' : '#d97706',
+                backgroundColor: isUrgent2h ? '#fcf997' : '#d97706',
                 paddingAll: '16px',
                 contents: [
                   { type: 'text', text: 'FMO SMART QUEUE AUTOMATED SYSTEM', color: '#fef3c7', size: 'xxs', weight: 'bold' },
@@ -1019,8 +1029,8 @@ async function dispatchPreEventReminders() {
           const targetEmail = person.email || `${String(person.emp_code).toLowerCase()}@fishmarket.co.th`;
           const emailSubject = `${reminderTag}: ${mission.mission_title}`;
           const emailBody = `
-            <div style="font-family: Sarabun, sans-serif; padding: 20px; border: 1px solid ${isUrgent2h ? '#dc2626' : '#d97706'}; border-radius: 10px; max-width: 600px;">
-              <h2 style="color: ${isUrgent2h ? '#dc2626' : '#d97706'};">${reminderTag}</h2>
+            <div style="font-family: Sarabun, sans-serif; padding: 20px; border: 1px solid ${isUrgent2h ? '#dcdc26' : '#d9cb06'}; border-radius: 10px; max-width: 600px;">
+              <h2 style="color: ${isUrgent2h ? '#dcdc26' : '#d9cb06'};">${reminderTag}</h2>
               <p>เรียน คุณ <strong>${person.name}</strong>,</p>
               <p>ระบบอัตโนมัติขอแจ้งเตือนความจำปฏิบัติหน้าที่ในกิจกรรม <strong>${mission.mission_title}</strong></p>
               <div style="background: ${isUrgent2h ? '#fff5f5' : '#fffbeb'}; padding: 15px; border-radius: 8px; margin: 15px 0; border: 1px solid ${isUrgent2h ? '#fca5a5' : '#fde68a'};">
