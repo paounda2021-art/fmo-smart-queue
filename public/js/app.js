@@ -246,7 +246,7 @@ async function loadCalendarEvents() {
           const dressCode = props.dressCode || 'ชุดปฏิบัติงาน อสป.';
           const status = (props.status === 'SUCCESS' || props.status === 'COMPLETED')
             ? '🟢 SUCCESS (ปฏิบัติเสร็จสิ้น)' 
-            : '🔵 SCHEDULED (รอดำเนินการ)';
+            : '🟠 SCHEDULED (รอดำเนินการ)';
           const teamInfo = `ผอ.ฝ่าย ${props.directorsCount || 0} ท่าน / พนักงาน ${props.staffCount || 0} ท่าน`;
           info.el.setAttribute('title', `📌 กิจกรรม: ${title}\n📍 สถานที่: ${location}\n👔 การแต่งกาย: ${dressCode}\n👥 ผู้ปฏิบัติงาน: ${teamInfo}\n📊 สถานะ: ${status}`);
         }

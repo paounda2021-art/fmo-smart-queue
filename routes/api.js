@@ -2474,8 +2474,8 @@ router.get('/missions/calendar-events', async (req, res) => {
         title: m.mission_title,
         start: m.start_date,
         end: m.end_date || m.start_date,
-        backgroundColor: isSuccess ? '#10b981' : '#0284c7',
-        borderColor: isSuccess ? '#059669' : '#0369a1',
+        backgroundColor: isSuccess ? '#10b981' : '#d97706',
+        borderColor: isSuccess ? '#059669' : '#b45309',
         extendedProps: {
           location: m.location || 'สะพานปลา อสป.',
           dressCode: m.dress_code || 'ชุดปฏิบัติงาน อสป.',
