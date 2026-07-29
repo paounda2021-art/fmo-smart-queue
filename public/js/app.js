@@ -573,8 +573,9 @@ async function loadQueueView(roleType) {
 
         actions = `<span class="badge" style="background:rgba(168,85,247,0.12); color:#a855f7; border:1px solid rgba(168,85,247,0.3); padding:4px 10px; font-size:0.78rem;"><i class="fa-solid fa-user-shield"></i> ผู้บริหาร</span>`;
       } else {
-        const queueNum = m.queue_order || regularIndex++;
+        const queueNum = (roleType === 'DIRECTOR') ? regularIndex++ : (m.queue_order || regularIndex++);
         orderCell = `<strong style="color:var(--primary);">#${queueNum}</strong>`;
+
 
         if (m.status === 'HOLD') {
           statusBadge = `<span class="badge badge-hold"><i class="fa-solid fa-pause"></i> HOLD (ค้างสิทธิ์)</span><br><small style="color:var(--warning);">${escapeHtml(m.hold_reason || '')}</small>`;
