@@ -80,9 +80,10 @@
         <button class="nav-btn" onclick="switchTab('reports')" data-menu="reports" data-role="admin">
           <i class="fa-solid fa-file-invoice"></i> รายงานกิจกรรม
         </button>
-        <button class="nav-btn" onclick="switchTab('calendar')" data-menu="calendar" style="display: none;">
+        <button class="nav-btn" onclick="switchTab('calendar')" data-menu="calendar">
           <i class="fa-solid fa-calendar-days text-sky"></i> ปฏิทินกิจกรรม
         </button>
+
 
       </nav>
 
@@ -580,11 +581,11 @@
                 <th>จำนวนสมาชิก (พนักงาน)</th>
                 <th>สถานะ</th>
                 <th>รายละเอียด & เปลี่ยนตัว</th>
-                <th>คำสั่ง (PDF)</th>
               </tr>
             </thead>
             <tbody id="all-missions-table-body">
-              <tr><td colspan="10" style="text-align:center;">กำลังโหลดรายการกิจกรรม...</td></tr>
+              <tr><td colspan="9" style="text-align:center;">กำลังโหลดรายการกิจกรรม...</td></tr>
+
 
             </tbody>
           </table>
@@ -691,16 +692,10 @@
       </div>
 
       <div class="modal-body">
-        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:1rem;">
-          <div>
-            <h3 id="md-title" style="color: var(--text-heading); font-size: 1.2rem; margin-bottom: 4px;">-</h3>
-            <p id="md-location-time" style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 6px;">-</p>
-            <p id="md-dress-code" style="color: var(--accent); font-size: 0.85rem; font-weight: 500; margin-bottom: 0;">-</p>
-          </div>
-          <a id="md-pdf-btn" href="#" target="_blank" class="btn btn-primary btn-sm" style="background:#0284c7; border-color:#0284c7; font-weight:bold;">
-            <i class="fa-solid fa-file-pdf"></i> ออกเอกสารคำสั่ง (PDF)
-          </a>
-        </div>
+        <h3 id="md-title" style="color: var(--text-heading); font-size: 1.2rem; margin-bottom: 4px;">-</h3>
+        <p id="md-location-time" style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 6px;">-</p>
+        <p id="md-dress-code" style="color: var(--accent); font-size: 0.85rem; font-weight: 500; margin-bottom: 1rem;">-</p>
+
 
 
         <div style="background: var(--warning-light); border: 1px solid rgba(245, 158, 11, 0.3); padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.82rem; color: var(--warning); margin-bottom: 1rem;">

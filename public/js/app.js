@@ -1703,14 +1703,9 @@ function renderMissionsTable(list) {
             <i class="fa-solid fa-eye"></i> รายชื่อ & เปลี่ยนตัว
           </button>
         </td>
-        <td>
-          <a class="btn btn-primary btn-sm" href="/api/missions/${m.id}/pdf" target="_blank" style="background:#0284c7; border-color:#0284c7; font-weight:bold;">
-            <i class="fa-solid fa-file-pdf"></i> คำสั่ง (PDF)
-          </a>
-        </td>
-
       </tr>
     `;
+
   });
 
   tbody.innerHTML = html;
@@ -1778,11 +1773,10 @@ async function openMissionDetailModal(missionId) {
       `การแต่งกาย: ` +
       `${mission.dress_code || 'ชุดปฏิบัติงาน อสป.'}`;
 
-    const pdfBtn = document.getElementById('md-pdf-btn');
-    if (pdfBtn) pdfBtn.href = `/api/missions/${missionId}/pdf`;
-
     const tbody =
       document.getElementById('md-assigned-body');
+
+
 
 
     if (!tbody) return;
