@@ -187,6 +187,7 @@ function switchTab(tabId) {
     if (allPersonnelList.length === 0) loadPersonnelDropdown();
   } else if (tabId === 'reports') loadAllMissions();
   else if (tabId === 'calendar') loadCalendarEvents();
+  else if (tabId === 'user-management') loadUserManagementView();
 }
 
 let fullCalendarInstance = null;
@@ -2701,11 +2702,229 @@ async function executePeerSwap() {
 
       showToast(result.error || 'เกิดข้อผิดพลาดในการสลับคิว', 'danger');
     }
+// -------------------------------------------------------------
+// 15. USER & ROLE MANAGEMENT FUNCTIONS (ข้อ 6)
+// -------------------------------------------------------------
+let allUsersData = [];
+
+async function loadUserManagementView() {
+  const tbody = document.getElementById('user-management-table-body');
+  if (!tbody) return;
+
+  tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;"><i class="fa-solid fa-spinner fa-spin text-purple"></i> กำลังโหลดข้อมูลผู้ใช้งาน...</td></tr>';
+
+  try {
+    const res = await fetch('/api/users');
+    const data = await res.json();
+
+    if (data.success) {
+      allUsersData = data.users || [];
+      renderUserTable(allUsersData);
+    } else {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--danger);">เกิดข้อผิดพลาด: ${data.error}</td></tr>`;
+    }
   } catch (err) {
-    console.error('Error executing peer swap:', err);
-    showToast('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'danger');
+    console.error('Error loading users:', err);
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color:var(--danger);">ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อโหลดข้อมูลผู้ใช้งานได้</td></tr>';
   }
 }
+
+function renderUserTable(users) {
+  const tbody = document.getElementById('user-management-table-body');
+  if (!tbody) return;
+
+  if (users.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">ไม่พบข้อมูลผู้ใช้งานตามเงื่อนไขที่ค้นหา</td></tr>';
+    return;
+  }
+
+  let html = '';
+  users.forEach(u => {
+    const isDirector = u.role_type === 'DIRECTOR';
+    const roleBadge = isDirector
+      ? `<span class="badge" style="background:#0284c7; color:#fff;">👔 ผอ.ฝ่าย</span>`
+      : `<span class="badge" style="background:#10b981; color:#fff;">👥 พนักงาน</span>`;
+
+    const hasLine = u.line_user_id && u.line_user_id.toLowerCase() !== 'email';
+    const lineBadge = hasLine
+      ? `<span class="badge" style="background:#16a34a; color:#fff;"><i class="fa-brands fa-line"></i> ผูกแล้ว</span>`
+      : `<span class="badge" style="background:#94a3b8; color:#fff;">ยังไม่ผูก</span>`;
+
+    const unbindBtn = hasLine
+      ? `<button class="btn btn-sm btn-secondary" onclick="unbindUserLine(${u.id}, '${u.name}')" title="ยกเลิกผูก LINE"><i class="fa-solid fa-link-slash text-rose"></i></button>`
+      : '';
+
+    html += `
+      <tr>
+        <td><strong>${u.emp_code || '-'}</strong></td>
+        <td><strong>${u.name || '-'}</strong></td>
+        <td>${roleBadge}</td>
+        <td>${u.position || '-'}</td>
+        <td>${u.department || 'อสป.'}</td>
+        <td><span class="badge" style="background:var(--bg-card); border:1px solid var(--card-border); color:var(--text-heading);">คิว #${u.queue_order || '-'}</span></td>
+        <td>${lineBadge}</td>
+        <td style="white-space:nowrap;">
+          <button class="btn btn-sm btn-secondary" onclick="openUserModal(${u.id})" title="แก้ไข"><i class="fa-solid fa-pen-to-square text-sky"></i></button>
+          ${unbindBtn}
+          <button class="btn btn-sm btn-secondary" onclick="deleteUser(${u.id}, '${u.name}', '${u.emp_code}')" title="ลบ"><i class="fa-solid fa-trash text-rose"></i></button>
+        </td>
+      </tr>
+    `;
+  });
+
+  tbody.innerHTML = html;
+}
+
+function filterUserList() {
+  const search = document.getElementById('user-search-input')?.value.toLowerCase().trim() || '';
+  const role = document.getElementById('user-role-filter')?.value || 'ALL';
+
+  let filtered = allUsersData.filter(u => {
+    const matchSearch = !search ||
+      (u.name && u.name.toLowerCase().includes(search)) ||
+      (u.emp_code && u.emp_code.toLowerCase().includes(search)) ||
+      (u.position && u.position.toLowerCase().includes(search)) ||
+      (u.department && u.department.toLowerCase().includes(search));
+
+    const matchRole = role === 'ALL' || u.role_type === role;
+
+    return matchSearch && matchRole;
+  });
+
+  renderUserTable(filtered);
+}
+
+function openUserModal(userId = null) {
+  document.getElementById('user-form-id').value = userId || '';
+  document.getElementById('user-modal-title').innerHTML = userId
+    ? `<i class="fa-solid fa-user-pen text-purple"></i> แก้ไขข้อมูลผู้ใช้งาน`
+    : `<i class="fa-solid fa-user-plus text-purple"></i> เพิ่มผู้ใช้งานใหม่`;
+
+  if (userId) {
+    const user = allUsersData.find(u => Number(u.id) === Number(userId));
+    if (user) {
+      document.getElementById('user-form-emp-code').value = user.emp_code || '';
+      document.getElementById('user-form-name').value = user.name || '';
+      document.getElementById('user-form-role').value = user.role_type || 'STAFF';
+      document.getElementById('user-form-position').value = user.position || '';
+      document.getElementById('user-form-department').value = user.department || '';
+      document.getElementById('user-form-phone').value = user.phone || '';
+      document.getElementById('user-form-email').value = user.email || '';
+    }
+  } else {
+    document.getElementById('user-form-emp-code').value = '';
+    document.getElementById('user-form-name').value = '';
+    document.getElementById('user-form-role').value = 'STAFF';
+    document.getElementById('user-form-position').value = '';
+    document.getElementById('user-form-department').value = '';
+    document.getElementById('user-form-phone').value = '';
+    document.getElementById('user-form-email').value = '';
+  }
+
+  openModal('modal-user-form');
+}
+
+async function saveUser() {
+  const id = document.getElementById('user-form-id').value;
+  const emp_code = document.getElementById('user-form-emp-code').value.trim();
+  const name = document.getElementById('user-form-name').value.trim();
+  const role_type = document.getElementById('user-form-role').value;
+  const position = document.getElementById('user-form-position').value.trim();
+  const department = document.getElementById('user-form-department').value.trim();
+  const phone = document.getElementById('user-form-phone').value.trim();
+  const email = document.getElementById('user-form-email').value.trim();
+
+  if (!emp_code || !name) {
+    Swal.fire('ข้อผิดพลาด', 'กรุณากรอกรหัสพนักงาน และชื่อ-นามสกุลให้ครบถ้วน', 'warning');
+    return;
+  }
+
+  const payload = { emp_code, name, role_type, position, department, phone, email };
+
+  try {
+    const url = id ? `/api/users/${id}` : '/api/users';
+    const method = id ? 'PUT' : 'POST';
+
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      closeModal('modal-user-form');
+      Swal.fire('สำเร็จ', data.message, 'success');
+      loadUserManagementView();
+    } else {
+      Swal.fire('ข้อผิดพลาด', data.error, 'error');
+    }
+  } catch (err) {
+    console.error('Error saving user:', err);
+    Swal.fire('ข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อบันทึกข้อมูลผู้ใช้งานได้', 'error');
+  }
+}
+
+async function deleteUser(id, name, empCode) {
+  const result = await Swal.fire({
+    title: 'ยืนยันการลบผู้ใช้งาน?',
+    text: `คุณต้องการลบ คุณ${name} (${empCode}) ออกจากระบบใช่หรือไม่? ข้อมูลประวัติการจัดสรรทั้งหมดจะถูกลบไปด้วย`,
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#dc2626',
+    cancelButtonColor: '#64748b',
+    confirmButtonText: 'ลบผู้ใช้งาน',
+    cancelButtonText: 'ยกเลิก'
+  });
+
+  if (!result.isConfirmed) return;
+
+  try {
+    const res = await fetch(`/api/users/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+
+    if (data.success) {
+      Swal.fire('สำเร็จ', data.message, 'success');
+      loadUserManagementView();
+    } else {
+      Swal.fire('ข้อผิดพลาด', data.error, 'error');
+    }
+  } catch (err) {
+    console.error('Error deleting user:', err);
+    Swal.fire('ข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อลบข้อมูลผู้ใช้งานได้', 'error');
+  }
+}
+
+async function unbindUserLine(id, name) {
+  const result = await Swal.fire({
+    title: 'ยกเลิกการผูกบัญชี LINE OA?',
+    text: `คุณต้องการยกเลิกการผูก LINE ของ คุณ${name} ใช่หรือไม่? พนักงานจะต้องผูกบัญชีใหม่ใน LINE`,
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonColor: '#d97706',
+    cancelButtonColor: '#64748b',
+    confirmButtonText: 'ยกเลิกการผูก LINE',
+    cancelButtonText: 'ยกเลิก'
+  });
+
+  if (!result.isConfirmed) return;
+
+  try {
+    const res = await fetch(`/api/users/${id}/unbind-line`, { method: 'POST' });
+    const data = await res.json();
+
+    if (data.success) {
+      Swal.fire('สำเร็จ', data.message, 'success');
+      loadUserManagementView();
+    } else {
+      Swal.fire('ข้อผิดพลาด', data.error, 'error');
+    }
+  } catch (err) {
+    console.error('Error unbinding LINE:', err);
+    Swal.fire('ข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อยกเลิกผูก LINE ได้', 'error');
+  }
+}
+
 
 
 

@@ -3363,4 +3363,135 @@ router.get('/missions/:id/pdf', async (req, res) => {
 });
 
 
+// -------------------------------------------------------------
+// 13. USER & ROLE MANAGEMENT ENDPOINTS (ข้อ 6)
+// -------------------------------------------------------------
+
+// GET /api/users - ดึงรายชื่อผู้ใช้งานและบุคลากรทั้งหมด
+router.get('/users', async (req, res) => {
+  try {
+    const users = await dbAll(`
+      SELECT p.*, qm.queue_order, qm.status as queue_status, qm.current_round,
+             (SELECT COUNT(*) FROM mission_assignments ma WHERE ma.personnel_id = p.id AND ma.assignment_status IN ('JOINED', 'SUBSTITUTED')) as total_missions
+      FROM personnel p
+      LEFT JOIN queue_members qm ON p.id = qm.personnel_id
+      ORDER BY 
+        CASE p.role_type WHEN 'DIRECTOR' THEN 1 ELSE 2 END,
+        qm.queue_order ASC,
+        p.emp_code ASC
+    `);
+
+    res.json({ success: true, users });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/users - เพิ่มผู้ใช้งาน/บุคลากรใหม่
+router.post('/users', async (req, res) => {
+  try {
+    const { emp_code, name, role_type, department, position, phone, email } = req.body;
+    if (!emp_code || !name || !role_type) {
+      return res.status(400).json({ success: false, error: 'กรุณากรอกรหัสพนักงาน ชื่อ-นามสกุล และประเภทสิทธิ์ให้ครบถ้วน' });
+    }
+
+    const codeClean = String(emp_code).trim().toUpperCase();
+    const existing = await dbGet(`SELECT id FROM personnel WHERE UPPER(emp_code) = ?`, [codeClean]);
+    if (existing) {
+      return res.status(400).json({ success: false, error: `รหัสพนักงาน "${codeClean}" มีอยู่ในระบบแล้ว` });
+    }
+
+    const maxQueueObj = await dbGet(`SELECT MAX(queue_order) as max_order FROM queue_members WHERE role_type = ?`, [role_type]);
+    const nextQueueOrder = (maxQueueObj && maxQueueObj.max_order) ? maxQueueObj.max_order + 1 : 1;
+
+    await dbRun('BEGIN TRANSACTION;');
+    try {
+      const pRes = await dbRun(`
+        INSERT INTO personnel (emp_code, name, role_type, department, position, phone, email)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `, [codeClean, name.trim(), role_type, department || 'อสป.', position || (role_type === 'DIRECTOR' ? 'ผอ.ฝ่าย' : 'พนักงาน'), phone || '', email || '']);
+
+      const pId = pRes.lastID;
+
+      await dbRun(`
+        INSERT INTO queue_members (personnel_id, role_type, current_round, queue_order, status)
+        VALUES (?, ?, 1, ?, 'WAITING')
+      `, [pId, role_type, nextQueueOrder]);
+
+      await dbRun('COMMIT;');
+      res.json({ success: true, message: `เพิ่มผู้ใช้งาน คุณ${name} (${codeClean}) เรียบร้อยแล้ว` });
+    } catch (txErr) {
+      await dbRun('ROLLBACK;');
+      throw txErr;
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PUT /api/users/:id - แก้ไขข้อมูลผู้ใช้งาน
+router.put('/users/:id', async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const { emp_code, name, role_type, department, position, phone, email, queue_order } = req.body;
+
+    const person = await dbGet(`SELECT * FROM personnel WHERE id = ?`, [userId]);
+    if (!person) return res.status(404).json({ success: false, error: 'ไม่พบผู้ใช้งานในระบบ' });
+
+    const codeClean = String(emp_code || person.emp_code).trim().toUpperCase();
+
+    await dbRun(`
+      UPDATE personnel 
+      SET emp_code = ?, name = ?, role_type = ?, department = ?, position = ?, phone = ?, email = ?
+      WHERE id = ?
+    `, [codeClean, name, role_type, department, position, phone, email, userId]);
+
+    if (queue_order) {
+      await dbRun(`UPDATE queue_members SET queue_order = ?, role_type = ? WHERE personnel_id = ?`, [parseInt(queue_order), role_type, userId]);
+    }
+
+    res.json({ success: true, message: `อัปเดตข้อมูล คุณ${name} เรียบร้อยแล้ว` });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// DELETE /api/users/:id - ลบผู้ใช้งาน
+router.delete('/users/:id', async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const person = await dbGet(`SELECT name, emp_code FROM personnel WHERE id = ?`, [userId]);
+    if (!person) return res.status(404).json({ success: false, error: 'ไม่พบผู้ใช้งานในระบบ' });
+
+    await dbRun('BEGIN TRANSACTION;');
+    try {
+      await dbRun(`DELETE FROM queue_members WHERE personnel_id = ?`, [userId]);
+      await dbRun(`DELETE FROM mission_assignments WHERE personnel_id = ?`, [userId]);
+      await dbRun(`DELETE FROM personnel WHERE id = ?`, [userId]);
+      await dbRun('COMMIT;');
+      res.json({ success: true, message: `ลบผู้ใช้งาน คุณ${person.name} (${person.emp_code}) เรียบร้อยแล้ว` });
+    } catch (txErr) {
+      await dbRun('ROLLBACK;');
+      throw txErr;
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/users/:id/unbind-line - ยกเลิกการผูกบัญชี LINE OA
+router.post('/users/:id/unbind-line', async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const person = await dbGet(`SELECT name, emp_code FROM personnel WHERE id = ?`, [userId]);
+    if (!person) return res.status(404).json({ success: false, error: 'ไม่พบผู้ใช้งานในระบบ' });
+
+    await dbRun(`UPDATE personnel SET line_user_id = NULL WHERE id = ?`, [userId]);
+    res.json({ success: true, message: `ยกเลิกการผูกบัญชี LINE OA ของ คุณ${person.name} เรียบร้อยแล้ว` });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+
 module.exports = router;
