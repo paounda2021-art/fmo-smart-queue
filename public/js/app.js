@@ -1697,6 +1697,7 @@ function renderMissionsTable(list) {
         <td>${formatDate(m.start_date)}</td>
         <td><span class="badge badge-director">${m.directors_count} ท่าน</span></td>
         <td><span class="badge badge-staff">${m.staff_count} ท่าน</span></td>
+        <td>${statusBadge}</td>
         <td>
           <button class="btn btn-secondary btn-sm" onclick="openMissionDetailModal(${m.id})">
             <i class="fa-solid fa-eye"></i> รายชื่อ & เปลี่ยนตัว
@@ -1707,6 +1708,7 @@ function renderMissionsTable(list) {
             <i class="fa-solid fa-file-pdf"></i> คำสั่ง (PDF)
           </a>
         </td>
+
       </tr>
     `;
   });
