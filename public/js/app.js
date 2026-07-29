@@ -2746,10 +2746,13 @@ function renderUserTable(users) {
 
   let html = '';
   users.forEach(u => {
-    const isDirector = u.role_type === 'DIRECTOR';
-    const roleBadge = isDirector
-      ? `<span class="badge" style="background:#0284c7; color:#fff;">👔 ผอ.ฝ่าย</span>`
-      : `<span class="badge" style="background:#10b981; color:#fff;">👥 พนักงาน</span>`;
+    let roleBadge = `<span class="badge" style="background:#10b981; color:#fff;">👥 พนักงาน</span>`;
+    if (u.role_type === 'DIRECTOR') {
+      roleBadge = `<span class="badge" style="background:#0284c7; color:#fff;">👔 ผอ.ฝ่าย</span>`;
+    } else if (u.role_type === 'ADMIN') {
+      roleBadge = `<span class="badge" style="background:#a855f7; color:#fff;">🛡️ ผู้ดูแลระบบ</span>`;
+    }
+
 
     const hasLine = u.line_user_id && u.line_user_id.toLowerCase() !== 'email';
     const lineBadge = hasLine
