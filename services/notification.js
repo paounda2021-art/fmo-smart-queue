@@ -898,7 +898,7 @@ async function sendUpcomingQueueNotice() {
 }
 
 /**
- * Dispatch Pre-Event Reminders (24 Hours in advance) to assigned personnel via mapped channel (LINE/Email)
+ * Dispatch Pre-Event Reminders Automatically (24h & 2h in advance) via mapped channel (LINE/Email)
  */
 async function dispatchPreEventReminders() {
   try {
@@ -930,11 +930,18 @@ async function dispatchPreEventReminders() {
 
       const timeStr = `${formatDate24h(mission.start_date)} - ${formatDate24h(mission.end_date)}`;
 
+      const nowMs = new Date().getTime();
+      const startMs = new Date(mission.start_date).getTime();
+      const diffHours = (startMs - nowMs) / (1000 * 60 * 60);
+
+      const isUrgent2h = (diffHours <= 2.5 && diffHours >= 0);
+      const reminderTag = isUrgent2h ? '🔔 เตือนด่วน (อีก 1-2 ชม.)' : '🔔 เตือนความจำล่วงหน้า (24 ชม.)';
+
       for (const person of assigned) {
         const alreadySent = await dbAll(`
           SELECT id FROM notification_logs
-          WHERE mission_id = ? AND personnel_id = ? AND subject_title LIKE '%เตือนความจำ%'
-        `, [mission.id, person.id]);
+          WHERE mission_id = ? AND personnel_id = ? AND subject_title LIKE ?
+        `, [mission.id, person.id, `%${reminderTag}%`]);
 
         if (alreadySent.length > 0) continue;
 
@@ -943,17 +950,17 @@ async function dispatchPreEventReminders() {
         if (lineToken && lineId && lineId.toLowerCase() !== 'email') {
           const reminderCard = {
             type: 'flex',
-            altText: `🔔 เตือนความจำล่วงหน้า: ${mission.mission_title}`,
+            altText: `${reminderTag}: ${mission.mission_title}`,
             contents: {
               type: 'bubble',
               header: {
                 type: 'box',
                 layout: 'vertical',
-                backgroundColor: '#d97706',
+                backgroundColor: isUrgent2h ? '#dc2626' : '#d97706',
                 paddingAll: '16px',
                 contents: [
-                  { type: 'text', text: 'FMO SMART QUEUE SYSTEM', color: '#fef3c7', size: 'xxs', weight: 'bold' },
-                  { type: 'text', text: '🔔 เตือนความจำปฏิบัติงานล่วงหน้า', color: '#ffffff', size: 'md', weight: 'bold', margin: 'xs', wrap: true }
+                  { type: 'text', text: 'FMO SMART QUEUE AUTOMATED SYSTEM', color: '#fef3c7', size: 'xxs', weight: 'bold' },
+                  { type: 'text', text: `${reminderTag}`, color: '#ffffff', size: 'md', weight: 'bold', margin: 'xs', wrap: true }
                 ]
               },
               body: {
@@ -963,7 +970,7 @@ async function dispatchPreEventReminders() {
                 spacing: 'md',
                 contents: [
                   { type: 'text', text: mission.mission_title, weight: 'bold', size: 'md', color: '#0f172a', wrap: true },
-                  { type: 'text', text: `👤 เรียน: คุณ ${person.name}`, size: 'sm', color: '#d97706', weight: 'bold', wrap: true },
+                  { type: 'text', text: `👤 เรียน: คุณ ${person.name}`, size: 'sm', color: isUrgent2h ? '#dc2626' : '#d97706', weight: 'bold', wrap: true },
                   {
                     type: 'box',
                     layout: 'vertical',
@@ -971,19 +978,19 @@ async function dispatchPreEventReminders() {
                     spacing: 'xs',
                     contents: [
                       { type: 'text', text: `📍 สถานที่: ${mission.location || 'สะพานปลา อสป.'}`, size: 'xs', color: '#1e293b', wrap: true },
-                      { type: 'text', text: `⏰ เวลา (24 ชม.): ${timeStr}`, size: 'xs', color: '#d97706', weight: 'bold' },
+                      { type: 'text', text: `⏰ เวลาเริ่มงาน (24 ชม.): ${timeStr}`, size: 'xs', color: isUrgent2h ? '#dc2626' : '#d97706', weight: 'bold' },
                       { type: 'text', text: `👔 การแต่งกาย: ${mission.dress_code || 'ชุดปฏิบัติงาน อสป.'}`, size: 'xs', color: '#a855f7', wrap: true }
                     ]
                   },
                   {
                     type: 'box',
                     layout: 'vertical',
-                    backgroundColor: '#fef3c7',
+                    backgroundColor: isUrgent2h ? '#fee2e2' : '#fef3c7',
                     paddingAll: '10px',
                     cornerRadius: '8px',
                     margin: 'md',
                     contents: [
-                      { type: 'text', text: '⏱️ กรุณามาถึงสถานที่ปฏิบัติงานก่อนเวลาเริ่มอย่างน้อย 30 นาที', size: 'xxs', color: '#b45309', wrap: true }
+                      { type: 'text', text: isUrgent2h ? '🚨 งานกำลังจะเริ่มขึ้นในอีก 1-2 ชั่วโมง! กรุณาเตรียมพร้อมปฏิบัติงานทันที' : '⏱️ กรุณามาถึงสถานที่ปฏิบัติงานก่อนเวลาเริ่มอย่างน้อย 30 นาที', size: 'xxs', color: isUrgent2h ? '#991b1b' : '#b45309', wrap: true }
                     ]
                   }
                 ]
@@ -1001,8 +1008,8 @@ async function dispatchPreEventReminders() {
 
             await dbRun(`
               INSERT INTO notification_logs (mission_id, personnel_id, channel, recipient, subject_title, content_body, status)
-              VALUES (?, ?, 'LINE', ?, '🔔 เตือนความจำปฏิบัติงานล่วงหน้า', 'ยิงเตือนความจำล่วงหน้าทาง LINE สำเร็จ', 'SENT')
-            `, [mission.id, person.id, lineId]);
+              VALUES (?, ?, 'LINE', ?, ?, 'ส่งระบบแจ้งเตือนอัตโนมัติล่วงหน้าสำเร็จ', 'SENT')
+            `, [mission.id, person.id, lineId, reminderTag]);
 
             totalReminded++;
           } catch (err) {
@@ -1010,18 +1017,20 @@ async function dispatchPreEventReminders() {
           }
         } else {
           const targetEmail = person.email || `${String(person.emp_code).toLowerCase()}@fishmarket.co.th`;
-          const emailSubject = `🔔 เตือนความจำปฏิบัติงานล่วงหน้า: ${mission.mission_title}`;
+          const emailSubject = `${reminderTag}: ${mission.mission_title}`;
           const emailBody = `
-            <div style="font-family: Sarabun, sans-serif; padding: 20px; border: 1px solid #d97706; border-radius: 10px; max-width: 600px;">
-              <h2 style="color: #d97706;">🔔 เตือนความจำปฏิบัติงานล่วงหน้า (อสป.)</h2>
+            <div style="font-family: Sarabun, sans-serif; padding: 20px; border: 1px solid ${isUrgent2h ? '#dc2626' : '#d97706'}; border-radius: 10px; max-width: 600px;">
+              <h2 style="color: ${isUrgent2h ? '#dc2626' : '#d97706'};">${reminderTag}</h2>
               <p>เรียน คุณ <strong>${person.name}</strong>,</p>
-              <p>ระบบขอแจ้งเตือนความจำปฏิบัติหน้าที่ในกิจกรรม <strong>${mission.mission_title}</strong> ดังรายละเอียด:</p>
-              <div style="background: #fffbeb; padding: 15px; border-radius: 8px; margin: 15px 0; border: 1px solid #fde68a;">
+              <p>ระบบอัตโนมัติขอแจ้งเตือนความจำปฏิบัติหน้าที่ในกิจกรรม <strong>${mission.mission_title}</strong></p>
+              <div style="background: ${isUrgent2h ? '#fff5f5' : '#fffbeb'}; padding: 15px; border-radius: 8px; margin: 15px 0; border: 1px solid ${isUrgent2h ? '#fca5a5' : '#fde68a'};">
                 <p style="margin: 4px 0;"><strong>📍 สถานที่:</strong> ${mission.location || '-'}</p>
                 <p style="margin: 4px 0;"><strong>⏰ เวลา (24 ชม.):</strong> ${timeStr}</p>
                 <p style="margin: 4px 0;"><strong>👔 การแต่งกาย:</strong> ${mission.dress_code || 'ชุดปฏิบัติงาน อสป.'}</p>
               </div>
-              <p style="color: #b45309;">⏱️ กรุณาเดินทางมาถึงสถานที่ปฏิบัติงานก่อนเวลาเริ่มอย่างน้อย 30 นาที ขอบคุณค่ะ</p>
+              <p style="color: ${isUrgent2h ? '#991b1b' : '#b45309'}; font-weight: bold;">
+                ${isUrgent2h ? '🚨 งานกำลังจะเริ่มขึ้นในอีก 1-2 ชั่วโมง! กรุณาเตรียมพร้อมปฏิบัติงานทันที' : '⏱️ กรุณาเดินทางมาถึงสถานที่ปฏิบัติงานก่อนเวลาเริ่มอย่างน้อย 30 นาที ขอบคุณค่ะ'}
+              </p>
             </div>
           `;
 
@@ -1035,7 +1044,7 @@ async function dispatchPreEventReminders() {
       }
     }
 
-    return { success: true, count: totalReminded, message: `ส่งเตือนความจำล่วงหน้าสำเร็จ ${totalReminded} รายการ` };
+    return { success: true, count: totalReminded, message: `ส่งเตือนความจำล่วงหน้าอัตโนมัติสำเร็จ ${totalReminded} รายการ` };
   } catch (err) {
     console.error('Error dispatching pre-event reminders:', err);
     return { success: false, error: err.message };
@@ -1050,5 +1059,6 @@ module.exports = {
   createLineFlexCardPayload,
   createPersonalizedFlexCard
 };
+
 
 

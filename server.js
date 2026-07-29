@@ -1,4 +1,4 @@
-﻿require('dotenv').config();
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -48,7 +48,20 @@ initSchema().then(() => {
     console.log(`🚀 FMO Smart Queue Server is running on port ${PORT}`);
     console.log(`🌐 Open Web Browser at: http://localhost:${PORT}`);
     console.log(`====================================================`);
+
+    // 🔔 Start Automated Pre-Event Reminder Background Task (Every 15 mins)
+    const { dispatchPreEventReminders } = require('./services/notification');
+    setInterval(async () => {
+      try {
+        const result = await dispatchPreEventReminders();
+        if (result && result.count > 0) {
+          console.log(`[AUTOMATED CRON] 🔔 Auto pre-event reminders dispatched: ${result.count} notifications`);
+        }
+      } catch (err) {
+        console.error('[AUTOMATED CRON] Error in auto pre-event reminder:', err.message);
+      }
+    }, 15 * 60 * 1000);
   });
 }).catch(err => {
   console.error('❌ Failed to initialize database:', err);
-});
+});
