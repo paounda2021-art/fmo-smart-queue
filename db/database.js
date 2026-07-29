@@ -62,6 +62,7 @@ async function initSchema() {
     const masterSql = await dbGet(`SELECT sql FROM sqlite_master WHERE type='table' AND name='personnel';`);
     if (masterSql && masterSql.sql && (!masterSql.sql.includes('ADMIN') || !masterSql.sql.includes('OPERATOR'))) {
       console.log('🔄 Migrating personnel table CHECK constraint to support ADMIN & OPERATOR roles...');
+      await dbRun(`PRAGMA foreign_keys = OFF;`);
       await dbRun(`BEGIN TRANSACTION;`);
       await dbRun(`CREATE TABLE personnel_new (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -81,8 +82,10 @@ async function initSchema() {
       await dbRun(`DROP TABLE personnel;`);
       await dbRun(`ALTER TABLE personnel_new RENAME TO personnel;`);
       await dbRun(`COMMIT;`);
+      await dbRun(`PRAGMA foreign_keys = ON;`);
       console.log('✅ Personnel table migrated to support ADMIN & OPERATOR roles successfully!');
     }
+
   } catch (mErr) {
     console.error('Migration error (personnel table):', mErr);
     try { await dbRun(`ROLLBACK;`); } catch (e) {}
