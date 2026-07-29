@@ -186,6 +186,51 @@ function switchTab(tabId) {
   else if (tabId === 'individual') {
     if (allPersonnelList.length === 0) loadPersonnelDropdown();
   } else if (tabId === 'reports') loadAllMissions();
+  else if (tabId === 'calendar') loadCalendarEvents();
+}
+
+let fullCalendarInstance = null;
+
+async function loadCalendarEvents() {
+  const containerEl = document.getElementById('full-calendar-container');
+  if (!containerEl || typeof FullCalendar === 'undefined') return;
+
+  try {
+    const res = await fetch('/api/missions/calendar-events');
+    const result = await res.json();
+
+    if (!result.success) {
+      showToast(result.error, 'danger');
+      return;
+    }
+
+    if (fullCalendarInstance) {
+      fullCalendarInstance.destroy();
+    }
+
+    fullCalendarInstance = new FullCalendar.Calendar(containerEl, {
+      initialView: 'dayGridMonth',
+      headerToolbar: {
+        left: 'prev,next today',
+        center: 'title',
+        right: 'dayGridMonth,timeGridWeek,listMonth'
+      },
+      buttonText: {
+        today: 'วันนี้',
+        month: 'เดือน',
+        week: 'สัปดาห์',
+        list: 'รายการ'
+      },
+      events: result.events || [],
+      eventClick: function(info) {
+        openMissionDetailModal(info.event.id);
+      }
+    });
+
+    fullCalendarInstance.render();
+  } catch (err) {
+    console.error('Error loading calendar:', err);
+  }
 }
 
 

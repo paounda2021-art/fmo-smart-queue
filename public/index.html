@@ -15,8 +15,10 @@
   <!-- Google Fonts: Sarabun, Pridi & Font Awesome Icons -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Pridi:wght@300;400;500;600;700&family=Maitree:wght@300;400;500;600;700&display=swap">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
   <link rel="stylesheet" href="/css/styles.css">
 </head>
+
 <body>
 
   <!-- Top Navigation Header -->
@@ -76,7 +78,11 @@
         <button class="nav-btn" onclick="switchTab('reports')" data-menu="reports" data-role="admin">
           <i class="fa-solid fa-file-invoice"></i> รายงานกิจกรรม
         </button>
+        <button class="nav-btn" onclick="switchTab('calendar')" data-menu="calendar">
+          <i class="fa-solid fa-calendar-days text-sky"></i> ปฏิทินกิจกรรม
+        </button>
       </nav>
+
     </div>
   </header>
 
@@ -576,7 +582,26 @@
       </div>
     </section>
 
+    <!-- 6. CALENDAR VIEW -->
+    <section id="view-calendar" class="view-content">
+      <div class="glass-card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">
+              <i class="fa-solid fa-calendar-days text-sky"></i> ปฏิทินตารางงานและกิจกรรม อสป. (Calendar View)
+            </div>
+            <div class="card-subtitle">แสดงตารางกิจกรรมในรูปแบบปฏิทินรายเดือน/รายสัปดาห์ พร้อมสถานะ 🔵 SCHEDULED และ 🟢 SUCCESS</div>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="loadCalendarEvents()">
+            <i class="fa-solid fa-rotate"></i> รีเฟรชปฏิทิน
+          </button>
+        </div>
+        <div id="full-calendar-container" style="min-height: 580px; padding: 12px; background: var(--bg-card); border-radius: 14px; border: 1px solid var(--card-border);"></div>
+      </div>
+    </section>
+
   </main>
+
 
   <!-- SKIP & HOLD MODAL -->
   <div id="modal-skip" class="modal-overlay">

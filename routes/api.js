@@ -2852,6 +2852,47 @@ router.post('/notifications/upcoming-notice', async (req, res) => {
   }
 });
 
+// GET /api/missions/calendar-events - ดึงกิจกรรมในรูปแบบ FullCalendar Events
+router.get('/missions/calendar-events', async (req, res) => {
+  try {
+    const missions = await dbAll(`
+      SELECT m.*, 
+        COUNT(DISTINCT CASE WHEN p.role_type = 'DIRECTOR' THEN ma.personnel_id END) AS directors_count,
+        COUNT(DISTINCT CASE WHEN p.role_type = 'STAFF' THEN ma.personnel_id END) AS staff_count
+      FROM missions m
+      LEFT JOIN mission_assignments ma ON m.id = ma.mission_id AND ma.assignment_status IN ('JOINED', 'SUBSTITUTED')
+      LEFT JOIN personnel p ON ma.personnel_id = p.id
+      GROUP BY m.id
+      ORDER BY m.start_date DESC
+    `);
+
+    const events = missions.map(m => {
+      const isSuccess = (m.status === 'SUCCESS' || m.status === 'COMPLETED');
+      return {
+        id: m.id,
+        title: m.mission_title,
+        start: m.start_date,
+        end: m.end_date || m.start_date,
+        backgroundColor: isSuccess ? '#10b981' : '#0284c7',
+        borderColor: isSuccess ? '#059669' : '#0369a1',
+        extendedProps: {
+          location: m.location || 'สะพานปลา อสป.',
+          dressCode: m.dress_code || 'ชุดปฏิบัติงาน อสป.',
+          status: m.status,
+          directorsCount: m.directors_count,
+          staffCount: m.staff_count,
+          description: m.description || '-'
+        }
+      };
+    });
+
+    res.json({ success: true, events });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+
 
 
 // -------------------------------------------------------------
