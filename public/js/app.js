@@ -545,15 +545,16 @@ async function loadQueueView(roleType) {
       let actions = '';
 
       if (isExecutiveReserve) {
-        const execLabel = isDir10 ? '👑 ผออ.' : (isDir09 ? '👑 รผอ.บร.' : '👑 ผู้บริหาร');
-        const roleDesc = isDir10 ? 'ผอ.องค์การสะพานปลา' : (isDir09 ? 'รอง ผอ.องค์การสะพานปลา' : 'ผู้บริหารระดับสูง');
+        const roleDesc = isDir10 ? 'ผออ.' : (isDir09 ? 'รผอ.บร.' : 'ผู้บริหาร');
+        const execLabel = `👑 ${roleDesc}`;
 
         orderCell = `<span class="badge" style="background:rgba(168,85,247,0.12); color:#a855f7; border:1px solid rgba(168,85,247,0.3); font-weight:700;">${execLabel}</span>`;
 
-        statusBadge = `<span class="badge" style="background:#a855f7; color:#ffffff; font-weight:700;"><i class="fa-solid fa-crown"></i> ${roleDesc}</span><br><small style="color:#a855f7; font-weight:600;" class="hide-on-mobile">(ผู้บริหาร ไม่เข้าคิวอัตโนมัติ / เลือกเพิ่มได้)</small>`;
+        statusBadge = `<span class="badge" style="background:#a855f7; color:#ffffff; font-weight:700;"><i class="fa-solid fa-crown"></i> ${roleDesc}</span>`;
 
         actions = `<span class="badge" style="background:rgba(168,85,247,0.12); color:#a855f7; border:1px solid rgba(168,85,247,0.3); padding:4px 10px; font-size:0.78rem;"><i class="fa-solid fa-user-shield"></i> ผู้บริหาร</span>`;
-      } else {
+      }
+ else {
         const queueNum = regularIndex++;
         orderCell = `<strong style="color:var(--primary);">#${queueNum}</strong>`;
 
