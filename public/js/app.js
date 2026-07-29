@@ -513,9 +513,10 @@ async function loadQueueView(roleType) {
       let actions = '';
 
       if (isExecutiveReserve) {
-        orderCell = `<span class="badge" style="background:rgba(168,85,247,0.12); color:#a855f7; border:1px solid rgba(168,85,247,0.3); font-weight:700;">👑 #${idx + 1} (ผู้บริหาร)</span>`;
+        orderCell = `<span class="badge" style="background:rgba(168,85,247,0.12); color:#a855f7; border:1px solid rgba(168,85,247,0.3); font-weight:700;">👑 #${idx + 1}<span class="hide-on-mobile"> (ผู้บริหาร)</span></span>`;
 
-        statusBadge = `<span class="badge" style="background:#a855f7; color:#ffffff; font-weight:700;"><i class="fa-solid fa-crown"></i> ผู้บริหาร</span><br><small style="color:#a855f7; font-weight:600;">(ผู้บริหาร ไม่เข้าคิวอัตโนมัติ / เลือกเพิ่มได้)</small>`;
+        statusBadge = `<span class="badge" style="background:#a855f7; color:#ffffff; font-weight:700;"><i class="fa-solid fa-crown"></i> ผู้บริหาร</span><br><small style="color:#a855f7; font-weight:600;" class="hide-on-mobile">(ผู้บริหาร ไม่เข้าคิวอัตโนมัติ / เลือกเพิ่มได้)</small>`;
+
         actions = `<span class="badge" style="background:rgba(168,85,247,0.12); color:#a855f7; border:1px solid rgba(168,85,247,0.3); padding:4px 10px; font-size:0.78rem;"><i class="fa-solid fa-user-shield"></i> ผู้บริหาร</span>`;
       }
  else if (m.status === 'HOLD') {

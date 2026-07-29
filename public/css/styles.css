@@ -849,3 +849,10 @@ table.custom-table tbody tr:hover {
   background-color: #0369a1 !important;
   border-color: #0369a1 !important;
 }
+
+/* Responsive Hide on Mobile */
+@media (max-width: 768px) {
+  .hide-on-mobile {
+    display: none !important;
+  }
+}
