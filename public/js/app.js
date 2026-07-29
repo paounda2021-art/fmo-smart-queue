@@ -2089,8 +2089,9 @@ async function respondToMission(missionId, personnelId, status) {
         showCancelButton: true,
         confirmButtonText: 'บันทึกข้อมูล',
         cancelButtonText: 'ยกเลิก',
-        width: '380px',
+        width: '420px',
         customClass: { popup: 'rounded-popup', input: 'rounded-input' },
+
         inputValidator: (value) => {
           if (!value) return 'กรุณาระบุรหัสพนักงานตัวแทน!';
         }

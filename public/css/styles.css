@@ -794,16 +794,24 @@ body.light-mode .modal-box {
     padding: 1.5em !important; /* ลดความกว้างของระยะขอบด้านใน */
 }
 
-/* แต่งกล่องกรอกข้อความ (Input) */
-.rounded-input {
-    border-radius: 12px !important; /* ขอบกล่องข้อความมน */
-    border: 1px solid #d1d5db !important;
+/* แต่งกล่องกรอกข้อความ (Input) ป้องกันล้นขอบ */
+.swal2-input, .rounded-input {
+    box-sizing: border-box !important;
+    width: 88% !important;
+    max-width: 100% !important;
+    margin: 1em auto !important;
+    border-radius: 14px !important; /* ขอบกล่องข้อความมน */
+    border: 1.5px solid #cbd5e1 !important;
     text-align: center !important; /* จัดข้อความให้อยู่ตรงกลาง */
+    padding: 10px 14px !important;
+    height: auto !important;
 }
-.rounded-input:focus {
+.swal2-input:focus, .rounded-input:focus {
     border-color: #3b82f6 !important;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
+    box-shadow: 0 0 0 3.5px rgba(59, 130, 246, 0.25) !important;
+    outline: none !important;
 }
+
 
 /* แต่งปุ่มกดให้โค้งมนเข้าชุดกัน */
 .rounded-confirm-btn {
