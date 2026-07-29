@@ -2438,3 +2438,29 @@ function showToast(message, type = 'success') {
     toast.remove();
   }, 4000);
 }
+
+async function sendUpcomingQueueNotice() {
+  if (!confirm('คุณต้องการส่งข้อความแจ้งเตือนเตรียมความพร้อมลำดับคิวล่วงหน้า (LINE/Email) ไปยังผู้ที่อยู่อันดับคิวต้นๆ หรือไม่?')) {
+    return;
+  }
+
+  showToast('กำลังส่งแจ้งเตือนเตรียมพร้อมคิวถัดไปทาง LINE & Email...', 'info');
+
+  try {
+    const res = await fetch('/api/notifications/upcoming-notice', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const result = await res.json();
+
+    if (result.success) {
+      showToast(result.message || 'ส่งแจ้งเตือนคิวถัดไปเรียบร้อยแล้ว', 'success');
+    } else {
+      showToast(result.error || 'เกิดข้อผิดพลาดในการส่งแจ้งเตือน', 'danger');
+    }
+  } catch (err) {
+    console.error('Error sending upcoming queue notice:', err);
+    showToast('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'danger');
+  }
+}
+

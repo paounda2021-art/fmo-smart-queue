@@ -769,9 +769,139 @@ async function sendMissionNotification(mission, assignedList, isReallocation = f
   }
 }
 
+/**
+ * Send Upcoming Queue Notice to Top Candidates in WAITING queue via mapped channel (LINE or Email)
+ */
+async function sendUpcomingQueueNotice() {
+  try {
+    const { dbAll } = require('../db/database');
+    
+    const topDirectors = await dbAll(`
+      SELECT p.*, q.current_round, q.queue_order, q.status AS queue_status
+      FROM queue_state q
+      JOIN personnel p ON p.id = q.personnel_id
+      WHERE p.role_type = 'DIRECTOR' AND q.status = 'WAITING'
+      ORDER BY q.queue_order ASC
+      LIMIT 3
+    `);
+
+    const topStaff = await dbAll(`
+      SELECT p.*, q.current_round, q.queue_order, q.status AS queue_status
+      FROM queue_state q
+      JOIN personnel p ON p.id = q.personnel_id
+      WHERE p.role_type = 'STAFF' AND q.status = 'WAITING'
+      ORDER BY q.queue_order ASC
+      LIMIT 5
+    `);
+
+    const candidates = [...topDirectors, ...topStaff];
+    if (candidates.length === 0) {
+      return { success: true, count: 0, message: 'ไม่พบบุคลากรที่รอคิวในระบบ' };
+    }
+
+    const lineToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+    let sentCount = 0;
+
+    for (const person of candidates) {
+      const lineId = String(person.line_user_id || '').trim();
+      const roleLabel = person.role_type === 'DIRECTOR' ? 'ผอ.ฝ่าย' : 'พนักงาน';
+      const orderText = `ลำดับที่ #${person.queue_order} (${roleLabel})`;
+
+      if (lineToken && lineId && lineId.toLowerCase() !== 'email') {
+        const upcomingFlexPayload = {
+          type: 'flex',
+          altText: `📢 แจ้งเตือนเตรียมพร้อมลำดับคิว อสป.: คุณอยู่อันดับ ${orderText}`,
+          contents: {
+            type: 'bubble',
+            header: {
+              type: 'box',
+              layout: 'vertical',
+              backgroundColor: '#0284c7',
+              paddingAll: '16px',
+              contents: [
+                { type: 'text', text: 'FMO SMART QUEUE SYSTEM', color: '#e0f2fe', size: 'xxs', weight: 'bold' },
+                { type: 'text', text: '📢 แจ้งเตือนเตรียมพร้อมลำดับคิว (อสป.)', color: '#ffffff', size: 'sm', weight: 'bold', margin: 'xs', wrap: true }
+              ]
+            },
+            body: {
+              type: 'box',
+              layout: 'vertical',
+              paddingAll: '16px',
+              spacing: 'md',
+              contents: [
+                { type: 'text', text: `👤 เรียน: คุณ ${person.name}`, weight: 'bold', size: 'sm', color: '#0f172a', wrap: true },
+                {
+                  type: 'box',
+                  layout: 'vertical',
+                  backgroundColor: '#f0f9ff',
+                  paddingAll: '12px',
+                  cornerRadius: '10px',
+                  contents: [
+                    { type: 'text', text: `📊 ตำแหน่งคิวปัจจุบัน: ${orderText}`, size: 'xs', color: '#0284c7', weight: 'bold' },
+                    { type: 'text', text: `🔄 รอบปฏิบัติงาน: รอบที่ ${person.current_round || 1}`, size: 'xs', color: '#64748b', margin: 'xs' },
+                    { type: 'text', text: '💡 ท่านกำลังจะถึงคิวได้รับการจัดสรรในกิจกรรมถัดไป', size: 'xs', color: '#0f172a', margin: 'sm', wrap: true }
+                  ]
+                },
+                { type: 'text', text: 'หากท่านติดภารกิจล่วงหน้า สามารถเตรียมการหาคนแทนหรือยื่นแจ้งลาล่วงหน้าได้ค่ะ', size: 'xs', color: '#475569', wrap: true }
+              ]
+            }
+          }
+        };
+
+        try {
+          await axios.post('https://api.line.me/v2/bot/message/push', {
+            to: lineId,
+            messages: [upcomingFlexPayload]
+          }, {
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${lineToken}` }
+          });
+
+          await dbRun(`
+            INSERT INTO notification_logs (mission_id, personnel_id, channel, recipient, subject_title, content_body, status)
+            VALUES (NULL, ?, 'LINE', ?, '📢 แจ้งเตือนเตรียมพร้อมลำดับคิว', 'ส่งการ์ดแจ้งเตือนคิวถัดไปทาง LINE สำเร็จ', 'SENT')
+          `, [person.id, lineId]);
+
+          sentCount++;
+        } catch (lineErr) {
+          console.error(`Error pushing upcoming queue LINE to ${person.name}:`, lineErr.message);
+        }
+      } else {
+        const targetEmail = person.email || `${String(person.emp_code).toLowerCase()}@fishmarket.co.th`;
+        const emailSubject = `📢 แจ้งเตือนเตรียมพร้อมลำดับคิว อสป. (คุณอยู่ในลำดับคิวถัดไป)`;
+        const emailBody = `
+          <div style="font-family: Sarabun, sans-serif; padding: 20px; border: 1px solid #0284c7; border-radius: 10px; max-width: 600px;">
+            <h2 style="color: #0284c7;">📢 แจ้งเตือนเตรียมความพร้อมลำดับคิว (อสป.)</h2>
+            <p>เรียน คุณ <strong>${person.name}</strong> (${person.position || 'พนักงาน อสป.'}),</p>
+            <div style="background: #f0f9ff; padding: 15px; border-radius: 8px; margin: 15px 0; border: 1px solid #bae6fd;">
+              <p style="margin: 4px 0; color: #0284c7;"><strong>📊 ตำแหน่งคิวปัจจุบัน:</strong> ${orderText}</p>
+              <p style="margin: 4px 0; color: #64748b;"><strong>🔄 รอบปฏิบัติงาน:</strong> รอบที่ ${person.current_round || 1}</p>
+              <p style="margin: 4px 0; color: #0f172a;"><strong>💡 ท่านกำลังจะถึงคิวได้รับการจัดสรรในกิจกรรมถัดไป</strong></p>
+            </div>
+            <p style="color: #475569;">หากท่านติดภารกิจล่วงหน้า สามารถเตรียมการหาคนแทนหรือยื่นแจ้งลาล่วงหน้าได้ค่ะ</p>
+          </div>
+        `;
+
+        await dbRun(`
+          INSERT INTO notification_logs (mission_id, personnel_id, channel, recipient, subject_title, content_body, status)
+          VALUES (NULL, ?, 'EMAIL', ?, ?, ?, 'SENT')
+        `, [person.id, targetEmail, emailSubject, emailBody]);
+
+        sentCount++;
+      }
+    }
+
+    return { success: true, count: sentCount, message: `ส่งแจ้งเตือนเตรียมพร้อมคิวถัดไปสำเร็จ ${sentCount} ท่าน` };
+  } catch (err) {
+    console.error('Error sending upcoming queue notice:', err);
+    return { success: false, error: err.message };
+  }
+}
+
 module.exports = {
   sendMissionNotification,
+  sendUpcomingQueueNotice,
   formatDate24h,
   createLineFlexCardPayload,
   createPersonalizedFlexCard
 };
+

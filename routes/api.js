@@ -2841,6 +2841,18 @@ router.get('/notifications/logs', async (req, res) => {
   }
 });
 
+// POST /api/notifications/upcoming-notice - แจ้งเตือนเตรียมพร้อมคิวถัดไปทาง LINE / Email
+router.post('/notifications/upcoming-notice', async (req, res) => {
+  try {
+    const { sendUpcomingQueueNotice } = require('../services/notification');
+    const result = await sendUpcomingQueueNotice();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+
 
 // -------------------------------------------------------------
 // 11. IMPORT REAL PERSONNEL DATA (CSV)

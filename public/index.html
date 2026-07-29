@@ -406,10 +406,14 @@
             <button class="btn btn-secondary btn-sm" onclick="downloadCsvTemplate()">
               <i class="fa-solid fa-download"></i> 📄 ดาวน์โหลดเทมเพลต CSV
             </button>
+            <button class="btn btn-primary btn-sm" onclick="sendUpcomingQueueNotice()" style="background:#0284c7; border-color:#0284c7;">
+              <i class="fa-solid fa-paper-plane"></i> 📢 แจ้งเตือนเตรียมคิวถัดไป (LINE/Email)
+            </button>
             <button class="btn btn-warning btn-sm" onclick="openImportCsvModal()">
               <i class="fa-solid fa-file-import"></i> 📥 นำเข้าชุดข้อมูลจริง (CSV)
             </button>
           </div>
+
         <!-- Executive Reserve Info Banner -->
         <div style="background:rgba(168,85,247,0.08); border:1px solid rgba(168,85,247,0.25); border-radius:12px; padding:0.75rem 1rem; margin-bottom:1rem; display:flex; align-items:center; gap:10px; font-size:0.84rem; color:var(--text-main);">
           <i class="fa-solid fa-crown" style="color:#a855f7; font-size:1.15rem; flex-shrink:0;"></i>
