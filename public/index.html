@@ -634,11 +634,15 @@
           </button>
         </div>
 
+        <!-- Dummy inputs to trap browser autofill -->
+        <input type="text" style="display:none;" name="username" aria-hidden="true" tabindex="-1">
+        <input type="password" style="display:none;" name="password" aria-hidden="true" tabindex="-1">
+
         <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 1.25rem;">
           <div style="flex: 1; min-width: 200px;">
-            <input type="text" id="user-search-input" name="user_search_query_no_autofill" class="form-input" placeholder="🔍 ค้นหาชื่อ, รหัสพนักงาน, ตำแหน่ง..." onkeyup="filterUserList()" autocomplete="off" value="">
-
+            <input type="search" id="user-search-input" name="search_user_query_rand123" class="form-input" placeholder="🔍 ค้นหาชื่อ, รหัสพนักงาน, ตำแหน่ง..." oninput="filterUserList()" autocomplete="new-password" value="">
           </div>
+
           <div style="width: 220px;">
             <select id="user-role-filter" class="form-select" onchange="filterUserList()">
               <option value="ALL">ทุกระดับสิทธิ์</option>

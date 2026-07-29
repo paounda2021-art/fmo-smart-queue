@@ -2694,21 +2694,20 @@ async function loadUserManagementView() {
   const tbody = document.getElementById('user-management-table-body');
   if (!tbody) return;
 
-  const searchInput = document.getElementById('user-search-input');
-  if (searchInput) searchInput.value = '';
-
-  const roleFilter = document.getElementById('user-role-filter');
-  if (roleFilter) roleFilter.value = 'ALL';
-
-  setTimeout(() => {
+  const clearSearch = () => {
     const sInput = document.getElementById('user-search-input');
-    if (sInput && sInput.value) {
-      sInput.value = '';
-      if (typeof filterUserList === 'function') filterUserList();
-    }
-  }, 100);
+    if (sInput) sInput.value = '';
+    const rFilter = document.getElementById('user-role-filter');
+    if (rFilter) rFilter.value = 'ALL';
+  };
+
+  clearSearch();
+  [50, 150, 300, 600].forEach(delay => {
+    setTimeout(clearSearch, delay);
+  });
 
   tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;"><i class="fa-solid fa-spinner fa-spin text-purple"></i> กำลังโหลดข้อมูลผู้ใช้งาน...</td></tr>';
+
 
 
   try {
