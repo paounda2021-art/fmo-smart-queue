@@ -221,11 +221,14 @@ async function loadCalendarEvents() {
       fullCalendarInstance = new FullCalendar.Calendar(containerEl, {
         initialView: 'dayGridMonth',
         height: 'auto',
+        displayEventTime: false,
+        eventDisplay: 'block',
         headerToolbar: {
           left: 'prev,next today',
           center: 'title',
           right: 'dayGridMonth,timeGridWeek,listMonth'
         },
+
         buttonText: {
           today: 'วันนี้',
           month: 'เดือน',
