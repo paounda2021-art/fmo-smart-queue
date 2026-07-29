@@ -89,6 +89,24 @@ function createLineFlexCardPayload(mission, directors, staff, isReallocation = f
     wrap: true
   }));
 
+  const leaderContents = (Array.isArray(directors) && directors.length > 0)
+    ? directors.map(d => ({
+        type: 'text',
+        text: formatLeaderTitle(d),
+        color: '#1e293b',
+        size: 'xs',
+        wrap: true,
+        weight: 'bold'
+      }))
+    : [{
+        type: 'text',
+        text: teamLeaderName || '-',
+        color: '#1e293b',
+        size: 'xs',
+        wrap: true,
+        weight: 'bold'
+      }];
+
   const flexCardObj = {
     type: 'flex',
     altText: `${headerTitle}: ${mission.mission_title}`,
@@ -120,8 +138,9 @@ function createLineFlexCardPayload(mission, directors, staff, isReallocation = f
             contents: [
               {
                 type: 'box',
-                layout: 'baseline',
+                layout: 'horizontal',
                 spacing: 'sm',
+
                 contents: [
                   {
                     type: 'text',
@@ -131,21 +150,21 @@ function createLineFlexCardPayload(mission, directors, staff, isReallocation = f
                     flex: 2
                   },
                   {
-                    type: 'text',
-                    text: teamLeaderName,
-                    color: '#1e293b',
-                    size: 'xs',
+                    type: 'box',
+                    layout: 'vertical',
                     flex: 5,
-                    wrap: true,
-                    weight: 'bold'
+                    spacing: 'xs',
+                    contents: leaderContents
                   }
                 ]
               },
 
+
               {
                 type: 'box',
-                layout: 'baseline',
+                layout: 'horizontal',
                 spacing: 'sm',
+
                 contents: [
                   {
                     type: 'text',
@@ -167,8 +186,9 @@ function createLineFlexCardPayload(mission, directors, staff, isReallocation = f
               },
               {
                 type: 'box',
-                layout: 'baseline',
+                layout: 'horizontal',
                 spacing: 'sm',
+
                 contents: [
                   { type: 'text', text: '👔 การแต่งกาย:', color: '#64748b', size: 'xs', flex: 2 },
                   { type: 'text', text: mission.dress_code || 'ชุดปฏิบัติงาน อสป.', color: '#a855f7', size: 'xs', flex: 5, wrap: true, weight: 'bold' }
@@ -281,11 +301,10 @@ function generateGoogleCalendarUrl(mission) {
  * missionId and personnelId embedded so LINE webhook can handle ACK directly
  */
 function createPersonalizedFlexCard(
-
   mission,
   person,
   isReallocation = false,
-  teamLeaderName = '-'
+  directors = []
 ) {
   const missionId = mission.id;
   const personnelId = person.personnel_id || person.id;
@@ -302,12 +321,29 @@ function createPersonalizedFlexCard(
     `${formatDate24h(mission.start_date)} - ` +
     `${formatDate24h(mission.end_date)}`;
 
+  const leaderContents = (Array.isArray(directors) && directors.length > 0)
+    ? directors.map(d => ({
+        type: 'text',
+        text: formatLeaderTitle(d),
+        color: '#1e293b',
+        size: 'xs',
+        wrap: true,
+        weight: 'bold'
+      }))
+    : [{
+        type: 'text',
+        text: person.team_leader_name || (typeof directors === 'string' && directors !== '-' ? directors : '-'),
+        color: '#1e293b',
+        size: 'xs',
+        wrap: true,
+        weight: 'bold'
+      }];
+
   return {
     type: 'flex',
 
     altText: `${headerTitle}: ${mission.mission_title}`,
 
-    // ห้ามลบ contents ชั้นนี้
     contents: {
       type: 'bubble',
       size: 'mega',
@@ -336,7 +372,6 @@ function createPersonalizedFlexCard(
             wrap: true
           },
 
-          // แสดงชื่อผู้ถูกแทนเฉพาะการ์ดสีส้ม
           ...(isReallocation
             ? [
                 {
@@ -392,11 +427,11 @@ function createPersonalizedFlexCard(
             spacing: 'xs',
 
             contents: [
-              // บังคับแสดงหัวหน้าคณะเป็นบรรทัดแรกก่อนสถานที่เสมอ
               {
                 type: 'box',
-                layout: 'baseline',
+                layout: 'horizontal',
                 spacing: 'sm',
+
                 contents: [
                   {
                     type: 'text',
@@ -406,18 +441,14 @@ function createPersonalizedFlexCard(
                     flex: 2
                   },
                   {
-                    type: 'text',
-                    text: person.team_leader_name || teamLeaderName || '-',
-                    color: '#1e293b',
-                    size: 'xs',
+                    type: 'box',
+                    layout: 'vertical',
                     flex: 5,
-                    wrap: true,
-                    weight: 'bold'
+                    spacing: 'xs',
+                    contents: leaderContents
                   }
                 ]
               },
-
-
 
               {
                 type: 'box',
@@ -493,38 +524,10 @@ function createPersonalizedFlexCard(
                     weight: 'bold'
                   }
                 ]
-              },
-
-              ...(mission.description && String(mission.description).trim()
-                ? [
-                    {
-                      type: 'box',
-                      layout: 'vertical',
-                      margin: 'sm',
-                      spacing: 'xs',
-
-                      contents: [
-                        {
-                          type: 'text',
-                          text: '📝 รายละเอียด/กำหนดการ:',
-                          color: '#64748b',
-                          size: 'xs',
-                          weight: 'bold'
-                        },
-                        {
-                          type: 'text',
-                          text: String(mission.description).trim(),
-                          color: '#334155',
-                          size: 'xs',
-                          wrap: true,
-                          margin: 'xs'
-                        }
-                      ]
-                    }
-                  ]
-                : [])
+              }
             ]
           },
+
 
 
           {
