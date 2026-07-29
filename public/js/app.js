@@ -553,13 +553,13 @@ async function loadQueueView(roleType) {
 
     let html = '';
     let regularIndex = 1;
-    members.forEach((m, idx) => {
+    members.forEach((m) => {
       const code = String(m.emp_code || '').trim().toUpperCase();
       const isDir10 = code === 'DIR-10';
       const isDir09 = code === 'DIR-09';
       const isExecutiveReserve = isDir10 || isDir09 || (m.status === 'RESERVE_EXEC');
 
-      let orderCell = `<strong style="color:var(--primary);">#${m.queue_order || regularIndex++}</strong>`;
+      let orderCell = '';
       let statusBadge = '';
       let actions = '';
 
@@ -572,15 +572,20 @@ async function loadQueueView(roleType) {
         statusBadge = `<span class="badge" style="background:#a855f7; color:#ffffff; font-weight:700;"><i class="fa-solid fa-crown"></i> ${roleDesc}</span><br><small style="color:#a855f7; font-weight:600;" class="hide-on-mobile">(ผู้บริหาร ไม่เข้าคิวอัตโนมัติ / เลือกเพิ่มได้)</small>`;
 
         actions = `<span class="badge" style="background:rgba(168,85,247,0.12); color:#a855f7; border:1px solid rgba(168,85,247,0.3); padding:4px 10px; font-size:0.78rem;"><i class="fa-solid fa-user-shield"></i> ผู้บริหาร</span>`;
-      } else if (m.status === 'HOLD') {
-        statusBadge = `<span class="badge badge-hold"><i class="fa-solid fa-pause"></i> HOLD (ค้างสิทธิ์)</span><br><small style="color:var(--warning);">${escapeHtml(m.hold_reason || '')}</small>`;
-        actions = `<button class="btn btn-primary btn-sm" onclick="unholdPerson(${m.personnel_id})"><i class="fa-solid fa-play"></i> คืนสิทธิ์ปกติ</button>`;
-      } else if (m.status === 'COMPLETED') {
-        statusBadge = '<span class="badge badge-completed"><i class="fa-solid fa-check"></i> COMPLETED</span>';
-        actions = `<span style="color:var(--text-muted); font-size:0.8rem;">ปฏิบัติกิจกรรมในรอบนี้แล้ว</span>`;
       } else {
-        statusBadge = '<span class="badge badge-waiting"><i class="fa-solid fa-clock"></i> WAITING (รอคิว)</span>';
-        actions = `<button class="btn btn-warning btn-sm" onclick="openSkipModal(${m.personnel_id}, '${escapeHtml(m.name)}')"><i class="fa-solid fa-pause"></i> ข้ามคิว (Hold)</button>`;
+        const queueNum = m.queue_order || regularIndex++;
+        orderCell = `<strong style="color:var(--primary);">#${queueNum}</strong>`;
+
+        if (m.status === 'HOLD') {
+          statusBadge = `<span class="badge badge-hold"><i class="fa-solid fa-pause"></i> HOLD (ค้างสิทธิ์)</span><br><small style="color:var(--warning);">${escapeHtml(m.hold_reason || '')}</small>`;
+          actions = `<button class="btn btn-primary btn-sm" onclick="unholdPerson(${m.personnel_id})"><i class="fa-solid fa-play"></i> คืนสิทธิ์ปกติ</button>`;
+        } else if (m.status === 'COMPLETED') {
+          statusBadge = '<span class="badge badge-completed"><i class="fa-solid fa-check"></i> COMPLETED</span>';
+          actions = `<span style="color:var(--text-muted); font-size:0.8rem;">ปฏิบัติกิจกรรมในรอบนี้แล้ว</span>`;
+        } else {
+          statusBadge = '<span class="badge badge-waiting"><i class="fa-solid fa-clock"></i> WAITING (รอคิว)</span>';
+          actions = `<button class="btn btn-warning btn-sm" onclick="openSkipModal(${m.personnel_id}, '${escapeHtml(m.name)}')"><i class="fa-solid fa-pause"></i> ข้ามคิว (Hold)</button>`;
+        }
       }
 
       html += `
@@ -596,6 +601,7 @@ async function loadQueueView(roleType) {
         </tr>
       `;
     });
+
 
 
 
