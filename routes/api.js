@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 const { dbRun, dbGet, dbAll } = require('../db/database');
-const { sendMissionNotification } = require('../services/notification');
+const { sendMissionNotification, formatDate24h } = require('../services/notification');
 
 // Helper: Generate Auto-Running Mission Code (FMO-ATMMYY-XXX)
 async function generateMissionCode() {
@@ -623,7 +623,11 @@ router.post('/line-webhook', async (req, res) => {
                   ma.*,
                   p.name AS person_name,
                   m.mission_title,
-                  m.description
+                  m.description,
+                  m.location,
+                  m.start_date,
+                  m.end_date,
+                  m.dress_code
                 FROM mission_assignments ma
                 JOIN personnel p
                   ON p.id = ma.personnel_id
@@ -669,24 +673,30 @@ router.post('/line-webhook', async (req, res) => {
                   [assignment.id]
                 );
 
+                await checkAndUpdateMissionStatus(missionId);
+
+
                 const missionDescription = String(
                   assignment.description || ''
                 ).trim();
 
+                const timeStr = (assignment.start_date && assignment.end_date)
+                  ? `${formatDate24h(assignment.start_date)} - ${formatDate24h(assignment.end_date)}`
+                  : '-';
+
                 replyMessages = [{
                   type: 'text',
                   text:
-          `✅ รับทราบแล้วค่ะ คุณ ${assignment.person_name || '-'}
-
-      📋 กิจกรรม:
-      ${assignment.mission_title || '-'}
-
-      📝 รายละเอียด/กำหนดการ:
-      ${missionDescription || 'ไม่มีรายละเอียดเพิ่มเติม'}
-
-      ระบบบันทึกการตอบรับเรียบร้อยแล้วค่ะ`
+                    `✅ รับทราบแล้วค่ะ คุณ ${assignment.person_name || '-'}\n\n` +
+                    `📋 กิจกรรม:\n${assignment.mission_title || '-'}\n\n` +
+                    `📍 สถานที่: ${assignment.location || '-'}\n` +
+                    `⏰ เวลา (24 ชม.): ${timeStr}\n` +
+                    `👔 การแต่งกาย: ${assignment.dress_code || 'ชุดปฏิบัติงาน อสป.'}\n\n` +
+                    `📝 รายละเอียด/กำหนดการ:\n${missionDescription || 'ไม่มีรายละเอียดเพิ่มเติม'}\n\n` +
+                    `ระบบได้บันทึกการตอบรับเข้าร่วมกิจกรรมเรียบร้อยแล้ว ขอบคุณค่ะ 🙏`
                 }];
               }
+
             }
           } else if (postbackData.startsWith('BUSY|')) {
             const [, missionIdRaw, personnelIdRaw] = postbackData.split('|');
@@ -723,14 +733,162 @@ router.post('/line-webhook', async (req, res) => {
               );
 
               replyMessages = [{
-                type: 'text',
-                text:
-                  `🔴 แจ้งติดภารกิจ (${assignment.mission_title || '-'})\n\n` +
-                  `คุณ ${assignment.name} 🔴กรุณาพิมพ์รหัสพนักงาน ` +
-                  '(เช่น EMP-025) ที่ต้องการให้ปฏิบัติงานแทนค่ะ'
+                type: 'flex',
+                altText: '🔴 แจ้งติดภารกิจ / ขอลา',
+                contents: {
+                  type: 'bubble',
+                  header: {
+                    type: 'box',
+                    layout: 'vertical',
+                    backgroundColor: '#dc2626',
+                    paddingAll: '14px',
+                    contents: [
+                      { type: 'text', text: '🔴 แจ้งติดภารกิจ / ขอลา', color: '#ffffff', weight: 'bold', size: 'md' }
+                    ]
+                  },
+                  body: {
+                    type: 'box',
+                    layout: 'vertical',
+                    paddingAll: '16px',
+                    spacing: 'md',
+                    contents: [
+                      { type: 'text', text: `กิจกรรม: ${assignment.mission_title || '-'}`, weight: 'bold', size: 'sm', wrap: true },
+                      { type: 'text', text: `เรียน คุณ ${assignment.name}`, size: 'xs', color: '#64748b' },
+                      { type: 'text', text: 'กรณีมีผู้ปฏิบัติงานแทน : กรุณาพิมพ์รหัสพนักงาน (เช่น EMP-025)\n\nกรณีไม่มีผู้ปฏิบัติงานแทน : กรุณากดปุ่มด้านล่างเพื่อให้ระบบเลื่อนคิวถัดไปให้อัตโนมัติ', size: 'xs', color: '#334155', wrap: true }
+                    ]
+                  },
+                  footer: {
+                    type: 'box',
+                    layout: 'vertical',
+                    contents: [
+                      {
+                        type: 'button',
+                        style: 'secondary',
+                        color: '#f1f5f9',
+                        action: {
+                          type: 'postback',
+                          label: '🟡 ไม่มีคนแทน (ให้ระบบเลื่อนคิว)',
+                          data: `NO_SUB|${missionId}|${personnelId}`,
+                          displayText: '🟡 ไม่มีผู้ปฏิบัติงานแทน (ขอลา)'
+                        }
+                      }
+                    ]
+                  }
+                }
               }];
             }
+          } else if (postbackData.startsWith('NO_SUB|')) {
+            const [, missionIdRaw, personnelIdRaw] = postbackData.split('|');
+            const missionId = Number.parseInt(missionIdRaw, 10);
+            const personnelId = Number.parseInt(personnelIdRaw, 10);
+
+            const assignment = await dbGet(
+              `
+              SELECT ma.*, p.name, p.role_type, m.mission_title
+              FROM mission_assignments ma
+              JOIN personnel p ON p.id = ma.personnel_id
+              JOIN missions m ON m.id = ma.mission_id
+              WHERE ma.mission_id = ?
+                AND ma.personnel_id = ?
+                AND ma.assignment_status IN ('JOINED', 'BUSY_PENDING')
+              ORDER BY ma.id DESC
+              LIMIT 1;
+              `,
+              [missionId, personnelId]
+            );
+
+            if (!assignment) {
+              replyMessages = [{
+                type: 'text',
+                text: '❌ ไม่พบข้อมูลการจัดสรรในระบบ กรุณาติดต่อเจ้าหน้าที่ค่ะ'
+              }];
+            } else {
+              await dbRun(
+                `UPDATE mission_assignments 
+                 SET assignment_status = 'DECLINED_NO_SUBSTITUTE', 
+                     ack_status = 'DECLINED_BUSY', 
+                     decline_reason = 'ติดภารกิจ/ขอลา (ไม่มีคนแทน)', 
+                     ack_at = CURRENT_TIMESTAMP 
+                 WHERE id = ?;`,
+                [assignment.id]
+              );
+
+              await dbRun(
+                `UPDATE queue_members 
+                 SET status = 'COMPLETED', hold_reason = NULL, hold_timestamp = NULL, last_assigned_at = CURRENT_TIMESTAMP 
+                 WHERE personnel_id = ?;`,
+                [personnelId]
+              );
+
+              const nextCandidate = await dbGet(
+                `SELECT qm.personnel_id, p.id, p.emp_code, p.name, p.role_type, p.department, p.position, p.email, p.phone, p.line_user_id
+                 FROM queue_members qm
+                 JOIN personnel p ON p.id = qm.personnel_id
+                 WHERE UPPER(qm.role_type) = UPPER(?)
+                   AND qm.status IN ('WAITING', 'HOLD')
+                   AND qm.personnel_id != ?
+                 ORDER BY qm.current_round ASC, qm.queue_order ASC
+                 LIMIT 1;`,
+                [assignment.role_type, personnelId]
+              );
+
+              if (nextCandidate) {
+                await dbRun(
+                  `INSERT INTO mission_assignments 
+                   (mission_id, personnel_id, role_type, assigned_round, is_leader, assignment_status, substituted_for_personnel_id, notes, ack_status)
+                   VALUES (?, ?, ?, ?, ?, 'JOINED', ?, ?, 'PENDING_ACK');`,
+                  [
+                    missionId,
+                    nextCandidate.id,
+                    assignment.role_type,
+                    assignment.assigned_round,
+                    assignment.is_leader,
+                    personnelId,
+                    `จัดสรรแทน [${assignment.name} ที่ขอลา (ไม่มีคนแทน)]`
+                  ]
+                );
+
+                await dbRun(
+                  `UPDATE queue_members 
+                   SET status = 'COMPLETED', hold_reason = NULL, hold_timestamp = NULL, last_assigned_at = CURRENT_TIMESTAMP 
+                   WHERE personnel_id = ?;`,
+                  [nextCandidate.id]
+                );
+
+                await checkAndAdvanceRound(assignment.role_type);
+
+                const mission = await dbGet(`SELECT * FROM missions WHERE id = ?;`, [missionId]);
+                if (mission) {
+                  sendMissionNotification(
+                    mission,
+                    [{ ...nextCandidate, personnel_id: nextCandidate.id }],
+                    true
+                  ).catch(e => console.error('Notification dispatch error:', e));
+                }
+
+                const channelNotice = (nextCandidate.line_user_id && nextCandidate.line_user_id.toLowerCase() !== 'email')
+                  ? 'LINE และ อีเมล'
+                  : 'ทางอีเมล';
+
+                replyMessages = [{
+                  type: 'text',
+                  text:
+                    `🔴 บันทึกการติดภารกิจของคุณ ${assignment.name} เรียบร้อยแล้วค่ะ (ถือว่าใช้สิทธิ์ในรอบนี้แล้ว)\n\n` +
+                    `👤 ระบบได้จัดสรรพนักงานลำดับถัดไปคือ คุณ ${nextCandidate.name} (${nextCandidate.emp_code}) ปฏิบัติงานแทนให้อัตโนมัติเรียบร้อยแล้วค่ะ\n\n` +
+                    `📩 แจ้งเตือนผู้ปฏิบัติงานคนใหม่เรียบร้อยแล้ว (${channelNotice})`
+                }];
+              } else {
+                await checkAndAdvanceRound(assignment.role_type);
+                replyMessages = [{
+                  type: 'text',
+                  text:
+                    `🔴 บันทึกการติดภารกิจของคุณ ${assignment.name} เรียบร้อยแล้วค่ะ (ถือว่าใช้สิทธิ์ในรอบนี้แล้ว)\n\n` +
+                    `⚠️ ขณะนี้ไม่มีพนักงานคงเหลือในคิวเพื่อปฏิบัติงานแทน ระบบจึงลงประวัติขอลาไว้ให้เรียบร้อยค่ะ`
+                }];
+              }
+            }
           }
+
 
           await replyLine(replyToken, replyMessages);
           continue;
@@ -772,7 +930,7 @@ router.post('/line-webhook', async (req, res) => {
               const savedLineUserId = String(person.line_user_id || '').trim();
               const currentLineUserId = String(lineUserId || '').trim();
 
-              if (savedLineUserId === currentLineUserId && savedLineUserId) {
+              if (savedLineUserId === currentLineUserId && savedLineUserId && savedLineUserId.toLowerCase() !== 'email') {
                 messagesPayload = [{
                   type: 'text',
                   text:
@@ -780,7 +938,7 @@ router.post('/line-webhook', async (req, res) => {
                     `👤 ${person.name}\n\n` +
                     'สามารถใช้งานระบบ FMO Smart Queue ได้ตามปกติค่ะ'
                 }];
-              } else if (savedLineUserId) {
+              } else if (savedLineUserId && savedLineUserId.toLowerCase() !== 'email') {
                 messagesPayload = [{
                   type: 'text',
                   text:
@@ -793,7 +951,7 @@ router.post('/line-webhook', async (req, res) => {
                   UPDATE personnel
                   SET line_user_id = ?
                   WHERE id = ?
-                    AND line_user_id IS NULL;
+                    AND (line_user_id IS NULL OR line_user_id = '' OR line_user_id = 'email');
                   `,
                   [currentLineUserId, person.id]
                 );
@@ -804,7 +962,7 @@ router.post('/line-webhook', async (req, res) => {
                     text:
                       `🎉 ยืนยันการผูกบัญชีสำเร็จค่ะ\n\n` +
                       `👤 ${person.name}\n\n` +
-                      'พร้อมรับการแจ้งเตือนคิวและภารกิจแล้วค่ะ'
+                      'พร้อมรับการแจ้งเตือนคิวและภารกิจทาง LINE แล้วค่ะ'
                   }];
                 } else {
                   messagesPayload = [{
@@ -833,12 +991,31 @@ router.post('/line-webhook', async (req, res) => {
               [targetEmpCode]
             );
 
-            messagesPayload = [{
-              type: 'text',
-              text: person
-                ? `❌ ระบบจะไม่ผูกบัญชี LINE ค่ะ\n\n📧 การแจ้งเตือนจะส่งไปยังอีเมล:\n${person.email || 'อีเมลองค์กรของคุณ'}`
-                : '❌ ยกเลิกการทำรายการเรียบร้อยแล้วค่ะ'
-            }];
+            if (person) {
+              await dbRun(
+                `
+                UPDATE personnel
+                SET line_user_id = 'email'
+                WHERE id = ?;
+                `,
+                [person.id]
+              );
+
+              messagesPayload = [{
+                type: 'text',
+                text:
+                  `❌ ท่านปฏิเสธการผูกบัญชี LINE (PDPA)\n\n` +
+                  `📧 ระบบได้บันทึกช่องทางรับการแจ้งเตือนทางอีเมลเรียบร้อยแล้วค่ะ\n\n` +
+                  `👤 ${person.name} (${person.emp_code})\n` +
+                  `📮 การแจ้งเตือนคิวและภารกิจจะถูกจัดส่งไปยัง:\n` +
+                  `👉 ${person.email || 'อีเมลองค์กรของคุณ'}`
+              }];
+            } else {
+              messagesPayload = [{
+                type: 'text',
+                text: '❌ ยกเลิกการทำรายการเรียบร้อยแล้วค่ะ'
+              }];
+            }
           }
 
           // -----------------------------------------------------------
@@ -1054,7 +1231,7 @@ router.post('/line-webhook', async (req, res) => {
                 const savedLineUserId = String(person.line_user_id || '').trim();
                 const currentLineUserId = String(lineUserId || '').trim();
 
-                if (savedLineUserId === currentLineUserId && savedLineUserId) {
+                if (savedLineUserId === currentLineUserId && savedLineUserId && savedLineUserId.toLowerCase() !== 'email') {
                   messagesPayload = [{
                     type: 'text',
                     text:
@@ -1062,7 +1239,7 @@ router.post('/line-webhook', async (req, res) => {
                       `👤 ${person.name}\n\n` +
                       'สามารถใช้งานระบบและรับการแจ้งเตือนได้ตามปกติค่ะ'
                   }];
-                } else if (savedLineUserId) {
+                } else if (savedLineUserId && savedLineUserId.toLowerCase() !== 'email') {
                   messagesPayload = [{
                     type: 'text',
                     text:
@@ -2216,11 +2393,51 @@ router.get('/history/individual/:id', async (req, res) => {
   }
 });
 
+async function checkAndUpdateMissionStatus(missionId) {
+  if (!missionId) return;
+
+  try {
+    const pendingRow = await dbGet(
+      `SELECT COUNT(*) AS pending_count 
+       FROM mission_assignments 
+       WHERE mission_id = ? 
+         AND assignment_status = 'JOINED' 
+         AND (ack_status IS NULL OR ack_status != 'ACKNOWLEDGED');`,
+      [missionId]
+    );
+
+    const totalRow = await dbGet(
+      `SELECT COUNT(*) AS total_count 
+       FROM mission_assignments 
+       WHERE mission_id = ? 
+         AND assignment_status = 'JOINED';`,
+      [missionId]
+    );
+
+    const pendingCount = pendingRow ? Number(pendingRow.pending_count) : 0;
+    const totalCount = totalRow ? Number(totalRow.total_count) : 0;
+
+    if (totalCount > 0 && pendingCount === 0) {
+      await dbRun(`UPDATE missions SET status = 'SUCCESS' WHERE id = ?;`, [missionId]);
+      console.log(`🎉 อัปเดตสถานะกิจกรรม #${missionId} เป็น SUCCESS (ทุกคนปฏิบัติ/ตอบรับเสร็จสิ้นแล้ว)`);
+    } else {
+      await dbRun(`UPDATE missions SET status = 'SCHEDULED' WHERE id = ?;`, [missionId]);
+    }
+  } catch (err) {
+    console.error('Error checking mission status:', err);
+  }
+}
+
 // -------------------------------------------------------------
 // 8. ALL MISSIONS & PERSONNEL LISTS
 // -------------------------------------------------------------
 router.get('/missions', async (req, res) => {
   try {
+    const allMissions = await dbAll(`SELECT id FROM missions;`);
+    for (const m of allMissions) {
+      await checkAndUpdateMissionStatus(m.id);
+    }
+
     const missions = await dbAll(
       `SELECT 
         m.*,
@@ -2235,6 +2452,7 @@ router.get('/missions', async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
 
 router.get('/missions/:id', async (req, res) => {
   try {
@@ -2321,8 +2539,7 @@ router.get('/personnel', async (req, res) => {
 // -------------------------------------------------------------
 router.post('/missions/respond', async (req, res) => {
   try {
-    // 💡 เพิ่มรับค่า substitute_emp_code จากหน้าเว็บ
-    const { mission_id, personnel_id, response_status, substitute_emp_code } = req.body;
+    const { mission_id, personnel_id, response_status, substitute_emp_code, decline_reason } = req.body;
 
     if (!mission_id || !personnel_id || !response_status) {
       return res.status(400).json({ success: false, error: 'ข้อมูลไม่ครบถ้วน' });
@@ -2348,34 +2565,32 @@ router.post('/missions/respond', async (req, res) => {
         [assignment.id]
       );
 
+      await checkAndUpdateMissionStatus(mission_id);
+
       return res.json({
         success: true,
         message: `บันทึกการรับทราบเข้าร่วมกิจกรรมของ ${assignment.name} เรียบร้อยแล้ว`
       });
 
-    } else if (response_status === 'DECLINED_BUSY') {
-      // 1. ตรวจสอบว่ามีการส่งรหัสตัวแทนมาหรือไม่
-      if (!substitute_emp_code) {
-        return res.status(400).json({ success: false, error: '📝 กรุณาพิมพ์รหัสผู้ปฏิบัติงานแทน' });
-      }
 
-      // 2. ค้นหาข้อมูลพนักงาน "ตัวแทน" จากฐานข้อมูล
-      const substitutePerson = await dbGet(`SELECT * FROM personnel WHERE emp_code = ?;`, [substitute_emp_code]);
-      
-      if (!substitutePerson) {
-        return res.status(404).json({ success: false, error: 'ไม่พบรหัสพนักงานตัวแทนนี้ในระบบ' });
-      }
+    // =========================================================
+    // กรณีที่ 1: ติดภารกิจ/ขอลา แบบ "ไม่มีคนแทน" (รูปแบบ B)
+    // =========================================================
+    } else if (response_status === 'DECLINED_NO_SUBSTITUTE') {
+      const reasonText = decline_reason || 'ติดภารกิจ/ขอลา (ไม่มีคนแทน)';
 
-      // 3. อัปเดตแถวของ "คนเดิม" ให้สถานะเป็น 'SUBSTITUTED'
+      // 1. อัปเดตแถวของคนเดิม (ผู้ขอลา)
       await dbRun(
         `UPDATE mission_assignments 
-         SET assignment_status = 'SUBSTITUTED', ack_status = 'DECLINED_BUSY', decline_reason = ?, ack_at = CURRENT_TIMESTAMP 
+         SET assignment_status = 'DECLINED_NO_SUBSTITUTE', 
+             ack_status = 'DECLINED_BUSY', 
+             decline_reason = ?, 
+             ack_at = CURRENT_TIMESTAMP 
          WHERE id = ?;`,
-        [`ให้ ${substitutePerson.name} ทำแทน`, assignment.id]
+        [reasonText, assignment.id]
       );
 
-      // 4. คิวของ "คนเดิม" ถือว่าใช้คิวไปแล้ว -> ตั้งเป็น COMPLETED (ไม่ใช่ WAITING)
-      //    เพื่อไม่ให้ระบบเลือกคนเดิมขึ้นมาเป็น "คิวถัดไป" ซ้ำอีกในรอบเดียวกัน
+      // 2. รูปแบบ B: ถือว่าใช้สิทธิ์ในรอบนี้แล้ว -> อัปเดตคิวผู้ลาเป็น COMPLETED
       await dbRun(
         `UPDATE queue_members 
          SET status = 'COMPLETED', hold_reason = NULL, hold_timestamp = NULL, last_assigned_at = CURRENT_TIMESTAMP 
@@ -2383,28 +2598,122 @@ router.post('/missions/respond', async (req, res) => {
         [personnel_id]
       );
 
-      // 5. เพิ่มแถวใหม่! นำชื่อ "ตัวแทน" เข้าตารางกิจกรรม เพื่อให้แสดงบนหน้าเว็บ
+      // 3. ค้นหาพนักงานคนถัดไปในคิว (Auto-Reallocate Next Candidate)
+      const nextCandidate = await dbGet(
+        `SELECT qm.personnel_id, p.id, p.emp_code, p.name, p.role_type, p.department, p.position, p.email, p.phone, p.line_user_id
+         FROM queue_members qm
+         JOIN personnel p ON p.id = qm.personnel_id
+         WHERE UPPER(qm.role_type) = UPPER(?)
+           AND qm.status IN ('WAITING', 'HOLD')
+           AND qm.personnel_id != ?
+         ORDER BY qm.current_round ASC, qm.queue_order ASC
+         LIMIT 1;`,
+        [assignment.role_type, personnel_id]
+      );
+
+      let replacementMessage = '';
+      let replacementPersonName = null;
+
+      if (nextCandidate) {
+        // เพิ่มแถวให้พนักงานคนใหม่
+        await dbRun(
+          `INSERT INTO mission_assignments 
+           (mission_id, personnel_id, role_type, assigned_round, is_leader, assignment_status, substituted_for_personnel_id, notes, ack_status)
+           VALUES (?, ?, ?, ?, ?, 'JOINED', ?, ?, 'PENDING_ACK');`,
+          [
+            mission_id,
+            nextCandidate.id,
+            assignment.role_type,
+            assignment.assigned_round,
+            assignment.is_leader,
+            personnel_id,
+            `จัดสรรแทน [${assignment.name} ที่ขอลา (ไม่มีคนแทน)]`
+          ]
+        );
+
+        // อัปเดตคิวของพนักงานคนใหม่เป็น COMPLETED
+        await dbRun(
+          `UPDATE queue_members 
+           SET status = 'COMPLETED', hold_reason = NULL, hold_timestamp = NULL, last_assigned_at = CURRENT_TIMESTAMP 
+           WHERE personnel_id = ?;`,
+          [nextCandidate.id]
+        );
+
+        // ตรวจสอบการเลื่อนรอบ
+        await checkAndAdvanceRound(assignment.role_type);
+
+        // ส่งการแจ้งเตือน (ส่ง LINE/Email ตามช่องทางที่พนักงานผูกไว้)
+        const mission = await dbGet(`SELECT * FROM missions WHERE id = ?;`, [mission_id]);
+        if (mission) {
+          sendMissionNotification(
+            mission,
+            [{ ...nextCandidate, personnel_id: nextCandidate.id }],
+            true
+          ).catch(e => console.error('Notification dispatch error:', e));
+        }
+
+        const channelNotice = (nextCandidate.line_user_id && nextCandidate.line_user_id.toLowerCase() !== 'email') 
+          ? 'ทาง LINE และ อีเมล' 
+          : 'ทางอีเมล';
+
+        replacementPersonName = nextCandidate.name;
+        replacementMessage = `ระบบได้จัดสรรพนักงานลำดับถัดไปคือ คุณ ${nextCandidate.name} (${nextCandidate.emp_code}) ปฏิบัติงานแทนให้อัตโนมัติแล้ว (ส่งแจ้งเตือน ${channelNotice})`;
+      } else {
+        await checkAndAdvanceRound(assignment.role_type);
+        replacementMessage = `ขณะนี้ไม่มีพนักงานในคิวที่สามารถปฏิบัติงานแทนได้ ระบบจึงลงประวัติขอลาไว้เรียบร้อยแล้ว`;
+      }
+
+      return res.json({
+        success: true,
+        message: `บันทึกการขอลาของ ${assignment.name} เรียบร้อยแล้ว (ถือว่าใช้สิทธิ์ในรอบนี้แล้ว) ${replacementMessage}`,
+        replacementPerson: replacementPersonName
+      });
+
+    // =========================================================
+    // กรณีที่ 2: ติดภารกิจ แบบ "มีผู้ปฏิบัติงานแทน" (ระบุรหัสตัวแทน)
+    // =========================================================
+    } else if (response_status === 'DECLINED_BUSY') {
+      if (!substitute_emp_code) {
+        return res.status(400).json({ success: false, error: '📝 กรุณาพิมพ์รหัสผู้ปฏิบัติงานแทน' });
+      }
+
+      const substitutePerson = await dbGet(`SELECT * FROM personnel WHERE emp_code = ?;`, [substitute_emp_code]);
+      
+      if (!substitutePerson) {
+        return res.status(404).json({ success: false, error: 'ไม่พบรหัสพนักงานตัวแทนนี้ในระบบ' });
+      }
+
+      await dbRun(
+        `UPDATE mission_assignments 
+         SET assignment_status = 'SUBSTITUTED', ack_status = 'DECLINED_BUSY', decline_reason = ?, ack_at = CURRENT_TIMESTAMP 
+         WHERE id = ?;`,
+        [`ให้ ${substitutePerson.name} ทำแทน`, assignment.id]
+      );
+
+      await dbRun(
+        `UPDATE queue_members 
+         SET status = 'COMPLETED', hold_reason = NULL, hold_timestamp = NULL, last_assigned_at = CURRENT_TIMESTAMP 
+         WHERE personnel_id = ?;`,
+        [personnel_id]
+      );
+
       await dbRun(
         `INSERT INTO mission_assignments 
          (mission_id, personnel_id, role_type, assigned_round, is_leader, assignment_status, substituted_for_personnel_id, notes, ack_status)
          VALUES (?, ?, ?, ?, ?, 'JOINED', ?, ?, 'PENDING_ACK');`,
         [
           mission_id,
-          substitutePerson.id,           // รหัสอ้างอิงของตัวแทน
-          assignment.role_type,          // บทบาทเดิม
+          substitutePerson.id,
+          assignment.role_type,
           assignment.assigned_round,
           assignment.is_leader,
-          personnel_id,                  // เก็บประวัติว่ามาแทนใคร
-          `มาเป็นตัวแทนของ [${assignment.name}]` // ขึ้นตรงช่องสถานะ/หมายเหตุ
+          personnel_id,
+          `มาเป็นตัวแทนของ [${assignment.name}]`
         ]
       );
 
-      // 💡 (ไม่แตะคิวของตัวแทนเลย สิทธิ์ในการรอคิวของตัวแทนจึงยังอยู่เหมือนเดิม)
-
-      // 6. เช็คว่าทุกคนในรอบนี้เสร็จหมดหรือยัง (คนเดิมเพิ่ง COMPLETED ไปเมื่อกี้ อาจทำให้ครบรอบพอดี)
       await checkAndAdvanceRound(assignment.role_type);
 
-      // 7. 💡 แจ้งเตือนตัวแทนทั้งทาง Email และ LINE (จุดที่ขาดไปเดิม ทำให้ตัวแทนไม่เคยได้รับแจ้งเตือนเลย)
       const mission = await dbGet(`SELECT * FROM missions WHERE id = ?;`, [mission_id]);
       if (mission) {
         sendMissionNotification(
@@ -2426,6 +2735,7 @@ router.post('/missions/respond', async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
 
 // -------------------------------------------------------------
 // 10. EXPORT SUMMARY REPORT DATA
@@ -2492,6 +2802,45 @@ router.get('/reports/export', async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
+router.get('/notifications/logs', async (req, res) => {
+  try {
+    const logs = await dbAll(
+      `SELECT nl.*, m.mission_title
+       FROM notification_logs nl
+       LEFT JOIN missions m ON nl.mission_id = m.id
+       ORDER BY nl.sent_at DESC 
+       LIMIT 50;`
+    );
+
+    const acknowledgements = await dbAll(
+      `SELECT 
+        ma.id as assignment_id,
+        ma.mission_id,
+        ma.personnel_id,
+        ma.ack_status,
+        ma.ack_at,
+        ma.assignment_status,
+        p.name as person_name,
+        p.emp_code,
+        p.line_user_id,
+        p.email,
+        m.mission_title,
+        m.start_date
+       FROM mission_assignments ma
+       JOIN personnel p ON ma.personnel_id = p.id
+       JOIN missions m ON ma.mission_id = m.id
+       WHERE ma.assignment_status IN ('JOINED', 'SUBSTITUTED', 'DECLINED_NO_SUBSTITUTE')
+       ORDER BY ma.ack_at DESC, ma.id DESC
+       LIMIT 100;`
+    );
+
+    res.json({ success: true, logs, acknowledgements });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 
 // -------------------------------------------------------------
 // 11. IMPORT REAL PERSONNEL DATA (CSV)

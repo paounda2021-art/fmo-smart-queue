@@ -18,36 +18,61 @@ function formatDate24h(dateStr) {
   return `${day}/${month}/${year} ${hours}:${minutes} น.`;
 }
 
+function formatLeaderTitle(person) {
+  if (!person) return '-';
+  const name = person.name || person.person_name || '-';
+  const pos = String(person.position || person.department || '').trim();
+  const empCode = String(person.emp_code || '').trim().toUpperCase();
+
+  const cleanName = name.replace(/\s*\([^)]*\)/g, '').trim();
+
+  let title = '';
+  if (empCode === 'DIR-09' || pos.includes('ผู้อำนวยการองค์การสะพานปลา') || pos.includes('ผออ.')) {
+    title = 'ผออ.';
+  } else if (empCode === 'DIR-10' || pos.includes('รองผู้อำนวยการ') || pos.includes('รผอ.') || pos.includes('รผอ.บร.')) {
+    title = 'รผอ.บร.';
+  } else if (pos) {
+    title = pos;
+  } else {
+    title = 'ผอ.ฝ่าย';
+  }
+
+  return title ? `${cleanName} (${title})` : cleanName;
+}
+
+function resolveLeaderPerson(directors = [], assignedList = []) {
+  const combined = [...(directors || []), ...(assignedList || [])];
+  if (combined.length === 0) return null;
+
+  const execLeader = combined.find(p => {
+    const code = String(p.emp_code || '').trim().toUpperCase();
+    const pos = String(p.position || p.department || '').trim();
+    return (
+      code === 'DIR-09' ||
+      code === 'DIR-10' ||
+      pos.includes('ผู้อำนวยการองค์การสะพานปลา') ||
+      pos.includes('ผออ.') ||
+      pos.includes('รองผู้อำนวยการ') ||
+      pos.includes('รผอ.')
+    );
+  });
+  if (execLeader) return execLeader;
+
+  const isLeaderPerson = combined.find(p => Number(p.is_leader) === 1);
+  if (isLeaderPerson) return isLeaderPerson;
+
+  const directorPerson = combined.find(p => String(p.role_type || '').toUpperCase() === 'DIRECTOR');
+  if (directorPerson) return directorPerson;
+
+  return combined[0] || null;
+}
+
 /**
  * Generate LINE Flex Message Card JSON Payload
  */
 function createLineFlexCardPayload(mission, directors, staff, isReallocation = false, assignedList = []) {
-  const teamLeader =
-    (Array.isArray(directors)
-      ? directors.find(item =>
-          Number(item.is_leader) === 1 ||
-          String(item.role_type || '')
-            .trim()
-            .toUpperCase() === 'DIRECTOR'
-        )
-      : null) ||
-    (Array.isArray(assignedList)
-      ? assignedList.find(item =>
-          Number(item.is_leader) === 1 ||
-          String(item.role_type || '')
-            .trim()
-            .toUpperCase() === 'DIRECTOR'
-        )
-      : null);
-
-  const teamLeaderName =
-    teamLeader?.name ||
-    teamLeader?.person_name ||
-    (Array.isArray(assignedList)
-      ? assignedList.find(item => item?.team_leader_name)
-          ?.team_leader_name
-      : '') ||
-    '-';
+  const teamLeader = resolveLeaderPerson(directors, assignedList);
+  const teamLeaderName = formatLeaderTitle(teamLeader);
 
   const headerTitle = isReallocation
   ? '🚨 แจ้งเตือนจัดสรรคิวแทน'
@@ -100,7 +125,7 @@ function createLineFlexCardPayload(mission, directors, staff, isReallocation = f
                 contents: [
                   {
                     type: 'text',
-                    text: '👔 หัวหน้าทีม:',
+                    text: '👔 หัวหน้าคณะ:',
                     color: '#64748b',
                     size: 'xs',
                     flex: 2
@@ -116,6 +141,7 @@ function createLineFlexCardPayload(mission, directors, staff, isReallocation = f
                   }
                 ]
               },
+
               {
                 type: 'box',
                 layout: 'baseline',
@@ -332,7 +358,7 @@ function createPersonalizedFlexCard(
             spacing: 'xs',
 
             contents: [
-              // แสดงหัวหน้าทีมเฉพาะเมื่อมีข้อมูล
+              // แสดงหัวหน้าคณะเฉพาะเมื่อมีข้อมูล
               ...((person.team_leader_name || teamLeaderName !== '-')
                 ? [
                     {
@@ -342,7 +368,7 @@ function createPersonalizedFlexCard(
                       contents: [
                         {
                           type: 'text',
-                          text: '👔 หัวหน้าทีม:',
+                          text: '👔 หัวหน้าคณะ:',
                           color: '#64748b',
                           size: 'xs',
                           flex: 2
@@ -360,6 +386,7 @@ function createPersonalizedFlexCard(
                     }
                   ]
                 : []),
+
 
               {
                 type: 'box',
@@ -435,9 +462,38 @@ function createPersonalizedFlexCard(
                     weight: 'bold'
                   }
                 ]
-              }
+              },
+
+              ...(mission.description && String(mission.description).trim()
+                ? [
+                    {
+                      type: 'box',
+                      layout: 'vertical',
+                      margin: 'sm',
+                      spacing: 'xxs',
+                      contents: [
+                        {
+                          type: 'text',
+                          text: '📝 รายละเอียด/กำหนดการ:',
+                          color: '#64748b',
+                          size: 'xs',
+                          weight: 'bold'
+                        },
+                        {
+                          type: 'text',
+                          text: String(mission.description).trim(),
+                          color: '#334155',
+                          size: 'xs',
+                          wrap: true,
+                          margin: 'xs'
+                        }
+                      ]
+                    }
+                  ]
+                : [])
             ]
           },
+
 
           {
             type: 'box',
@@ -643,8 +699,9 @@ async function sendMissionNotification(mission, assignedList, isReallocation = f
     for (const person of assignedList) {
       if (!lineToken) continue;
 
-      if (!person.line_user_id) {
-        console.log(`ℹ️ ${person.name} (${person.emp_code || '-'}) ยังไม่ได้ผูกบัญชี LINE กับระบบ จึงข้ามการส่ง LINE ให้คนนี้`);
+      const targetLineId = String(person.line_user_id || '').trim();
+      if (!targetLineId || targetLineId.toLowerCase() === 'email') {
+        console.log(`ℹ️ ${person.name} (${person.emp_code || '-'}) กำหนดช่องทางแจ้งเตือนเป็นอีเมล (email) จึงข้ามการส่ง LINE ให้คนนี้`);
         continue;
       }
 

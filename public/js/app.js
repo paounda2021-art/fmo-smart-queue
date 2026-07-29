@@ -13,15 +13,44 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initApp() {
+  renderUserBadge();
   populate24HourTimeOptions('alloc-start-time', '09:00');
   populate24HourTimeOptions('alloc-end-time', '17:00');
   setDefaultMissionTimes();
   loadDirectorSelectList();
-  switchTab('quick');
+
+  // ดึงแท็บเดิมจาก hash หรือ localStorage (ถ้าไม่มี ให้เปิด quick หน้าแรก)
+  const hashTab = (window.location.hash || '').replace('#', '').trim();
+  const savedTab = hashTab || localStorage.getItem('fmo_active_tab') || 'quick';
+  switchTab(savedTab);
+
   loadDashboardStats();
   loadQueueView('DIRECTOR');
   loadPersonnelDropdown();
   loadAllMissions();
+}
+
+function renderUserBadge() {
+  const sessionUser = sessionStorage.getItem('fmo_user');
+  if (!sessionUser) return;
+
+  try {
+    const userObj = JSON.parse(sessionUser);
+    const nameEl = document.getElementById('user-label-name');
+    const posEl = document.getElementById('user-label-pos');
+    const roleEl = document.getElementById('user-label-role');
+
+    if (nameEl) nameEl.textContent = userObj.label || userObj.username || 'ผู้ใช้งาน';
+    if (posEl) posEl.textContent = userObj.position || (userObj.empCode ? `รหัส ${userObj.empCode}` : 'เจ้าหน้าที่ อสป.');
+    if (roleEl) roleEl.textContent = userObj.roleLabel || (userObj.role === 'admin' ? 'แอดมิน (Admin)' : 'เจ้าหน้าที่ (Staff)');
+  } catch (e) {
+    console.error('Error rendering user badge:', e);
+  }
+}
+
+function goHome() {
+  switchTab('quick');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 // -------------------------------------------------------------
@@ -35,13 +64,9 @@ async function checkUrlActionParams() {
   const personnelId = params.get('personnel_id');
 
   if (action === 'busy' && missionId && personnelId) {
-    // ลบ query params ออกจาก URL เพื่อความสะอาด
     window.history.replaceState({}, document.title, window.location.pathname);
-
-    // หน่วงเล็กน้อยให้ UI โหลดก่อน
     await new Promise(r => setTimeout(r, 600));
 
-    // เปิด SweetAlert2 ถามรหัสตัวแทน
     const { value: empCode } = await Swal.fire({
       title: '<span style="font-size: 20px;">🔴 แจ้งติดภารกิจ - ป้อนผู้ปฏิบัติงานแทน</span>',
       html: '<p style="color:#64748b; font-size:14px;">การแจ้งผ่านปุ่มใน LINE<br>กรุณาระบุรหัสพนักงานผู้มาทำหน้าที่แทน</p>',
@@ -74,7 +99,6 @@ async function checkUrlActionParams() {
 
       if (result.success) {
         showToast(`🎉 ${result.message}`, 'success');
-        // สลับไปหน้ารายงานและเปิด modal กิจกรรม
         setTimeout(() => {
           switchTab('reports');
           loadDashboardStats();
@@ -144,6 +168,10 @@ function updateThemeIcon(isLight) {
 // TAB NAVIGATION
 // -------------------------------------------------------------
 function switchTab(tabId) {
+  if (!tabId) tabId = 'quick';
+  localStorage.setItem('fmo_active_tab', tabId);
+  window.history.replaceState(null, '', '#' + tabId);
+
   document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
   const activeBtn = Array.from(document.querySelectorAll('.nav-btn')).find(btn => btn.getAttribute('onclick')?.includes(tabId));
   if (activeBtn) activeBtn.classList.add('active');
@@ -159,6 +187,7 @@ function switchTab(tabId) {
     if (allPersonnelList.length === 0) loadPersonnelDropdown();
   } else if (tabId === 'reports') loadAllMissions();
 }
+
 
 // -------------------------------------------------------------
 // AUTO-FETCH QUEUE ON INPUT CHANGE
@@ -285,9 +314,10 @@ async function loadRecentMissionsList() {
     `;
 
     recent.forEach(m => {
-      const statusBadge = m.status === 'COMPLETED' 
-        ? '<span class="badge badge-completed">COMPLETED</span>' 
-        : '<span class="badge badge-waiting">SCHEDULED</span>';
+      const statusBadge = (m.status === 'SUCCESS' || m.status === 'COMPLETED')
+        ? '<span class="badge badge-completed"><i class="fa-solid fa-circle-check"></i> SUCCESS</span>' 
+        : '<span class="badge badge-waiting"><i class="fa-solid fa-clock"></i> SCHEDULED</span>';
+
 
       html += `
         <tr>
@@ -1413,7 +1443,7 @@ async function loadIndividualHistory(personId) {
                     <th>วันที่ปฏิบัติกิจกรรม (เวลา 24 ชม.)</th>
                     <th>ระยะเวลา</th>
                     <th>การแต่งกาย</th>
-                    <th>หัวหน้าทีม (ผอ.ฝ่าย) / บริบทร่วม</th>
+                    <th>หัวหน้าคณะ (ผู้บริหาร/ผอ.ฝ่าย) / บริบทร่วม</th>
                     <th>สถานะ</th>
                   </tr>
                 </thead>
@@ -1427,8 +1457,9 @@ async function loadIndividualHistory(personId) {
               ? `ร่วมกับ ${m.director_leader_position || m.director_leader_name}` 
               : 'ร่วมกับ ผอ.ฝ่ายประจำกิจกรรม';
           } else {
-            leaderContext = `ทำหน้าที่หัวหน้าทีมปฏิบัติการ (${m.location || 'อสป.'})`;
+            leaderContext = `ทำหน้าที่หัวหน้าคณะปฏิบัติการ (${m.location || 'อสป.'})`;
           }
+
 
           if (m.notes) {
             leaderContext += ` <br><small style="color:var(--warning);">${escapeHtml(m.notes)}</small>`;
@@ -1443,7 +1474,7 @@ async function loadIndividualHistory(personId) {
               <td><strong style="color:var(--text-heading);">${escapeHtml(m.mission_title)}</strong></td>
               <td>${formatDate(m.start_date)}</td>
               <td>${m.duration_hours || 8} ชั่วโมง</td>
-              <td><code>${escapeHtml(m.dress_code || 'ชุดปฏิบัติงาน อสป.')}</code></td>
+              <td>${escapeHtml(m.dress_code || 'ชุดปฏิบัติงาน อสป.')}</td>
               <td>${leaderContext}</td>
               <td>${statusBadge}</td>
             </tr>
@@ -1472,9 +1503,21 @@ async function loadIndividualHistory(personId) {
 // -------------------------------------------------------------
 // REPORTS & ALL MISSIONS / ACTIVITIES VIEW
 // -------------------------------------------------------------
+function isNewMission(createdAtStr) {
+  if (!createdAtStr) return false;
+  const createdTime = new Date(createdAtStr).getTime();
+  if (isNaN(createdTime)) return false;
+  const now = new Date().getTime();
+  const diffHours = (now - createdTime) / (1000 * 60 * 60);
+  return diffHours <= 48;
+}
+
+let allMissionsCache = [];
+
 async function loadAllMissions() {
   const tbody = document.getElementById('all-missions-table-body');
-  tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;">กำลังโหลดรายการกิจกรรม...</td></tr>';
+  if (tbody) tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;">กำลังโหลดรายการกิจกรรม...</td></tr>';
+
 
   try {
     const res = await fetch('/api/missions');
@@ -1485,35 +1528,88 @@ async function loadAllMissions() {
       return;
     }
 
-    let html = '';
-    result.missions.forEach(m => {
-      const statusBadge = m.status === 'COMPLETED' 
-        ? '<span class="badge badge-completed">COMPLETED</span>' 
-        : '<span class="badge badge-waiting">SCHEDULED</span>';
-
-      html += `
-        <tr>
-          <td><code>${m.mission_code || 'ACT-' + m.id}</code></td>
-          <td><strong style="color:var(--text-heading);">${escapeHtml(m.mission_title)}</strong></td>
-          <td>${escapeHtml(m.location || '-')}</td>
-          <td><code>${escapeHtml(m.dress_code || 'ชุดปฏิบัติงาน อสป.')}</code></td>
-          <td>${formatDate(m.start_date)}</td>
-          <td><span class="badge badge-director">${m.directors_count} ท่าน</span></td>
-          <td><span class="badge badge-staff">${m.staff_count} ท่าน</span></td>
-          <td>${statusBadge}</td>
-          <td>
-            <button class="btn btn-secondary btn-sm" onclick="openMissionDetailModal(${m.id})">
-              <i class="fa-solid fa-eye"></i> รายชื่อ & เปลี่ยนตัว
-            </button>
-          </td>
-        </tr>
-      `;
-    });
-
-    tbody.innerHTML = html;
+    allMissionsCache = result.missions;
+    resetMissionDateFilter();
   } catch (err) {
-    console.error('Error loading all activities:', err);
+    console.error('Error loading all missions:', err);
   }
+}
+
+function renderMissionsTable(list) {
+  const tbody = document.getElementById('all-missions-table-body');
+  if (!tbody) return;
+
+  if (!list || list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:1.5rem; color:var(--text-muted);">ไม่พบรายการกิจกรรมตามเงื่อนไขที่เลือก</td></tr>';
+    return;
+  }
+
+  let html = '';
+  list.forEach(m => {
+    const statusBadge = (m.status === 'SUCCESS' || m.status === 'COMPLETED')
+      ? '<span class="badge badge-completed"><i class="fa-solid fa-circle-check"></i> SUCCESS</span>' 
+      : '<span class="badge badge-waiting"><i class="fa-solid fa-clock"></i> SCHEDULED</span>';
+
+    const isRecent = isNewMission(m.created_at || m.start_date);
+    const newBadge = isRecent ? ' <span class="badge-new-pulse"><i class="fa-solid fa-bell fa-beat"></i> NEW</span>' : '';
+
+    html += `
+      <tr>
+        <td><code>${m.mission_code || 'ACT-' + m.id}</code></td>
+        <td><strong style="color:var(--text-heading);">${escapeHtml(m.mission_title)}</strong>${newBadge}</td>
+        <td>${escapeHtml(m.location || '-')}</td>
+        <td>${escapeHtml(m.dress_code || 'ชุดปฏิบัติงาน อสป.')}</td>
+        <td>${formatDate(m.start_date)}</td>
+        <td><span class="badge badge-director">${m.directors_count} ท่าน</span></td>
+        <td><span class="badge badge-staff">${m.staff_count} ท่าน</span></td>
+        <td>${statusBadge}</td>
+        <td>
+          <button class="btn btn-secondary btn-sm" onclick="openMissionDetailModal(${m.id})">
+            <i class="fa-solid fa-eye"></i> รายชื่อ & เปลี่ยนตัว
+          </button>
+        </td>
+      </tr>
+    `;
+  });
+
+  tbody.innerHTML = html;
+}
+
+function filterMissionsByDate() {
+  const startInput = document.getElementById('report-start-date')?.value;
+  const endInput = document.getElementById('report-end-date')?.value;
+  const summaryEl = document.getElementById('report-filter-summary');
+
+  if (!startInput && !endInput) {
+    showToast('กรุณาเลือกวันที่เริ่มต้น หรือ วันที่สิ้นสุด', 'warning');
+    return;
+  }
+
+  const filtered = allMissionsCache.filter(m => {
+    if (!m.start_date) return false;
+    const mDateStr = m.start_date.split(' ')[0];
+    if (startInput && mDateStr < startInput) return false;
+    if (endInput && mDateStr > endInput) return false;
+    return true;
+  });
+
+  if (summaryEl) {
+    summaryEl.textContent = `พบ ${filtered.length} จาก ${allMissionsCache.length} รายการ`;
+  }
+
+  renderMissionsTable(filtered);
+}
+
+function resetMissionDateFilter() {
+  const startEl = document.getElementById('report-start-date');
+  const endEl = document.getElementById('report-end-date');
+  const summaryEl = document.getElementById('report-filter-summary');
+
+  if (startEl) startEl.value = '';
+  if (endEl) endEl.value = '';
+  if (summaryEl) summaryEl.textContent = `กิจกรรมทั้งหมด (${allMissionsCache.length} รายการ)`;
+
+  renderMissionsTable(allMissionsCache);
 }
 
 async function openMissionDetailModal(missionId) {
@@ -1566,8 +1662,9 @@ async function openMissionDetailModal(missionId) {
 
         const roleBadge =
           Number(a.is_leader) === 1
-            ? '<span class="badge badge-director">หัวหน้าทีม</span>'
+            ? '<span class="badge badge-director">หัวหน้าคณะ</span>'
             : '<span class="badge badge-staff">สมาชิก</span>';
+
 
         // ---------------------------------------------------
         // สถานะที่แสดงในตาราง
@@ -1581,6 +1678,15 @@ async function openMissionDetailModal(missionId) {
         let ackStatusBadge = '';
 
         if (
+          assignmentStatus === 'DECLINED_NO_SUBSTITUTE'
+        ) {
+          ackStatusBadge = `
+            <span class="badge badge-hold" style="background:#ef4444; color:white;">
+              <i class="fa-solid fa-user-slash"></i>
+              ขอลา (ไม่มีคนแทน)
+            </span>
+          `;
+        } else if (
           assignmentStatus === 'SUBSTITUTED' ||
           ackStatus === 'DECLINED_BUSY'
         ) {
@@ -1605,6 +1711,7 @@ async function openMissionDetailModal(missionId) {
             </span>
           `;
         }
+
 
         // ---------------------------------------------------
         // หมายเหตุ
@@ -1773,37 +1880,104 @@ else if (a.notes) {
 async function respondToMission(missionId, personnelId, status) {
   let substituteEmpCode = '';
 
-  // 1. ถ้ากดปุ่ม "ติดภารกิจ" ให้ใช้ SweetAlert2 ถามหารหัสตัวแทน
+  // 1. ถ้ากดปุ่ม "ติดภารกิจ" ให้ใช้ SweetAlert2 มีตัวเลือก มีคนแทน / ไม่มีคนแทน
   if (status === 'DECLINED_BUSY') { 
-    const { value: empCode } = await Swal.fire({
-      title: '<span style="font-size: 22px;">ระบุตัวแทนปฏิบัติหน้าที่</span>',
-      input: 'text',
-      inputLabel: 'กรุณากรอกรหัสพนักงาน (EMP-XXX)',
-      inputPlaceholder: 'เช่น EMP-001',
+    const { value: option } = await Swal.fire({
+      title: '<span style="font-size: 20px;">🔴 แจ้งติดภารกิจ / ขอลา</span>',
+      html: `
+        <p style="color:#64748b; font-size:14px; margin-bottom:15px;">กรุณาเลือกรูปแบบการติดภารกิจ</p>
+        <div style="display:flex; flex-direction:column; gap:10px; text-align:left;">
+          <label style="display:flex; align-items:center; gap:8px; padding:12px; border:1px solid #cbd5e1; border-radius:8px; cursor:pointer; background:#f8fafc;">
+            <input type="radio" name="declined_type" value="NO_SUB" checked style="width:18px; height:18px;">
+            <div>
+              <strong style="color:#0f172a;">🟡 ไม่มีผู้ปฏิบัติงานแทน (ขอลา)</strong>
+              <div style="font-size:12px; color:#64748b; margin-top:2px;">ถือว่าใช้สิทธิ์ในรอบนี้แล้ว ระบบจะเลื่อนคิวถัดไปให้อัตโนมัติ</div>
+            </div>
+          </label>
+          <label style="display:flex; align-items:center; gap:8px; padding:12px; border:1px solid #cbd5e1; border-radius:8px; cursor:pointer; background:#f8fafc;">
+            <input type="radio" name="declined_type" value="HAS_SUB" style="width:18px; height:18px;">
+            <div>
+              <strong style="color:#0f172a;">🟢 มีผู้ปฏิบัติงานแทน</strong>
+              <div style="font-size:12px; color:#64748b; margin-top:2px;">ระบุรหัสพนักงานตัวแทนที่ตกลงปฏิบัติงานแทน</div>
+            </div>
+          </label>
+        </div>
+      `,
       showCancelButton: true,
-      confirmButtonText: 'บันทึกข้อมูล',
+      confirmButtonText: 'ถัดไป',
       cancelButtonText: 'ยกเลิก',
-      // 💡 1. กำหนดขนาดความกว้างไม่ให้ใหญ่เกินไป (ค่าปกติคือประมาณ 500px กว่าๆ)
-      width: '380px', 
-      // 💡 2. เรียกใช้ CSS แบบมนโค้ง
-      customClass: {
-        popup: 'rounded-popup',
-        input: 'rounded-input',
-        confirmButton: 'rounded-confirm-btn',
-        cancelButton: 'rounded-cancel-btn'
-      },
-      inputValidator: (value) => {
-        if (!value) {
-          return 'กรุณาระบุรหัสพนักงานตัวแทน!';
-        }
+      width: '420px',
+      customClass: { popup: 'rounded-popup' },
+      preConfirm: () => {
+        const selected = document.querySelector('input[name="declined_type"]:checked');
+        return selected ? selected.value : 'NO_SUB';
       }
     });
 
-    if (!empCode) return; // ถ้ากดยกเลิก หรือปิดหน้าต่าง ให้หยุดการทำงาน
-    substituteEmpCode = empCode.trim();
+    if (!option) return;
+
+    if (option === 'NO_SUB') {
+      const { value: reason } = await Swal.fire({
+        title: 'ระบุเหตุผลการขอลา',
+        input: 'textarea',
+        inputPlaceholder: 'เช่น ติดภารกิจด่วนองค์กร, ลาป่วย, ลาพักผ่อน...',
+        showCancelButton: true,
+        confirmButtonText: 'ยืนยันขอลา',
+        cancelButtonText: 'ยกเลิก',
+        width: '400px',
+        customClass: { popup: 'rounded-popup', input: 'rounded-input' }
+      });
+
+      if (reason === undefined) return;
+
+      try {
+        const res = await fetch('/api/missions/respond', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mission_id: missionId,
+            personnel_id: personnelId,
+            response_status: 'DECLINED_NO_SUBSTITUTE',
+            decline_reason: (reason || '').trim() || 'ติดภารกิจ/ขอลา (ไม่มีคนแทน)'
+          })
+        });
+        const result = await res.json();
+
+        if (result.success) {
+          showToast(`🎉 ${result.message}`, 'success');
+          openMissionDetailModal(missionId);
+          loadDashboardStats();
+          loadAllMissions();
+          previewCandidates();
+        } else {
+          showToast(`Error: ${result.error}`, 'danger');
+        }
+      } catch (err) {
+        console.error('Error declining mission:', err);
+      }
+      return;
+    } else if (option === 'HAS_SUB') {
+      const { value: empCode } = await Swal.fire({
+        title: '<span style="font-size: 20px;">ระบุตัวแทนปฏิบัติหน้าที่</span>',
+        input: 'text',
+        inputLabel: 'กรุณากรอกรหัสพนักงาน (EMP-XXX หรือ DIR-XX)',
+        inputPlaceholder: 'เช่น EMP-001',
+        showCancelButton: true,
+        confirmButtonText: 'บันทึกข้อมูล',
+        cancelButtonText: 'ยกเลิก',
+        width: '380px',
+        customClass: { popup: 'rounded-popup', input: 'rounded-input' },
+        inputValidator: (value) => {
+          if (!value) return 'กรุณาระบุรหัสพนักงานตัวแทน!';
+        }
+      });
+
+      if (!empCode) return;
+      substituteEmpCode = empCode.trim();
+    }
   }
 
-  // 2. ส่งข้อมูลไปที่หลังบ้าน
+  // 2. ส่งข้อมูลไปที่หลังบ้านสำหรับกรณีมีตัวแทน หรือ ACKNOWLEDGED
   try {
     const res = await fetch('/api/missions/respond', {
       method: 'POST',
@@ -1812,12 +1986,11 @@ async function respondToMission(missionId, personnelId, status) {
         mission_id: missionId,
         personnel_id: personnelId,
         response_status: status, 
-        substitute_emp_code: substituteEmpCode // ส่งรหัสตัวแทนไปแทนเหตุผลเดิม
+        substitute_emp_code: substituteEmpCode
       })
     });
     const result = await res.json();
 
-    // 3. จัดการแสดงผล Toast แบบเดิมที่ระบบมีอยู่แล้ว
     if (result.success) {
       showToast(`🎉 ${result.message}`, 'success');
       openMissionDetailModal(missionId);
@@ -1832,52 +2005,116 @@ async function respondToMission(missionId, personnelId, status) {
   }
 }
 
+
+function switchNotifSubTab(tabName) {
+  const ackSec = document.getElementById('notif-subtab-ack');
+  const sysSec = document.getElementById('notif-subtab-system');
+  const btnAck = document.getElementById('btn-notif-tab-ack');
+  const btnSys = document.getElementById('btn-notif-tab-system');
+
+  if (tabName === 'ack') {
+    if (ackSec) ackSec.style.display = 'block';
+    if (sysSec) sysSec.style.display = 'none';
+    if (btnAck) btnAck.className = 'btn btn-sm btn-primary';
+    if (btnSys) btnSys.className = 'btn btn-sm btn-secondary';
+  } else {
+    if (ackSec) ackSec.style.display = 'none';
+    if (sysSec) sysSec.style.display = 'block';
+    if (btnAck) btnAck.className = 'btn btn-sm btn-secondary';
+    if (btnSys) btnSys.className = 'btn btn-sm btn-primary';
+  }
+}
+
 async function openNotificationLogsModal() {
   openModal('modal-notif-logs');
-  const tbody = document.getElementById('notif-logs-body');
-  if (tbody) tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:1.5rem; color:var(--text-muted);">กำลังโหลดประวัติการส่งแจ้งเตือน...</td></tr>';
+  switchNotifSubTab('ack');
+
+  const ackBody = document.getElementById('notif-ack-body');
+  const sysBody = document.getElementById('notif-logs-body');
+
+  if (ackBody) ackBody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:1.5rem; color:var(--text-muted);">กำลังโหลดประวัติการรับทราบ...</td></tr>';
+  if (sysBody) sysBody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:1.5rem; color:var(--text-muted);">กำลังโหลดประวัติระบบ...</td></tr>';
 
   try {
     const res = await fetch('/api/notifications/logs');
     const result = await res.json();
-
     if (!result.success) return;
 
-    if (!tbody) return;
+    // 1. Render Acknowledgement Status
+    if (ackBody) {
+      if (!result.acknowledgements || result.acknowledgements.length === 0) {
+        ackBody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:1.5rem; color:var(--text-muted);">ยังไม่มีประวัติการรับทราบ</td></tr>';
+      } else {
+        let ackHtml = '';
+        result.acknowledgements.forEach(a => {
+          const lineUser = String(a.line_user_id || '').trim().toLowerCase();
+          const isLineChannel = lineUser !== '' && lineUser !== 'email' && lineUser !== 'null';
 
-    if (result.logs.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:1.5rem; color:var(--text-muted);">ยังไม่มีประวัติการส่งแจ้งเตือน</td></tr>';
-    } else {
-      let html = '';
-      result.logs.forEach(l => {
-        const isLine = l.channel === 'LINE_GROUP';
-        const channelBadge = isLine 
-          ? '<span class="badge badge-completed" style="background:#06c755; color:#ffffff; font-weight:700;"><i class="fa-brands fa-line"></i> LINE Flex Card</span>'
-          : '<span class="badge badge-waiting"><i class="fa-solid fa-envelope"></i> Email</span>';
+          let channelBadge = '';
+          if (a.ack_status === 'ACKNOWLEDGED') {
+            if (isLineChannel) {
+              channelBadge = '<span class="badge" style="background:#06c755; color:#ffffff; font-weight:700;"><i class="fa-brands fa-line"></i> รับทราบจาก LINE</span>';
+            } else {
+              channelBadge = '<span class="badge badge-completed"><i class="fa-solid fa-envelope"></i> รับทราบจาก อีเมล</span>';
+            }
+          } else if (a.ack_status === 'DECLINED_BUSY' || a.assignment_status === 'DECLINED_NO_SUBSTITUTE') {
+            channelBadge = '<span class="badge badge-hold"><i class="fa-solid fa-user-minus"></i> ติดภารกิจ/ขอลา</span>';
+          } else {
+            channelBadge = isLineChannel 
+              ? '<span class="badge badge-waiting"><i class="fa-brands fa-line"></i> รอรับทราบ (LINE)</span>'
+              : '<span class="badge badge-waiting"><i class="fa-solid fa-envelope"></i> รอรับทราบ (Email)</span>';
+          }
 
-        let contentPreview = escapeHtml(l.content_body || '-');
-        if (isLine) {
-          contentPreview = renderLineFlexCardHtml(l.content_body);
-        } else {
-          contentPreview = `<small style="color:var(--text-muted); font-size:0.78rem;">${contentPreview.slice(0, 120)}...</small>`;
-        }
+          ackHtml += `
+            <tr>
+              <td><strong>${escapeHtml(a.person_name)}</strong> <small style="color:var(--text-muted);">(${escapeHtml(a.emp_code)})</small></td>
+              <td><strong style="color:var(--text-heading);">${escapeHtml(a.mission_title)}</strong></td>
+              <td>${channelBadge}</td>
+              <td>${a.ack_at ? formatDate(a.ack_at) : '<span style="color:var(--text-muted);">-</span>'}</td>
+            </tr>
+          `;
+        });
+        ackBody.innerHTML = ackHtml;
+      }
+    }
 
-        html += `
-          <tr>
-            <td>${channelBadge}</td>
-            <td><strong>${escapeHtml(l.recipient)}</strong></td>
-            <td><strong>${escapeHtml(l.subject_title || '-')}</strong></td>
-            <td>${contentPreview}</td>
-            <td>${formatDate(l.sent_at)}</td>
-          </tr>
-        `;
-      });
-      tbody.innerHTML = html;
+    // 2. Render System Logs
+    if (sysBody) {
+      if (!result.logs || result.logs.length === 0) {
+        sysBody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:1.5rem; color:var(--text-muted);">ยังไม่มีประวัติการส่งระบบ</td></tr>';
+      } else {
+        let sysHtml = '';
+        result.logs.forEach(l => {
+          const isLine = l.channel === 'LINE_GROUP' || l.channel === 'LINE';
+          const channelBadge = isLine 
+            ? '<span class="badge" style="background:#06c755; color:#ffffff; font-weight:700;"><i class="fa-brands fa-line"></i> LINE Push</span>'
+            : '<span class="badge badge-waiting"><i class="fa-solid fa-envelope"></i> Email</span>';
+
+          let contentPreview = escapeHtml(l.content_body || '-');
+          if (isLine && l.content_body && l.content_body.startsWith('{')) {
+            contentPreview = renderLineFlexCardHtml(l.content_body);
+          } else {
+            contentPreview = `<small style="color:var(--text-muted); font-size:0.78rem;">${contentPreview.slice(0, 120)}...</small>`;
+          }
+
+          sysHtml += `
+            <tr>
+              <td>${channelBadge}</td>
+              <td><strong>${escapeHtml(l.recipient || '-')}</strong></td>
+              <td><strong>${escapeHtml(l.subject_title || '-')}</strong></td>
+              <td>${contentPreview}</td>
+              <td>${formatDate(l.sent_at)}</td>
+            </tr>
+          `;
+        });
+        sysBody.innerHTML = sysHtml;
+      }
     }
   } catch (err) {
-    console.error('Error loading notification logs:', err);
+    console.error('Error loading notification logs modal:', err);
   }
 }
+
 
 function renderLineFlexCardHtml(jsonStr) {
   try {

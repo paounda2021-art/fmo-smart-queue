@@ -559,11 +559,11 @@
     // role: 'staff' → เฉพาะ จัดสรรคิว + กระดานคิว
     const CREDENTIALS = [
       // ─── Admins (Full Access) ───
-      { username: 'admin',       password: 'Fmo@2026#Adm!',  label: 'ผู้ดูแลระบบ',                           empCode: 'ADMIN',   role: 'admin' },
-      { username: 'pimrada.a',   password: 'Pim@043#Fmo!',   label: 'น.ส.พิมพ์ลดา อัศวเศรษฐชัย (EMP-043)', empCode: 'EMP-043', role: 'admin' },
-      { username: 'amornrat.k',  password: 'Amorn@062#Fmo!', label: 'น.ส.อมรรัตน์ ขุนทอง (EMP-062)',        empCode: 'EMP-062', role: 'admin' },
+      { username: 'admin',       password: 'Fmo@2026#Adm!',  label: 'ผู้ดูแลระบบ (Admin)', empCode: 'ADMIN', position: 'ผู้ดูแลระบบระบบจัดสรรคิว', role: 'admin', roleLabel: 'ผู้ดูแลระบบสูงสุด (Super Admin)' },
+      { username: 'pimrada.a',   password: 'Pim@043#Fmo!',   label: 'น.ส.พิมพ์ลดา อัศวเศรษฐชัย', empCode: 'EMP-043', position: 'นักประชาสัมพันธ์', role: 'admin', roleLabel: 'ผู้ดูแลระบบ (Admin)' },
+      { username: 'amornrat.k',  password: 'Amorn@062#Fmo!', label: 'น.ส.อมรรัตน์ ขุนทอง', empCode: 'EMP-062', position: 'นักวิชาการคอมพิวเตอร์', role: 'admin', roleLabel: 'ผู้ดูแลระบบ (Admin)' },
       // ─── Staff (Limited Access: จัดสรรคิว + กระดานคิว only) ───
-      { username: 'watit.t',     password: 'Watit@1234',     label: 'นายวาทิต แตงนวลจันทร์ (เจ้าหน้าที่บันทึก)', empCode: 'EMP-102', role: 'staff' },
+      { username: 'watit.t',     password: 'Watit@1234',     label: 'นายวาทิต แตงนวลจันทร์', empCode: 'EMP-102', position: 'เจ้าหน้าที่บันทึกคิว', role: 'staff', roleLabel: 'เจ้าหน้าที่บันทึกคิว (Staff)' },
     ];
 
     /* ─── Auto-fill if remember-me was checked ─── */
@@ -648,9 +648,12 @@
           username,
           label: match.label,
           empCode: match.empCode || '',
+          position: match.position || 'เจ้าหน้าที่ อสป.',
           role: match.role || 'admin',
+          roleLabel: match.roleLabel || 'ผู้ดูแลระบบ (Admin)',
           loginAt: new Date().toISOString()
         }));
+
 
         showAlert(`✅ ยินดีต้อนรับ ${match.label} — กำลังเข้าสู่ระบบ...`, 'success');
 

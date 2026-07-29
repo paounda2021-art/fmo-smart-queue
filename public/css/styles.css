@@ -303,41 +303,161 @@ main.container {
   font-size: 1.1rem;
 }
 
+.navbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.user-badge-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(2, 132, 199, 0.08);
+  border: 1px solid rgba(2, 132, 199, 0.22);
+  border-radius: 16px;
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  color: var(--text-main);
+  transition: all 0.2s ease;
+}
+
+.user-badge-icon {
+  color: #06b6d4;
+  font-size: 1.15rem;
+  flex-shrink: 0;
+}
+
+.user-badge-info {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.user-name {
+  font-weight: 700;
+  color: var(--text-heading);
+  font-size: 0.82rem;
+}
+
+.user-meta {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.user-pos {
+  color: #0284c7;
+  font-weight: 600;
+}
+
+.user-sep {
+  opacity: 0.5;
+}
+
+.user-role {
+  color: #a855f7;
+  font-weight: 600;
+}
+
+/* NAVBAR NAVIGATION SCROLL FOR MOBILE */
+.navbar-nav {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  white-space: nowrap;
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.navbar-nav::-webkit-scrollbar {
+  display: none;
+}
+
 @media (max-width: 868px) {
-  .navbar {
+  .navbar-top {
     flex-direction: column;
-    align-items: stretch;
-    padding: 0.6rem 0.85rem;
-    gap: 8px;
+    align-items: flex-start;
+    gap: 10px;
   }
 
   .brand {
-    justify-content: space-between;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 10px;
     width: 100%;
+    text-align: left;
   }
 
-  .nav-links {
-    width: 100%;
-    overflow-x: auto;
-    white-space: nowrap;
-    padding-bottom: 4px;
-    -webkit-overflow-scrolling: touch;
+  .brand-text {
     display: flex;
-    gap: 4px;
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .brand-sub {
+    font-size: 0.78rem !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    text-align: left;
+  }
+
+  .brand-text h1 {
+    font-size: 1.15rem;
+    text-align: left;
+  }
+
+
+
+
+  .navbar-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: 8px;
+    background: rgba(2, 132, 199, 0.05);
+    padding: 6px 10px;
+    border-radius: 14px;
+    border: 1px solid rgba(2, 132, 199, 0.15);
+  }
+
+  .user-badge-box {
+    flex: 1;
+    padding: 4px 10px;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .user-name {
+    font-size: 0.78rem;
+  }
+
+  .user-meta {
+    font-size: 0.68rem;
   }
 
   .nav-btn {
-    padding: 0.45rem 0.75rem;
+    padding: 0.5rem 0.85rem;
     font-size: 0.82rem;
+    border-radius: 10px;
   }
 
   main.container {
-    padding: 0.75rem 0.5rem;
+    padding: 0.65rem 0.5rem;
   }
 
   .glass-card {
     padding: 1rem 0.85rem;
-    border-radius: 12px;
+    border-radius: 14px;
   }
 
   .grid-2, .grid-3, .grid-4 {
@@ -349,6 +469,7 @@ main.container {
     padding: 1rem 0.75rem;
   }
 }
+
 
 /* Metric Cards */
 .metric-card {
@@ -642,3 +763,24 @@ table.custom-table tbody tr:hover {
     font-size: 20px !important; /* 💡 ลองเปลี่ยนตัวเลขตรงนี้ เช่น 16px (เล็กลง) หรือ 24px (ใหญ่ขึ้น) */
     color: #374151 !important; 
 }
+
+/* 🔔 Badge กิจกรรมใหม่ กะพริบเรียกร้องความสนใจ */
+@keyframes pulseGlow {
+  0% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+  50% { transform: scale(1.05); opacity: 0.85; box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+  100% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+.badge-new-pulse {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: #ffffff !important;
+  font-weight: 700;
+  font-size: 0.68rem;
+  padding: 2px 7px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+  vertical-align: middle;
+  animation: pulseGlow 1.8s infinite;
+}

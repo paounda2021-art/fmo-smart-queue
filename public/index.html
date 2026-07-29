@@ -24,18 +24,28 @@
     <div class="navbar-container">
       <!-- Top Row: Brand Info + Actions -->
       <div class="navbar-top">
-        <div class="brand">
+        <div class="brand" onclick="goHome()" style="cursor: pointer;" title="คลิกเพื่อกลับสู่หน้าแรก (Dashboard)">
           <img src="/logoFMO.png" alt="โลโก้ องค์การสะพานปลา (อสป.)" class="brand-logo">
-          <div class="brand-text">
-            <h1>FMO Smart Queue</h1>
-            <p>ระบบจัดสรรคิวพนักงานเข้าร่วมกิจกรรม องค์การสะพานปลา (อสป.)</p>
+          <div class="brand-text" style="text-align:left;">
+            <h1 style="margin:0; font-size:1.25rem; font-weight:700; color:var(--text-heading); text-align:left;">FMO Smart Queue</h1>
+            <p class="brand-sub" style="margin:2px 0 0 0; font-size:0.85rem; color:#0284c7; font-weight:500; text-align:left;">ระบบจัดสรรคิวพนักงานเข้าร่วมกิจกรรม องค์การสะพานปลา (อสป.)</p>
           </div>
+
+
+
         </div>
-        <div class="navbar-actions" style="display:flex;align-items:center;gap:10px;">
+        <div class="navbar-actions">
           <!-- Logged-in User Badge -->
-          <div id="user-badge" style="display:flex;align-items:center;gap:8px;background:rgba(2,132,199,0.12);border:1px solid rgba(2,132,199,0.25);border-radius:20px;padding:5px 14px;font-size:0.8rem;color:#94a3b8;">
-            <i class="fa-solid fa-user-circle" style="color:#06b6d4;"></i>
-            <span id="user-label">ผู้ใช้งาน</span>
+          <div id="user-badge" class="user-badge-box">
+            <i class="fa-solid fa-user-shield user-badge-icon"></i>
+            <div class="user-badge-info">
+              <span id="user-label-name" class="user-name">ผู้ใช้งาน</span>
+              <small class="user-meta">
+                <span id="user-label-pos" class="user-pos">ตำแหน่ง</span>
+                <span class="user-sep">|</span>
+                <span id="user-label-role" class="user-role">สิทธิ์</span>
+              </small>
+            </div>
           </div>
           <button class="theme-toggle-btn" onclick="toggleTheme()" title="สลับโหมด สว่าง / ดำ (Light / Dark Mode)">
             <i id="theme-toggle-icon" class="fa-solid fa-moon"></i>
@@ -45,6 +55,9 @@
           </button>
         </div>
       </div>
+
+
+
 
       <!-- Bottom Row: Navigation Tabs -->
       <nav class="navbar-nav" id="main-navbar-nav">
@@ -163,7 +176,7 @@
     >
       <span>
         <i class="fa-solid fa-user-tie text-purple"></i>
-        เลือกหัวหน้าทีม (ผอ.ฝ่าย) - เลือกได้มากกว่า 1 ท่าน
+        เลือกหัวหน้าคณะ (ผู้บริหาร/ผอ.ฝ่าย) - เลือกได้มากกว่า 1 ท่าน
       </span>
 
       <span
@@ -231,7 +244,7 @@
               <!-- Director Candidate Card -->
               <div style="background: var(--input-bg); padding: 1rem; border-radius: 12px; border: 1px solid rgba(168, 85, 247, 0.35);">
                 <h5 style="color: #a855f7; font-size: 0.88rem; font-weight: 700; margin-bottom: 0.65rem; display: flex; align-items: center; gap: 6px;">
-                  <i class="fa-solid fa-user-tie"></i> หัวหน้าทีม (ผอ.ฝ่าย)
+                  <i class="fa-solid fa-user-tie"></i> หัวหน้าคณะ (ผู้บริหาร/ผอ.ฝ่าย)
                 </h5>
                 <div id="preview-directors-list">
                   <p style="color: var(--text-muted); font-size: 0.85rem;">กำลังดึงคิวอัตโนมัติ...</p>
@@ -496,7 +509,7 @@
 
           <div style="display: flex; gap: 8px;">
             <button class="btn btn-secondary btn-sm" onclick="openNotificationLogsModal()">
-              <i class="fa-solid fa-bell text-amber"></i> ประวัติส่งแจ้งเตือน Email & LINE Group
+              <i class="fa-solid fa-bell text-amber"></i> ประวัติส่งแจ้งเตือน & สถานะรับทราบ (LINE/Email)
             </button>
             <button class="btn btn-primary btn-sm" onclick="exportSummaryData()">
               <i class="fa-solid fa-file-csv"></i> Export ข้อมูลสรุป CSV
@@ -504,7 +517,31 @@
           </div>
         </div>
 
+        <!-- Date Range Filter Bar -->
+        <div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:1.25rem; background:var(--input-bg); padding:0.85rem 1.1rem; border-radius:12px; border:1px solid var(--card-border);">
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <label style="font-size:0.85rem; font-weight:600; color:var(--text-heading); display:flex; align-items:center; gap:6px; margin:0;">
+              <i class="fa-solid fa-calendar-days text-cyan"></i> ค้นหาตามช่วงวันที่กิจกรรม:
+            </label>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <input type="date" id="report-start-date" class="form-control form-control-sm" style="width:auto; padding:4px 8px; font-size:0.82rem;">
+              <span style="color:var(--text-muted); font-size:0.82rem;">ถึง</span>
+              <input type="date" id="report-end-date" class="form-control form-control-sm" style="width:auto; padding:4px 8px; font-size:0.82rem;">
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="filterMissionsByDate()" style="padding:4px 12px; font-size:0.8rem;">
+              <i class="fa-solid fa-magnifying-glass"></i> กรองวันที่
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="resetMissionDateFilter()" style="padding:4px 12px; font-size:0.8rem;">
+              <i class="fa-solid fa-rotate-left"></i> ล้างตัวกรอง
+            </button>
+          </div>
+          <div style="font-size:0.8rem; color:var(--text-muted); font-weight:600;" id="report-filter-summary">
+            กิจกรรมทั้งหมด
+          </div>
+        </div>
+
         <div class="table-responsive">
+
           <table class="custom-table">
             <thead>
               <tr>
@@ -513,7 +550,7 @@
                 <th>สถานที่</th>
                 <th>การแต่งกาย (Dress Code)</th>
                 <th>วันที่เริ่ม - สิ้นสุด</th>
-                <th>หัวหน้าทีม (ผอ.)</th>
+                <th>หัวหน้าคณะ (ผู้บริหาร/ผอ.)</th>
                 <th>จำนวนสมาชิก (พนักงาน)</th>
                 <th>สถานะ</th>
                 <th>รายละเอียด & เปลี่ยนตัว</th>
@@ -643,32 +680,66 @@
 
   <!-- NOTIFICATION LOGS MODAL -->
   <div id="modal-notif-logs" class="modal-overlay">
-    <div class="modal-box" style="max-width: 780px;">
+    <div class="modal-box" style="max-width: 860px;">
       <div class="modal-header">
-        <div class="modal-title"><i class="fa-solid fa-bell text-amber"></i> ประวัติการส่งแจ้งเตือน (Email & LINE Group Logs)</div>
+        <div class="modal-title"><i class="fa-solid fa-bell text-amber"></i> ประวัติส่งแจ้งเตือน & สถานะการรับทราบ (LINE / Email)</div>
         <button class="modal-close" onclick="closeModal('modal-notif-logs')">&times;</button>
       </div>
 
       <div class="modal-body">
-        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
-          บันทึกการส่งการแจ้งเตือน Real-time เมื่อมีการออกคำสั่งจัดสรรกิจกรรม หรือมีการจัดสรรพนักงานทดแทนอัตโนมัติ
-        </p>
+        <!-- Sub Tabs -->
+        <div style="display:flex; gap:8px; margin-bottom:1rem; border-bottom:1px solid var(--card-border); padding-bottom:8px;">
+          <button class="btn btn-sm btn-primary" id="btn-notif-tab-ack" onclick="switchNotifSubTab('ack')">
+            <i class="fa-solid fa-circle-check"></i> สถานะการรับทราบรายบุคคล (LINE / Email)
+          </button>
+          <button class="btn btn-sm btn-secondary" id="btn-notif-tab-system" onclick="switchNotifSubTab('system')">
+            <i class="fa-solid fa-paper-plane"></i> ประวัติการยิงส่งระบบ (System Logs)
+          </button>
+        </div>
 
-        <div class="table-responsive">
-          <table class="custom-table">
-            <thead>
-              <tr>
-                <th>ช่องทาง (Channel)</th>
-                <th>ผู้รับ (Recipient)</th>
-                <th>หัวข้อแจ้งเตือน</th>
-                <th>สถานะ</th>
-                <th>เวลาที่ส่ง (24 ชม.)</th>
-              </tr>
-            </thead>
-            <tbody id="notif-logs-body">
-              <tr><td colspan="5">กำลังโหลดประวัติ...</td></tr>
-            </tbody>
-          </table>
+        <!-- Section 1: Individual Ack Status -->
+        <div id="notif-subtab-ack">
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+            ตรวจสอบสถานะการตอบรับ/รับทราบกิจกรรมของบุคลากรรายบุคคล ผ่านทาง 💬 LINE หรือ ✉️ Email
+          </p>
+          <div class="table-responsive">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>พนักงาน</th>
+                  <th>กิจกรรม</th>
+                  <th>สถานะ & ช่องทางรับทราบ</th>
+                  <th>วันที่รับทราบ (เวลา 24 ชม.)</th>
+                </tr>
+              </thead>
+              <tbody id="notif-ack-body">
+                <tr><td colspan="4" style="text-align:center; padding:1.5rem;">กำลังโหลดประวัติ...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Section 2: System Logs -->
+        <div id="notif-subtab-system" style="display:none;">
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+            บันทึกการส่งการแจ้งเตือน Real-time ออกไปยัง LINE Push/Group และ Email ผู้ปฏิบัติงาน
+          </p>
+          <div class="table-responsive">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>ช่องทาง (Channel)</th>
+                  <th>ผู้รับ (Recipient)</th>
+                  <th>หัวข้อแจ้งเตือน</th>
+                  <th>รายละเอียด</th>
+                  <th>เวลาที่ส่ง (24 ชม.)</th>
+                </tr>
+              </thead>
+              <tbody id="notif-logs-body">
+                <tr><td colspan="5" style="text-align:center; padding:1.5rem;">กำลังโหลดประวัติ...</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -677,6 +748,7 @@
       </div>
     </div>
   </div>
+
 
   <!-- IMPORT REAL PERSONNEL CSV MODAL -->
   <div id="modal-import-csv" class="modal-overlay">
