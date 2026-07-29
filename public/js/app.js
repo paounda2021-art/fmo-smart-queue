@@ -1687,8 +1687,10 @@ function renderMissionsTable(list) {
       ? '<span class="badge badge-completed"><i class="fa-solid fa-circle-check"></i> SUCCESS</span>' 
       : '<span class="badge badge-waiting"><i class="fa-solid fa-clock"></i> SCHEDULED</span>';
 
+    const isScheduled = m.status !== 'SUCCESS' && m.status !== 'COMPLETED';
     const isRecent = isNewMission(m.created_at || m.start_date);
-    const newBadge = isRecent ? ' <span class="badge-new-pulse"><i class="fa-solid fa-bell fa-beat"></i> NEW</span>' : '';
+    const newBadge = (isScheduled && isRecent) ? ' <span class="badge-new-pulse"><i class="fa-solid fa-bell fa-beat"></i> NEW</span>' : '';
+
 
     html += `
       <tr>
