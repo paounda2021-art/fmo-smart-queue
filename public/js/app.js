@@ -2618,12 +2618,18 @@ async function openPeerSwapModal() {
       return;
     }
 
-    peerSwapMembersCache = result.data || result.members || [];
+    const rawMembers = result.data || result.members || [];
+    peerSwapMembersCache = rawMembers.filter(m => {
+      const code = String(m.emp_code || '').trim().toUpperCase();
+      return code !== 'DIR-10' && code !== 'DIR-09';
+    });
+
     let optionsHtml = '<option value="">-- เลือกผู้ขอสลับคิว (คนแรก) --</option>';
 
     peerSwapMembersCache.forEach(m => {
-      optionsHtml += `<option value="${m.personnel_id}">[${m.emp_code}] ${m.name} (#${m.queue_order})</option>`;
+      optionsHtml += `<option value="${m.personnel_id}">[${m.emp_code}] ${m.name} (คิวที่ #${m.queue_order})</option>`;
     });
+
 
     if (select1) select1.innerHTML = optionsHtml;
   } catch (err) {
@@ -2646,9 +2652,10 @@ function filterPeerSwapTargets() {
   let optionsHtml = '<option value="">-- เลือกผู้รับสลับคิว (คนที่สอง) --</option>';
   peerSwapMembersCache.forEach(m => {
     if (String(m.personnel_id) !== String(selectedId)) {
-      optionsHtml += `<option value="${m.personnel_id}">[${m.emp_code}] ${m.name} (#${m.queue_order})</option>`;
+      optionsHtml += `<option value="${m.personnel_id}">[${m.emp_code}] ${m.name} (คิวที่ #${m.queue_order})</option>`;
     }
   });
+
 
   select2.innerHTML = optionsHtml;
 }
