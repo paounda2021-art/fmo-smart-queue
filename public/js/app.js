@@ -2426,19 +2426,48 @@ function filterUserList() {
   renderUserTable(filtered);
 }
 
+function toggleSelectAllMenuPermissions(isChecked) {
+  const checkboxes = document.querySelectorAll('.menu-perm-cb');
+  checkboxes.forEach(cb => {
+    if (!cb.disabled) {
+      cb.checked = isChecked;
+    }
+  });
+}
+
+function updateSelectAllState() {
+  const checkboxes = Array.from(document.querySelectorAll('.menu-perm-cb'));
+  const selectAllCb = document.getElementById('menu-perm-select-all');
+  if (!selectAllCb) return;
+
+  const enabledCbs = checkboxes.filter(cb => !cb.disabled);
+  if (enabledCbs.length === 0) return;
+
+  const allChecked = enabledCbs.every(cb => cb.checked);
+  selectAllCb.checked = allChecked;
+}
+
 function togglePermissionChecklist(roleType) {
   const checkboxes = document.querySelectorAll('.menu-perm-cb');
+  const selectAllCb = document.getElementById('menu-perm-select-all');
+
   if (roleType === 'ADMIN') {
     checkboxes.forEach(cb => { cb.checked = true; cb.disabled = true; });
+    if (selectAllCb) { selectAllCb.checked = true; selectAllCb.disabled = true; }
   } else if (roleType === 'OPERATOR') {
     checkboxes.forEach(cb => { cb.disabled = false; });
+    if (selectAllCb) selectAllCb.disabled = false;
+    updateSelectAllState();
   } else {
     checkboxes.forEach(cb => { 
       cb.disabled = false;
       cb.checked = ['queue', 'calendar'].includes(cb.value); 
     });
+    if (selectAllCb) selectAllCb.disabled = false;
+    updateSelectAllState();
   }
 }
+
 
 function openUserModal(userId = null) {
   document.getElementById('user-form-id').value = userId || '';

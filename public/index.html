@@ -1017,33 +1017,39 @@
 
         <!-- MENU PERMISSIONS CHECKBOXES -->
         <div class="form-group" style="background: rgba(168, 85, 247, 0.05); border: 1px solid rgba(168, 85, 247, 0.2); padding: 12px 14px; border-radius: 12px; margin-bottom: 1.25rem;">
-          <label class="form-label" style="color: #7e22ce; margin-bottom: 8px;">
-            <i class="fa-solid fa-list-check"></i> กำหนดสิทธิ์การเข้าถึงเมนูบนระบบเว็บ (Menu Permissions)
-          </label>
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px dashed rgba(168, 85, 247, 0.25);">
+            <label class="form-label" style="color: #7e22ce; margin-bottom: 0;">
+              <i class="fa-solid fa-list-check"></i> กำหนดสิทธิ์การเข้าถึงเมนูบนระบบเว็บ (Menu Permissions)
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:700; color:#7e22ce; font-size:0.84rem;">
+              <input type="checkbox" id="menu-perm-select-all" onchange="toggleSelectAllMenuPermissions(this.checked)"> ✨ เลือกทั้งหมด
+            </label>
+          </div>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.82rem;">
             <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
-              <input type="checkbox" class="menu-perm-cb" value="quick" checked> ⚡ จัดสรรคิว (Quick)
+              <input type="checkbox" class="menu-perm-cb" value="quick" onchange="updateSelectAllState()" checked> ⚡ จัดสรรคิว (Quick)
             </label>
             <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
-              <input type="checkbox" class="menu-perm-cb" value="dashboard" checked> 📊 แดชบอร์ด (Dashboard)
+              <input type="checkbox" class="menu-perm-cb" value="dashboard" onchange="updateSelectAllState()" checked> 📊 แดชบอร์ด (Dashboard)
             </label>
             <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
-              <input type="checkbox" class="menu-perm-cb" value="queue" checked> 📋 กระดานวนคิว (Queue)
+              <input type="checkbox" class="menu-perm-cb" value="queue" onchange="updateSelectAllState()" checked> 📋 กระดานวนคิว (Queue)
             </label>
             <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
-              <input type="checkbox" class="menu-perm-cb" value="individual" checked> 📇 ประวัติรายบุคคล
+              <input type="checkbox" class="menu-perm-cb" value="individual" onchange="updateSelectAllState()" checked> 📇 ประวัติรายบุคคล
             </label>
             <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
-              <input type="checkbox" class="menu-perm-cb" value="reports" checked> 📄 รายงานกิจกรรม (Reports)
+              <input type="checkbox" class="menu-perm-cb" value="reports" onchange="updateSelectAllState()" checked> 📄 รายงานกิจกรรม (Reports)
             </label>
             <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
-              <input type="checkbox" class="menu-perm-cb" value="calendar" checked> 📅 ปฏิทินกิจกรรม (Calendar)
+              <input type="checkbox" class="menu-perm-cb" value="calendar" onchange="updateSelectAllState()" checked> 📅 ปฏิทินกิจกรรม (Calendar)
             </label>
             <label style="display:flex; align-items:center; gap:6px; cursor:pointer; grid-column: span 2;">
-              <input type="checkbox" class="menu-perm-cb" value="user-management" checked> 👥 จัดการผู้ใช้งานและสิทธิ์ (User & Role)
+              <input type="checkbox" class="menu-perm-cb" value="user-management" onchange="updateSelectAllState()" checked> 👥 จัดการผู้ใช้งานและสิทธิ์ (User & Role)
             </label>
           </div>
         </div>
+
 
 
         <div style="display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid var(--card-border); padding-top: 1.25rem;">
