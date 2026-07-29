@@ -1320,6 +1320,15 @@ function renderCandidatesList(containerId, list) {
   container.innerHTML = html;
 }
 
+function refreshAllSystemData() {
+  loadDirectorSelectList();
+  previewCandidates();
+  loadDashboardStats();
+  loadAllMissions();
+  loadQueueView(currentQueueRole || 'DIRECTOR');
+  loadPersonnelDropdown();
+}
+
 async function handleCreateMission(event) {
   event.preventDefault();
 
@@ -1375,14 +1384,17 @@ async function handleCreateMission(event) {
       document.getElementById('form-quick-mission').reset();
       setDefaultMissionTimes();
       
-      // 3. หน่วงเวลา 1.5 วินาที ให้ผู้ใช้อ่าน Toast ทัน แล้วค่อยสลับไปหน้ารายงาน
+      // 3. รีเฟรชข้อมูลทุกระบบทุกหน้าจอให้อัปเดตเป็นปัจจุบันเรียลไทม์ (ไม่ต้องกด F5)
+      refreshAllSystemData();
+
+      // 4. หน่วงเวลา 1.5 วินาที ให้ผู้ใช้อ่าน Toast ทัน แล้วค่อยสลับไปหน้ารายงาน
       setTimeout(() => {
         switchTab('reports');
-        loadDashboardStats();
       }, 1500); 
     } else {
       showToast(`Error: ${result.error}`, 'danger');
     }
+
   } catch (err) {
     console.error('Error creating activity:', err);
   }
