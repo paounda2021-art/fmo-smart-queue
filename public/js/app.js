@@ -1,12 +1,63 @@
-// FMO Smart Queue Application Logic (K2D & 1-Page Mobile Quick Allocation with Explicit 24-Hour Time)
-
 let currentQueueRole = 'DIRECTOR';
 let allPersonnelList = [];
 let previewedDirectors = [];
 let previewedStaff = [];
 let autoFetchDebounceTimer = null;
 
+// -------------------------------------------------------------
+// TOAST NOTIFICATION SYSTEM
+// -------------------------------------------------------------
+
+function showToast(message, type = 'success') {
+  let container = document.getElementById('toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    document.body.appendChild(container);
+  }
+
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+
+  let icon = 'fa-circle-check text-emerald';
+  if (type === 'warning') icon = 'fa-triangle-exclamation text-amber';
+  else if (type === 'danger') icon = 'fa-circle-xmark text-danger';
+  else if (type === 'info') icon = 'fa-circle-info text-cyan';
+
+  toast.innerHTML = `
+    <i class="fa-solid ${icon}" style="font-size: 1.25rem; flex-shrink: 0;"></i>
+    <div style="flex: 1; line-height: 1.35;">${message}</div>
+  `;
+
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    toast.remove();
+  }, 4500);
+
+  // SweetAlert Toast Fallback
+  if (typeof Swal !== 'undefined' && Swal.mixin) {
+    const Toast = Swal.mixin({
+      toast: true,
+      position: 'top-end',
+      showConfirmButton: false,
+      timer: 3500,
+      timerProgressBar: true
+    });
+    let swalIcon = 'success';
+    if (type === 'warning') swalIcon = 'warning';
+    else if (type === 'danger') swalIcon = 'error';
+    else if (type === 'info') swalIcon = 'info';
+
+    Toast.fire({
+      icon: swalIcon,
+      title: String(message).replace(/<br\s*[\/]?>/gi, ' ')
+    });
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+
   initApp();
   initTheme();
   checkUrlActionParams(); // ตรวจสอบ URL query params จาก LINE redirect (เช่น ?action=busy)
