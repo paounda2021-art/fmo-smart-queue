@@ -2424,150 +2424,127 @@ function downloadCsvTemplate() {
   document.body.appendChild(downloadAnchor);
   downloadAnchor.click();
   downloadAnchor.remove();
-  showToast('📊 ดาวน์โหลดตารางข้อมูลบุคลากรจริง 102 ท่านเทียบตามไฟล์ PDF (เปิดใน Microsoft Excel ได้ทันที) เรียบร้อยแล้ว!', 'success');
 }
 
-function handleCsvFileUpload(event) {
-  const file = event.target.files[0];
-  if (!file) return;
 
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    document.getElementById('csv-text-input').value = e.target.result;
-    showToast('อ่านข้อมูลจากไฟล์ CSV เรียบร้อยแล้ว กรุณาตรวจสอบแล้วกด "ยืนยันนำเข้าข้อมูลจริง"', 'info');
-  };
-  reader.readAsText(file, 'UTF-8');
+
+function filterUserList() {
+  const search = document.getElementById('user-search-input')?.value.toLowerCase().trim() || '';
+  const role = document.getElementById('user-role-filter')?.value || 'ALL';
+
+  let filtered = allUsersData.filter(u => {
+    const matchSearch = !search ||
+      (u.name && u.name.toLowerCase().includes(search)) ||
+      (u.emp_code && u.emp_code.toLowerCase().includes(search)) ||
+      (u.position && u.position.toLowerCase().includes(search)) ||
+      (u.department && u.department.toLowerCase().includes(search));
+
+    const matchRole = role === 'ALL' || u.role_type === role;
+
+    return matchSearch && matchRole;
+  });
+
+  renderUserTable(filtered);
 }
 
-async function submitImportCsv() {
-  const text = document.getElementById('csv-text-input').value.trim();
-  if (!text) {
-    showToast('กรุณาเลือกไฟล์ CSV หรือวางเนื้อหาข้อมูล CSV ก่อนนำเข้า', 'warning');
-    return;
+function togglePermissionChecklist(roleType) {
+  const checkboxes = document.querySelectorAll('.menu-perm-cb');
+  if (roleType === 'ADMIN') {
+    checkboxes.forEach(cb => { cb.checked = true; cb.disabled = true; });
+  } else if (roleType === 'OPERATOR') {
+    checkboxes.forEach(cb => { cb.disabled = false; });
+  } else {
+    checkboxes.forEach(cb => { 
+      cb.disabled = false;
+      cb.checked = ['queue', 'calendar'].includes(cb.value); 
+    });
   }
+}
 
-  const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
-  if (lines.length <= 1) {
-    showToast('ไม่พบข้อมูลรายชื่อในไฟล์ CSV (มีเฉพาะแถวหัวข้อ)', 'warning');
-    return;
-  }
+function openUserModal(userId = null) {
+  document.getElementById('user-form-id').value = userId || '';
+  document.getElementById('user-modal-title').innerHTML = userId
+    ? `<i class="fa-solid fa-user-pen text-purple"></i> แก้ไขข้อมูลผู้ใช้งาน & สิทธิ์`
+    : `<i class="fa-solid fa-user-plus text-purple"></i> เพิ่มผู้ใช้งานใหม่`;
 
-  const header = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
-  const personnelList = [];
+  if (userId) {
+    const user = allUsersData.find(u => Number(u.id) === Number(userId));
+    if (user) {
+      document.getElementById('user-form-emp-code').value = user.emp_code || '';
+      document.getElementById('user-form-name').value = user.name || '';
+      document.getElementById('user-form-role').value = user.role_type || 'STAFF';
+      document.getElementById('user-form-position').value = user.position || '';
+      document.getElementById('user-form-department').value = user.department || '';
+      document.getElementById('user-form-phone').value = user.phone || '';
+      document.getElementById('user-form-email').value = user.email || '';
+      document.getElementById('user-form-password').value = '';
 
-  for (let i = 0; i < lines.length; i++) {
-    const rawLine = lines[i].trim();
-    if (rawLine.startsWith('===') || rawLine.includes('ลำดับคิว') || rawLine.includes('รหัสพนักงาน')) continue;
-
-    const cols = rawLine.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.trim().replace(/^"|"$/g, ''));
-    if (cols.length < 2) continue;
-
-    let emp_code = cols[0] || '';
-    let name = cols[1] || '';
-    let position = cols[2] || '';
-    let department = cols[3] || '';
-    let role_type = cols[4] || (emp_code.startsWith('DIR') ? 'DIRECTOR' : 'STAFF');
-    let email = cols[5] || '';
-
-    // Handle shift if first column is numeric index
-    if (/^\d+$/.test(emp_code)) {
-      emp_code = cols[1] || '';
-      name = cols[2] || '';
-      position = cols[3] || '';
-      department = cols[4] || '';
-      email = cols[5] || '';
-      role_type = cols[6] || (emp_code.startsWith('DIR') ? 'DIRECTOR' : 'STAFF');
+      let perms = [];
+      try { perms = typeof user.menu_permissions === 'string' ? JSON.parse(user.menu_permissions) : (user.menu_permissions || []); } catch(e){}
+      document.querySelectorAll('.menu-perm-cb').forEach(cb => {
+        cb.checked = perms.includes(cb.value);
+      });
+      togglePermissionChecklist(user.role_type);
     }
-
-    if (name && !name.includes('ชื่อ-นามสกุล') && !name.includes('===') && !name.includes('ลำดับ')) {
-      personnelList.push({ emp_code, name, position, department, role_type, email });
-    }
+  } else {
+    document.getElementById('user-form-emp-code').value = '';
+    document.getElementById('user-form-name').value = '';
+    document.getElementById('user-form-role').value = 'STAFF';
+    document.getElementById('user-form-position').value = '';
+    document.getElementById('user-form-department').value = '';
+    document.getElementById('user-form-phone').value = '';
+    document.getElementById('user-form-email').value = '';
+    document.getElementById('user-form-password').value = '';
+    togglePermissionChecklist('STAFF');
   }
 
-  if (personnelList.length === 0) {
-    showToast('ไม่สามารถอ่านข้อมูลรายชื่อจากไฟล์ CSV ได้ กรุณาตรวจสอบรูปแบบคอลัมน์', 'danger');
+  openModal('modal-user-form');
+}
+
+async function saveUser() {
+  const id = document.getElementById('user-form-id').value;
+  const emp_code = document.getElementById('user-form-emp-code').value.trim();
+  const name = document.getElementById('user-form-name').value.trim();
+  const role_type = document.getElementById('user-form-role').value;
+  const position = document.getElementById('user-form-position').value.trim();
+  const department = document.getElementById('user-form-department').value.trim();
+  const phone = document.getElementById('user-form-phone').value.trim();
+  const email = document.getElementById('user-form-email').value.trim();
+  const password = document.getElementById('user-form-password').value.trim();
+
+  const selectedPerms = Array.from(document.querySelectorAll('.menu-perm-cb:checked')).map(cb => cb.value);
+
+  if (!emp_code || !name) {
+    Swal.fire('ข้อผิดพลาด', 'กรุณากรอกรหัสพนักงาน/Username และชื่อ-นามสกุลให้ครบถ้วน', 'warning');
     return;
   }
+
+  const payload = { emp_code, name, role_type, position, department, phone, email, password, menu_permissions: selectedPerms };
 
   try {
-    const res = await fetch('/api/personnel/import-csv', {
-      method: 'POST',
+    const url = id ? `/api/users/${id}` : '/api/users';
+    const method = id ? 'PUT' : 'POST';
+
+    const res = await fetch(url, {
+      method,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ personnelList })
+      body: JSON.stringify(payload)
     });
-    const result = await res.json();
 
-    if (result.success) {
-      showToast(`🎉 ${result.message}`, 'success');
-      closeModal('modal-import-csv');
-      loadQueueView('DIRECTOR');
-      loadDashboardStats();
-      loadPersonnelDropdown();
-      previewCandidates();
+    const data = await res.json();
+    if (data.success) {
+      closeModal('modal-user-form');
+      Swal.fire('สำเร็จ', data.message, 'success');
+      loadUserManagementView();
     } else {
-      showToast(`Error: ${result.error}`, 'danger');
+      Swal.fire('ข้อผิดพลาด', data.error, 'error');
     }
   } catch (err) {
-    console.error('Import CSV error:', err);
-    showToast('เกิดข้อผิดพลาดในการนำเข้าไฟล์ CSV', 'danger');
+    console.error('Error saving user:', err);
+    Swal.fire('ข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อบันทึกข้อมูลผู้ใช้งานได้', 'error');
   }
 }
 
-// -------------------------------------------------------------
-// TOAST NOTIFICATION SYSTEM
-// -------------------------------------------------------------
-function showToast(message, type = 'success') {
-  let container = document.getElementById('toast-container');
-  if (!container) {
-    container = document.createElement('div');
-    container.id = 'toast-container';
-    document.body.appendChild(container);
-  }
-
-  const toast = document.createElement('div');
-  toast.className = `toast toast-${type}`;
-
-  let icon = 'fa-circle-check text-emerald';
-  if (type === 'warning') icon = 'fa-triangle-exclamation text-amber';
-  else if (type === 'danger') icon = 'fa-circle-xmark text-danger';
-  else if (type === 'info') icon = 'fa-circle-info text-cyan';
-
-  toast.innerHTML = `
-    <i class="fa-solid ${icon}" style="font-size: 1.25rem; flex-shrink: 0;"></i>
-    <div style="flex: 1; line-height: 1.35;">${message}</div>
-  `;
-
-  container.appendChild(toast);
-
-  setTimeout(() => {
-    toast.remove();
-  }, 4000);
-}
-
-async function sendUpcomingQueueNotice() {
-  if (!confirm('คุณต้องการส่งข้อความแจ้งเตือนเตรียมความพร้อมลำดับคิวล่วงหน้า (LINE/Email) ไปยังผู้ที่อยู่อันดับคิวต้นๆ หรือไม่?')) {
-    return;
-  }
-
-  showToast('กำลังส่งแจ้งเตือนเตรียมพร้อมคิวถัดไปทาง LINE & Email...', 'info');
-
-  try {
-    const res = await fetch('/api/notifications/upcoming-notice', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    const result = await res.json();
-
-    if (result.success) {
-      showToast(result.message || 'ส่งแจ้งเตือนคิวถัดไปเรียบร้อยแล้ว', 'success');
-    } else {
-      showToast(result.error || 'เกิดข้อผิดพลาดในการส่งแจ้งเตือน', 'danger');
-    }
-  } catch (err) {
-    console.error('Error sending upcoming queue notice:', err);
-    showToast('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'danger');
-  }
-}
 
 async function sendPreEventReminders() {
   if (!confirm('คุณต้องการส่งข้อความแจ้งเตือนเตือนความจำล่วงหน้า (24 ชั่วโมงก่อนเริ่มงาน) ผ่านทาง LINE & Email ไปยังผู้ปฏิบัติงานหรือไม่?')) {

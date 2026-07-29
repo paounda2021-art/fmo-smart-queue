@@ -3390,33 +3390,47 @@ router.get('/users', async (req, res) => {
 // POST /api/users - เพิ่มผู้ใช้งาน/บุคลากรใหม่
 router.post('/users', async (req, res) => {
   try {
-    const { emp_code, name, role_type, department, position, phone, email } = req.body;
+    const { emp_code, name, role_type, department, position, phone, email, password, menu_permissions } = req.body;
     if (!emp_code || !name || !role_type) {
-      return res.status(400).json({ success: false, error: 'กรุณากรอกรหัสพนักงาน ชื่อ-นามสกุล และประเภทสิทธิ์ให้ครบถ้วน' });
+      return res.status(400).json({ success: false, error: 'กรุณากรอกรหัสพนักงาน/Username ชื่อ-นามสกุล และประเภทสิทธิ์ให้ครบถ้วน' });
     }
 
     const codeClean = String(emp_code).trim().toUpperCase();
     const existing = await dbGet(`SELECT id FROM personnel WHERE UPPER(emp_code) = ?`, [codeClean]);
     if (existing) {
-      return res.status(400).json({ success: false, error: `รหัสพนักงาน "${codeClean}" มีอยู่ในระบบแล้ว` });
+      return res.status(400).json({ success: false, error: `รหัสพนักงาน/Username "${codeClean}" มีอยู่ในระบบแล้ว` });
     }
 
     const maxQueueObj = await dbGet(`SELECT MAX(queue_order) as max_order FROM queue_members WHERE role_type = ?`, [role_type]);
     const nextQueueOrder = (maxQueueObj && maxQueueObj.max_order) ? maxQueueObj.max_order + 1 : 1;
 
+    const permsJson = Array.isArray(menu_permissions) ? JSON.stringify(menu_permissions) : menu_permissions || '[]';
+
     await dbRun('BEGIN TRANSACTION;');
     try {
       const pRes = await dbRun(`
-        INSERT INTO personnel (emp_code, name, role_type, department, position, phone, email)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `, [codeClean, name.trim(), role_type, department || 'อสป.', position || (role_type === 'DIRECTOR' ? 'ผอ.ฝ่าย' : 'พนักงาน'), phone || '', email || '']);
+        INSERT INTO personnel (emp_code, name, role_type, department, position, phone, email, password, menu_permissions)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        codeClean, 
+        name.trim(), 
+        role_type, 
+        department || 'อสป.', 
+        position || (role_type === 'ADMIN' ? 'ผู้ดูแลระบบ' : (role_type === 'OPERATOR' ? 'เจ้าหน้าที่ปฏิบัติการ' : (role_type === 'DIRECTOR' ? 'ผอ.ฝ่าย' : 'พนักงาน'))), 
+        phone || '', 
+        email || '',
+        password || '123456',
+        permsJson
+      ]);
 
       const pId = pRes.lastID;
 
-      await dbRun(`
-        INSERT INTO queue_members (personnel_id, role_type, current_round, queue_order, status)
-        VALUES (?, ?, 1, ?, 'WAITING')
-      `, [pId, role_type, nextQueueOrder]);
+      if (['DIRECTOR', 'STAFF'].includes(role_type)) {
+        await dbRun(`
+          INSERT INTO queue_members (personnel_id, role_type, current_round, queue_order, status)
+          VALUES (?, ?, 1, ?, 'WAITING')
+        `, [pId, role_type, nextQueueOrder]);
+      }
 
       await dbRun('COMMIT;');
       res.json({ success: true, message: `เพิ่มผู้ใช้งาน คุณ${name} (${codeClean}) เรียบร้อยแล้ว` });
@@ -3433,20 +3447,29 @@ router.post('/users', async (req, res) => {
 router.put('/users/:id', async (req, res) => {
   try {
     const userId = req.params.id;
-    const { emp_code, name, role_type, department, position, phone, email, queue_order } = req.body;
+    const { emp_code, name, role_type, department, position, phone, email, password, menu_permissions, queue_order } = req.body;
 
     const person = await dbGet(`SELECT * FROM personnel WHERE id = ?`, [userId]);
     if (!person) return res.status(404).json({ success: false, error: 'ไม่พบผู้ใช้งานในระบบ' });
 
     const codeClean = String(emp_code || person.emp_code).trim().toUpperCase();
+    const permsJson = Array.isArray(menu_permissions) ? JSON.stringify(menu_permissions) : (menu_permissions || person.menu_permissions);
 
-    await dbRun(`
-      UPDATE personnel 
-      SET emp_code = ?, name = ?, role_type = ?, department = ?, position = ?, phone = ?, email = ?
-      WHERE id = ?
-    `, [codeClean, name, role_type, department, position, phone, email, userId]);
+    if (password && String(password).trim()) {
+      await dbRun(`
+        UPDATE personnel 
+        SET emp_code = ?, name = ?, role_type = ?, department = ?, position = ?, phone = ?, email = ?, password = ?, menu_permissions = ?
+        WHERE id = ?
+      `, [codeClean, name, role_type, department, position, phone, email, String(password).trim(), permsJson, userId]);
+    } else {
+      await dbRun(`
+        UPDATE personnel 
+        SET emp_code = ?, name = ?, role_type = ?, department = ?, position = ?, phone = ?, email = ?, menu_permissions = ?
+        WHERE id = ?
+      `, [codeClean, name, role_type, department, position, phone, email, permsJson, userId]);
+    }
 
-    if (queue_order) {
+    if (queue_order && ['DIRECTOR', 'STAFF'].includes(role_type)) {
       await dbRun(`UPDATE queue_members SET queue_order = ?, role_type = ? WHERE personnel_id = ?`, [parseInt(queue_order), role_type, userId]);
     }
 
@@ -3455,6 +3478,7 @@ router.put('/users/:id', async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
 
 // DELETE /api/users/:id - ลบผู้ใช้งาน
 router.delete('/users/:id', async (req, res) => {

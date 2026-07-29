@@ -643,8 +643,10 @@
               <option value="ALL">ทุกระดับสิทธิ์</option>
               <option value="DIRECTOR">👔 ผอ.ฝ่าย (DIRECTOR)</option>
               <option value="STAFF">👥 พนักงาน (STAFF)</option>
+              <option value="OPERATOR">⚙️ เจ้าหน้าที่ปฏิบัติการ (OPERATOR)</option>
               <option value="ADMIN">🛡️ ผู้ดูแลระบบ (ADMIN)</option>
             </select>
+
 
           </div>
         </div>
@@ -961,23 +963,29 @@
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 1.1rem;">
           <div class="form-group">
-            <label class="form-label"><i class="fa-solid fa-id-card text-purple"></i> รหัสพนักงาน *</label>
-            <input type="text" id="user-form-emp-code" class="form-control" placeholder="เช่น EMP-001 หรือ DIR-01">
+            <label class="form-label"><i class="fa-solid fa-id-card text-purple"></i> รหัสพนักงาน / Username *</label>
+            <input type="text" id="user-form-emp-code" class="form-control" placeholder="เช่น EMP-001 หรือ ADMIN-01">
           </div>
           <div class="form-group">
-            <label class="form-label"><i class="fa-solid fa-user-shield text-sky"></i> ประเภทสิทธิ์ *</label>
-            <select id="user-form-role" class="form-control form-select">
+            <label class="form-label"><i class="fa-solid fa-user-shield text-sky"></i> บทบาท / สิทธิ์การเข้าถึง *</label>
+            <select id="user-form-role" class="form-control form-select" onchange="togglePermissionChecklist(this.value)">
               <option value="STAFF">👥 พนักงาน (STAFF)</option>
               <option value="DIRECTOR">👔 ผอ.ฝ่าย (DIRECTOR)</option>
+              <option value="OPERATOR">⚙️ เจ้าหน้าที่ปฏิบัติการ (OPERATOR)</option>
               <option value="ADMIN">🛡️ ผู้ดูแลระบบ (ADMIN)</option>
             </select>
-
           </div>
         </div>
 
-        <div class="form-group" style="margin-bottom: 1.1rem;">
-          <label class="form-label"><i class="fa-solid fa-user text-cyan"></i> ชื่อ - นามสกุล *</label>
-          <input type="text" id="user-form-name" class="form-control" placeholder="เช่น นายสมชาย ใจดี">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 1.1rem;">
+          <div class="form-group">
+            <label class="form-label"><i class="fa-solid fa-user text-cyan"></i> ชื่อ - นามสกุล *</label>
+            <input type="text" id="user-form-name" class="form-control" placeholder="เช่น นายสมชาย ใจดี">
+          </div>
+          <div class="form-group">
+            <label class="form-label"><i class="fa-solid fa-key text-amber"></i> รหัสผ่านเข้าสู่ระบบ (Password)</label>
+            <input type="password" id="user-form-password" class="form-control" placeholder="รหัสผ่านล็อกอิน (เว้นว่างไว้หากไม่เปลี่ยน)">
+          </div>
         </div>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 1.1rem;">
@@ -991,7 +999,7 @@
           </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 1.5rem;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 1.1rem;">
           <div class="form-group">
             <label class="form-label"><i class="fa-solid fa-phone text-blue"></i> เบอร์โทรศัพท์</label>
             <input type="text" id="user-form-phone" class="form-control" placeholder="เช่น 0812345678">
@@ -1001,6 +1009,37 @@
             <input type="email" id="user-form-email" class="form-control" placeholder="เช่น somchai@fmo.or.th">
           </div>
         </div>
+
+        <!-- MENU PERMISSIONS CHECKBOXES -->
+        <div class="form-group" style="background: rgba(168, 85, 247, 0.05); border: 1px solid rgba(168, 85, 247, 0.2); padding: 12px 14px; border-radius: 12px; margin-bottom: 1.25rem;">
+          <label class="form-label" style="color: #7e22ce; margin-bottom: 8px;">
+            <i class="fa-solid fa-list-check"></i> กำหนดสิทธิ์การเข้าถึงเมนูบนระบบเว็บ (Menu Permissions)
+          </label>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.82rem;">
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" class="menu-perm-cb" value="quick" checked> ⚡ จัดสรรคิว (Quick)
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" class="menu-perm-cb" value="dashboard" checked> 📊 แดชบอร์ด (Dashboard)
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" class="menu-perm-cb" value="queue" checked> 📋 กระดานวนคิว (Queue)
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" class="menu-perm-cb" value="individual" checked> 📇 ประวัติรายบุคคล
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" class="menu-perm-cb" value="reports" checked> 📄 รายงานกิจกรรม (Reports)
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" class="menu-perm-cb" value="calendar" checked> 📅 ปฏิทินกิจกรรม (Calendar)
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer; grid-column: span 2;">
+              <input type="checkbox" class="menu-perm-cb" value="user-management" checked> 👥 จัดการผู้ใช้งานและสิทธิ์ (User & Role)
+            </label>
+          </div>
+        </div>
+
 
         <div style="display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid var(--card-border); padding-top: 1.25rem;">
           <button class="btn btn-secondary" onclick="closeModal('modal-user-form')">ยกเลิก</button>
