@@ -205,8 +205,12 @@ async function loadCalendarEvents() {
   }
 
   try {
-    const res = await fetch('/api/missions/calendar-events');
+    let res = await fetch('/api/missions/calendar-events');
+    if (res.status === 404) {
+      res = await fetch('api/missions/calendar-events');
+    }
     const result = await res.json();
+
 
     if (!result.success) {
       showToast(result.error, 'danger');
