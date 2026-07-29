@@ -2694,6 +2694,12 @@ async function loadUserManagementView() {
   const tbody = document.getElementById('user-management-table-body');
   if (!tbody) return;
 
+  const searchInput = document.getElementById('user-search-input');
+  if (searchInput) searchInput.value = '';
+
+  const roleFilter = document.getElementById('user-role-filter');
+  if (roleFilter) roleFilter.value = 'ALL';
+
   tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;"><i class="fa-solid fa-spinner fa-spin text-purple"></i> กำลังโหลดข้อมูลผู้ใช้งาน...</td></tr>';
 
   try {
@@ -2711,6 +2717,7 @@ async function loadUserManagementView() {
     tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color:var(--danger);">ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อโหลดข้อมูลผู้ใช้งานได้</td></tr>';
   }
 }
+
 
 function renderUserTable(users) {
   const tbody = document.getElementById('user-management-table-body');
