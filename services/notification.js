@@ -243,11 +243,33 @@ function createLineFlexCardPayload(mission, directors, staff, isReallocation = f
 }
 
 
+function generateGoogleCalendarUrl(mission) {
+  if (!mission) return 'https://calendar.google.com';
+  const title = encodeURIComponent(mission.mission_title || 'กิจกรรม อสป.');
+  const location = encodeURIComponent(mission.location || 'สะพานปลา อสป.');
+  const details = encodeURIComponent(`การแต่งกาย: ${mission.dress_code || 'ชุดปฏิบัติงาน อสป.'}\nรายละเอียด: ${mission.description || '-'}`);
+  
+  const formatDateToGCal = (dateStr) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    return d.toISOString().replace(/-|:|\.\d\d\d/g, '');
+  };
+
+  const startGCal = formatDateToGCal(mission.start_date);
+  const endGCal = formatDateToGCal(mission.end_date) || startGCal;
+
+  if (!startGCal) return 'https://calendar.google.com';
+
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startGCal}/${endGCal}&details=${details}&location=${location}`;
+}
+
 /**
  * Generate per-person Flex Card with personalized postback buttons
  * missionId and personnelId embedded so LINE webhook can handle ACK directly
  */
 function createPersonalizedFlexCard(
+
   mission,
   person,
   isReallocation = false,
@@ -527,62 +549,72 @@ function createPersonalizedFlexCard(
 
       footer: {
         type: 'box',
-        layout: 'horizontal',
+        layout: 'vertical',
         spacing: 'sm',
         paddingAll: '12px',
-
-        // การ์ดสีส้มมีเฉพาะรับทราบ
-        // การ์ดปกติมีรับทราบและติดภารกิจ
-        contents: isReallocation
-          ? [
-              {
-                type: 'button',
-                style: 'primary',
-                color: '#10b981',
-                height: 'sm',
-                action: {
-                  type: 'postback',
-                  label: '🟢 กดรับทราบ',
-                  data:
-                    `ACK|${missionId}|${personnelId}`,
-                  displayText:
-                    '✅ รับทราบกิจกรรมแล้ว'
-                }
-              }
-            ]
-          : [
-              {
-                type: 'button',
-                style: 'primary',
-                color: '#10b981',
-                height: 'sm',
-                action: {
-                  type: 'postback',
-                  label: '🟢 กดรับทราบ',
-                  data:
-                    `ACK|${missionId}|${personnelId}`,
-                  displayText:
-                    '✅ รับทราบกิจกรรมแล้ว'
-                }
-              },
-              {
-                type: 'button',
-                style: 'secondary',
-                height: 'sm',
-                action: {
-                  type: 'postback',
-                  label: '🔴 ติดภารกิจ',
-                  data:
-                    `BUSY|${missionId}|${personnelId}`,
-                  displayText:
-                    'กรุณาพิมพ์รหัสผู้ปฏิบัติงานแทน'
-                }
-              }
-            ]
+        contents: [
+          {
+            type: 'box',
+            layout: 'horizontal',
+            spacing: 'sm',
+            contents: isReallocation
+              ? [
+                  {
+                    type: 'button',
+                    style: 'primary',
+                    color: '#10b981',
+                    height: 'sm',
+                    action: {
+                      type: 'postback',
+                      label: '🟢 กดรับทราบ',
+                      data: `ACK|${missionId}|${personnelId}`,
+                      displayText: '✅ รับทราบกิจกรรมแล้ว'
+                    }
+                  }
+                ]
+              : [
+                  {
+                    type: 'button',
+                    style: 'primary',
+                    color: '#10b981',
+                    height: 'sm',
+                    action: {
+                      type: 'postback',
+                      label: '🟢 กดรับทราบ',
+                      data: `ACK|${missionId}|${personnelId}`,
+                      displayText: '✅ รับทราบกิจกรรมแล้ว'
+                    }
+                  },
+                  {
+                    type: 'button',
+                    style: 'secondary',
+                    height: 'sm',
+                    action: {
+                      type: 'postback',
+                      label: '🔴 ติดภารกิจ',
+                      data: `BUSY|${missionId}|${personnelId}`,
+                      displayText: 'กรุณาพิมพ์รหัสผู้ปฏิบัติงานแทน'
+                    }
+                  }
+                ]
+          },
+          {
+            type: 'button',
+            style: 'secondary',
+            height: 'sm',
+            color: '#0284c7',
+            action: {
+              type: 'uri',
+              label: '📅 บันทึกลงปฏิทินมือถือ',
+              uri: generateGoogleCalendarUrl(mission)
+            }
+          }
+        ]
       }
     }
   };
 }
+
 
 
 async function sendMissionNotification(mission, assignedList, isReallocation = false) {
