@@ -2852,6 +2852,18 @@ router.post('/notifications/upcoming-notice', async (req, res) => {
   }
 });
 
+// POST /api/notifications/pre-event-reminders - ยิงเตือนความจำกิจกรรมล่วงหน้า (24 ชม.)
+router.post('/notifications/pre-event-reminders', async (req, res) => {
+  try {
+    const { dispatchPreEventReminders } = require('../services/notification');
+    const result = await dispatchPreEventReminders();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+
 // GET /api/missions/calendar-events - ดึงกิจกรรมในรูปแบบ FullCalendar Events
 router.get('/missions/calendar-events', async (req, res) => {
   try {

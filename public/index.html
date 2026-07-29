@@ -525,7 +525,10 @@
             <div class="card-subtitle">ตรวจสอบกิจกรรม รายชื่อผู้ปฏิบัติงาน การแต่งกาย และส่งออกข้อมูลย้อนหลัง</div>
           </div>
 
-          <div style="display: flex; gap: 8px;">
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button class="btn btn-warning btn-sm" onclick="sendPreEventReminders()" style="background:#d97706; border-color:#d97706; color:#ffffff;">
+              <i class="fa-solid fa-clock"></i> 🔔 เตือนความจำล่วงหน้า (LINE/Email)
+            </button>
             <button class="btn btn-secondary btn-sm" onclick="openNotificationLogsModal()">
               <i class="fa-solid fa-bell text-amber"></i> ประวัติส่งแจ้งเตือน & สถานะรับทราบ (LINE/Email)
             </button>
@@ -533,6 +536,7 @@
               <i class="fa-solid fa-file-csv"></i> Export ข้อมูลสรุป CSV
             </button>
           </div>
+
         </div>
 
         <!-- Date Range Filter Bar -->

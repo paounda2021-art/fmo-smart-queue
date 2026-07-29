@@ -2509,3 +2509,29 @@ async function sendUpcomingQueueNotice() {
   }
 }
 
+async function sendPreEventReminders() {
+  if (!confirm('คุณต้องการส่งข้อความแจ้งเตือนเตือนความจำล่วงหน้า (24 ชั่วโมงก่อนเริ่มงาน) ผ่านทาง LINE & Email ไปยังผู้ปฏิบัติงานหรือไม่?')) {
+    return;
+  }
+
+  showToast('กำลังส่งแจ้งเตือนเตือนความจำล่วงหน้าทาง LINE & Email...', 'info');
+
+  try {
+    const res = await fetch('/api/notifications/pre-event-reminders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const result = await res.json();
+
+    if (result.success) {
+      showToast(result.message || 'ส่งเตือนความจำล่วงหน้าเรียบร้อยแล้ว', 'success');
+    } else {
+      showToast(result.error || 'เกิดข้อผิดพลาดในการส่งเตือนความจำ', 'danger');
+    }
+  } catch (err) {
+    console.error('Error sending pre-event reminders:', err);
+    showToast('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'danger');
+  }
+}
+
+

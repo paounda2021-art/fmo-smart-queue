@@ -897,11 +897,158 @@ async function sendUpcomingQueueNotice() {
   }
 }
 
+/**
+ * Dispatch Pre-Event Reminders (24 Hours in advance) to assigned personnel via mapped channel (LINE/Email)
+ */
+async function dispatchPreEventReminders() {
+  try {
+    const { dbAll, dbRun } = require('../db/database');
+
+    const upcomingMissions = await dbAll(`
+      SELECT m.*
+      FROM missions m
+      WHERE m.start_date >= DATETIME('now')
+        AND m.start_date <= DATETIME('now', '+24 hours')
+        AND m.status IN ('SCHEDULED', 'SUCCESS')
+    `);
+
+    if (upcomingMissions.length === 0) {
+      return { success: true, count: 0, message: 'ไม่พบกิจกรรมที่จะจัดขึ้นในอีก 24 ชั่วโมงข้างหน้า' };
+    }
+
+    const lineToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+    let totalReminded = 0;
+
+    for (const mission of upcomingMissions) {
+      const assigned = await dbAll(`
+        SELECT ma.*, p.name, p.emp_code, p.position, p.email, p.line_user_id
+        FROM mission_assignments ma
+        JOIN personnel p ON ma.personnel_id = p.id
+        WHERE ma.mission_id = ?
+          AND ma.assignment_status IN ('JOINED', 'SUBSTITUTED')
+      `, [mission.id]);
+
+      const timeStr = `${formatDate24h(mission.start_date)} - ${formatDate24h(mission.end_date)}`;
+
+      for (const person of assigned) {
+        const alreadySent = await dbAll(`
+          SELECT id FROM notification_logs
+          WHERE mission_id = ? AND personnel_id = ? AND subject_title LIKE '%เตือนความจำ%'
+        `, [mission.id, person.id]);
+
+        if (alreadySent.length > 0) continue;
+
+        const lineId = String(person.line_user_id || '').trim();
+
+        if (lineToken && lineId && lineId.toLowerCase() !== 'email') {
+          const reminderCard = {
+            type: 'flex',
+            altText: `🔔 เตือนความจำล่วงหน้า: ${mission.mission_title}`,
+            contents: {
+              type: 'bubble',
+              header: {
+                type: 'box',
+                layout: 'vertical',
+                backgroundColor: '#d97706',
+                paddingAll: '16px',
+                contents: [
+                  { type: 'text', text: 'FMO SMART QUEUE SYSTEM', color: '#fef3c7', size: 'xxs', weight: 'bold' },
+                  { type: 'text', text: '🔔 เตือนความจำปฏิบัติงานล่วงหน้า', color: '#ffffff', size: 'md', weight: 'bold', margin: 'xs', wrap: true }
+                ]
+              },
+              body: {
+                type: 'box',
+                layout: 'vertical',
+                paddingAll: '16px',
+                spacing: 'md',
+                contents: [
+                  { type: 'text', text: mission.mission_title, weight: 'bold', size: 'md', color: '#0f172a', wrap: true },
+                  { type: 'text', text: `👤 เรียน: คุณ ${person.name}`, size: 'sm', color: '#d97706', weight: 'bold', wrap: true },
+                  {
+                    type: 'box',
+                    layout: 'vertical',
+                    margin: 'sm',
+                    spacing: 'xs',
+                    contents: [
+                      { type: 'text', text: `📍 สถานที่: ${mission.location || 'สะพานปลา อสป.'}`, size: 'xs', color: '#1e293b', wrap: true },
+                      { type: 'text', text: `⏰ เวลา (24 ชม.): ${timeStr}`, size: 'xs', color: '#d97706', weight: 'bold' },
+                      { type: 'text', text: `👔 การแต่งกาย: ${mission.dress_code || 'ชุดปฏิบัติงาน อสป.'}`, size: 'xs', color: '#a855f7', wrap: true }
+                    ]
+                  },
+                  {
+                    type: 'box',
+                    layout: 'vertical',
+                    backgroundColor: '#fef3c7',
+                    paddingAll: '10px',
+                    cornerRadius: '8px',
+                    margin: 'md',
+                    contents: [
+                      { type: 'text', text: '⏱️ กรุณามาถึงสถานที่ปฏิบัติงานก่อนเวลาเริ่มอย่างน้อย 30 นาที', size: 'xxs', color: '#b45309', wrap: true }
+                    ]
+                  }
+                ]
+              }
+            }
+          };
+
+          try {
+            await axios.post('https://api.line.me/v2/bot/message/push', {
+              to: lineId,
+              messages: [reminderCard]
+            }, {
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${lineToken}` }
+            });
+
+            await dbRun(`
+              INSERT INTO notification_logs (mission_id, personnel_id, channel, recipient, subject_title, content_body, status)
+              VALUES (?, ?, 'LINE', ?, '🔔 เตือนความจำปฏิบัติงานล่วงหน้า', 'ยิงเตือนความจำล่วงหน้าทาง LINE สำเร็จ', 'SENT')
+            `, [mission.id, person.id, lineId]);
+
+            totalReminded++;
+          } catch (err) {
+            console.error(`Error sending LINE reminder to ${person.name}:`, err.message);
+          }
+        } else {
+          const targetEmail = person.email || `${String(person.emp_code).toLowerCase()}@fishmarket.co.th`;
+          const emailSubject = `🔔 เตือนความจำปฏิบัติงานล่วงหน้า: ${mission.mission_title}`;
+          const emailBody = `
+            <div style="font-family: Sarabun, sans-serif; padding: 20px; border: 1px solid #d97706; border-radius: 10px; max-width: 600px;">
+              <h2 style="color: #d97706;">🔔 เตือนความจำปฏิบัติงานล่วงหน้า (อสป.)</h2>
+              <p>เรียน คุณ <strong>${person.name}</strong>,</p>
+              <p>ระบบขอแจ้งเตือนความจำปฏิบัติหน้าที่ในกิจกรรม <strong>${mission.mission_title}</strong> ดังรายละเอียด:</p>
+              <div style="background: #fffbeb; padding: 15px; border-radius: 8px; margin: 15px 0; border: 1px solid #fde68a;">
+                <p style="margin: 4px 0;"><strong>📍 สถานที่:</strong> ${mission.location || '-'}</p>
+                <p style="margin: 4px 0;"><strong>⏰ เวลา (24 ชม.):</strong> ${timeStr}</p>
+                <p style="margin: 4px 0;"><strong>👔 การแต่งกาย:</strong> ${mission.dress_code || 'ชุดปฏิบัติงาน อสป.'}</p>
+              </div>
+              <p style="color: #b45309;">⏱️ กรุณาเดินทางมาถึงสถานที่ปฏิบัติงานก่อนเวลาเริ่มอย่างน้อย 30 นาที ขอบคุณค่ะ</p>
+            </div>
+          `;
+
+          await dbRun(`
+            INSERT INTO notification_logs (mission_id, personnel_id, channel, recipient, subject_title, content_body, status)
+            VALUES (?, ?, 'EMAIL', ?, ?, ?, 'SENT')
+          `, [mission.id, person.id, targetEmail, emailSubject, emailBody]);
+
+          totalReminded++;
+        }
+      }
+    }
+
+    return { success: true, count: totalReminded, message: `ส่งเตือนความจำล่วงหน้าสำเร็จ ${totalReminded} รายการ` };
+  } catch (err) {
+    console.error('Error dispatching pre-event reminders:', err);
+    return { success: false, error: err.message };
+  }
+}
+
 module.exports = {
   sendMissionNotification,
   sendUpcomingQueueNotice,
+  dispatchPreEventReminders,
   formatDate24h,
   createLineFlexCardPayload,
   createPersonalizedFlexCard
 };
+
 
