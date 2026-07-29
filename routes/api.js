@@ -2294,6 +2294,68 @@ router.post('/queue/unhold', async (req, res) => {
   }
 });
 
+// POST /api/queue/peer-swap - ยื่นคำขอและอนุมัติสลับลำดับคิวระหว่างพนักงาน 2 ท่าน (Peer Swap)
+router.post('/queue/peer-swap', async (req, res) => {
+  try {
+    const { requester_id, target_id, reason } = req.body;
+    if (!requester_id || !target_id) {
+      return res.status(400).json({ success: false, error: 'กรุณาระบุผู้ขอสลับคิวและผู้รับสลับคิวให้ครบถ้วน' });
+    }
+
+    if (parseInt(requester_id) === parseInt(target_id)) {
+      return res.status(400).json({ success: false, error: 'ไม่สามารถเลือกสลับคิวกับตนเองได้' });
+    }
+
+    const q1 = await dbGet(`SELECT qm.*, p.name, p.emp_code, p.line_user_id, p.email FROM queue_members qm JOIN personnel p ON qm.personnel_id = p.id WHERE qm.personnel_id = ?`, [requester_id]);
+    const q2 = await dbGet(`SELECT qm.*, p.name, p.emp_code, p.line_user_id, p.email FROM queue_members qm JOIN personnel p ON qm.personnel_id = p.id WHERE qm.personnel_id = ?`, [target_id]);
+
+    if (!q1 || !q2) {
+      return res.status(404).json({ success: false, error: 'ไม่พบข้อมูลบุคลากรในตารางคิว' });
+    }
+
+    if (q1.role_type !== q2.role_type) {
+      return res.status(400).json({ success: false, error: 'การสลับคิวทำได้เฉพาะบุคลากรในกลุ่มประเภทเดียวกันเท่านั้น (ผอ. สลับกับ ผอ. / พนักงาน สลับกับ พนักงาน)' });
+    }
+
+    await dbRun(`UPDATE queue_members SET queue_order = ?, current_round = ? WHERE personnel_id = ?`, [q2.queue_order, q2.current_round, q1.personnel_id]);
+    await dbRun(`UPDATE queue_members SET queue_order = ?, current_round = ? WHERE personnel_id = ?`, [q1.queue_order, q1.current_round, q2.personnel_id]);
+
+    await dbRun(`
+      INSERT INTO queue_swaps (requester_id, target_id, role_type, reason, status, approved_by)
+      VALUES (?, ?, ?, ?, 'APPROVED', 'ADMIN')
+    `, [requester_id, target_id, q1.role_type, reason || 'สลับคิวถั่วเฉลี่ยภารกิจ']);
+
+    try {
+      const lineToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+      const swapNoticeText = `🔄 แจ้งเตือนอนุมัติสลับลำดับคิว (Peer Swap)\nระหว่าง คุณ ${q1.name} (#${q1.queue_order} ➔ #${q2.queue_order})\nและ คุณ ${q2.name} (#${q2.queue_order} ➔ #${q1.queue_order})\nเหตุผล: ${reason || '-'}`;
+
+      if (lineToken && q1.line_user_id && q1.line_user_id.toLowerCase() !== 'email') {
+        await axios.post('https://api.line.me/v2/bot/message/push', {
+          to: q1.line_user_id,
+          messages: [{ type: 'text', text: swapNoticeText }]
+        }, { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${lineToken}` } });
+      }
+
+      if (lineToken && q2.line_user_id && q2.line_user_id.toLowerCase() !== 'email') {
+        await axios.post('https://api.line.me/v2/bot/message/push', {
+          to: q2.line_user_id,
+          messages: [{ type: 'text', text: swapNoticeText }]
+        }, { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${lineToken}` } });
+      }
+    } catch (e) {
+      console.error('Error sending swap notification:', e.message);
+    }
+
+    res.json({
+      success: true,
+      message: `อนุมัติสลับลำดับคิวระหว่าง คุณ${q1.name} และ คุณ${q2.name} เรียบร้อยแล้ว`
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+
 // -------------------------------------------------------------
 // 7. INDIVIDUAL HISTORY VIEW (หน้าประวัติย้อนหลังรายบุคคล)
 // -------------------------------------------------------------

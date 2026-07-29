@@ -137,7 +137,24 @@ async function initSchema() {
     );
   `);
 
+  // Queue Swaps Table (Peer Swap Request)
+  await dbRun(`
+    CREATE TABLE IF NOT EXISTS queue_swaps (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      requester_id INTEGER NOT NULL,
+      target_id INTEGER NOT NULL,
+      role_type VARCHAR(20) NOT NULL,
+      reason TEXT,
+      status VARCHAR(20) DEFAULT 'APPROVED',
+      approved_by VARCHAR(100) DEFAULT 'ADMIN',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(requester_id) REFERENCES personnel(id) ON DELETE CASCADE,
+      FOREIGN KEY(target_id) REFERENCES personnel(id) ON DELETE CASCADE
+    );
+  `);
+
   // Ensure Queue State entries exist
+
   await dbRun(`INSERT OR IGNORE INTO queue_state (role_type, current_round) VALUES ('DIRECTOR', 1);`);
   await dbRun(`INSERT OR IGNORE INTO queue_state (role_type, current_round) VALUES ('STAFF', 1);`);
 }

@@ -2592,4 +2592,103 @@ async function sendPreEventReminders() {
   }
 }
 
+// -------------------------------------------------------------
+// PEER SWAP REQUEST & APPROVAL SYSTEM (ข้อ 5)
+// -------------------------------------------------------------
+let peerSwapMembersCache = [];
+
+async function openPeerSwapModal() {
+  const select1 = document.getElementById('swap-person-1');
+  const select2 = document.getElementById('swap-person-2');
+  const reasonInput = document.getElementById('swap-reason');
+
+  if (reasonInput) reasonInput.value = '';
+  if (select1) select1.innerHTML = '<option value="">-- กำลังโหลดรายชื่อ... --</option>';
+  if (select2) select2.innerHTML = '<option value="">-- กรุณาเลือกคนแรกก่อน --</option>';
+
+  openModal('modal-peer-swap');
+
+  try {
+    const res = await fetch(`/api/queue/${currentQueueRole}`);
+    const result = await res.json();
+
+    if (!result.success) {
+      showToast(result.error, 'danger');
+      return;
+    }
+
+    peerSwapMembersCache = result.data || result.members || [];
+    let optionsHtml = '<option value="">-- เลือกผู้ขอสลับคิว (คนแรก) --</option>';
+
+    peerSwapMembersCache.forEach(m => {
+      optionsHtml += `<option value="${m.personnel_id}">[${m.emp_code}] ${m.name} (#${m.queue_order})</option>`;
+    });
+
+    if (select1) select1.innerHTML = optionsHtml;
+  } catch (err) {
+    console.error('Error loading peer swap members:', err);
+    showToast('เกิดข้อผิดพลาดในการโหลดรายชื่อคิว', 'danger');
+  }
+}
+
+function filterPeerSwapTargets() {
+  const select1 = document.getElementById('swap-person-1');
+  const select2 = document.getElementById('swap-person-2');
+  if (!select1 || !select2) return;
+
+  const selectedId = select1.value;
+  if (!selectedId) {
+    select2.innerHTML = '<option value="">-- กรุณาเลือกคนแรกก่อน --</option>';
+    return;
+  }
+
+  let optionsHtml = '<option value="">-- เลือกผู้รับสลับคิว (คนที่สอง) --</option>';
+  peerSwapMembersCache.forEach(m => {
+    if (String(m.personnel_id) !== String(selectedId)) {
+      optionsHtml += `<option value="${m.personnel_id}">[${m.emp_code}] ${m.name} (#${m.queue_order})</option>`;
+    }
+  });
+
+  select2.innerHTML = optionsHtml;
+}
+
+async function executePeerSwap() {
+  const requesterId = document.getElementById('swap-person-1')?.value;
+  const targetId = document.getElementById('swap-person-2')?.value;
+  const reason = document.getElementById('swap-reason')?.value?.trim();
+
+  if (!requesterId || !targetId) {
+    showToast('กรุณาเลือกผู้ขอสลับคิวและผู้รับสลับคิวให้ครบถ้วน', 'warning');
+    return;
+  }
+
+  showToast('กำลังประมวลผลสลับลำดับคิวและส่งแจ้งเตือน...', 'info');
+
+  try {
+    const res = await fetch('/api/queue/peer-swap', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requester_id: requesterId,
+        target_id: targetId,
+        reason: reason
+      })
+    });
+
+    const result = await res.json();
+
+    if (result.success) {
+      closeModal('modal-peer-swap');
+      showToast(result.message || 'สลับลำดับคิวสำเร็จเรียบร้อยแล้ว', 'success');
+      loadQueueView(currentQueueRole);
+    } else {
+      showToast(result.error || 'เกิดข้อผิดพลาดในการสลับคิว', 'danger');
+    }
+  } catch (err) {
+    console.error('Error executing peer swap:', err);
+    showToast('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'danger');
+  }
+}
+
+
 
