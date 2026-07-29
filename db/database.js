@@ -41,14 +41,45 @@ async function initSchema() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       emp_code VARCHAR(20) UNIQUE NOT NULL,
       name VARCHAR(100) NOT NULL,
-      role_type VARCHAR(20) CHECK(role_type IN ('DIRECTOR', 'STAFF')) NOT NULL,
+      role_type VARCHAR(20) CHECK(role_type IN ('DIRECTOR', 'STAFF', 'ADMIN')) NOT NULL,
       department VARCHAR(100) NOT NULL,
       position VARCHAR(100) NOT NULL,
       phone VARCHAR(20),
       email VARCHAR(100),
+      line_user_id VARCHAR(100),
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   `);
+
+  // Auto Migration: อัปเดต CHECK Constraint ให้รองรับ 'ADMIN'
+  try {
+    const masterSql = await dbGet(`SELECT sql FROM sqlite_master WHERE type='table' AND name='personnel';`);
+    if (masterSql && masterSql.sql && !masterSql.sql.includes('ADMIN')) {
+      console.log('🔄 Migrating personnel table CHECK constraint to support ADMIN role...');
+      await dbRun(`BEGIN TRANSACTION;`);
+      await dbRun(`CREATE TABLE personnel_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        emp_code VARCHAR(20) UNIQUE NOT NULL,
+        name VARCHAR(100) NOT NULL,
+        role_type VARCHAR(20) CHECK(role_type IN ('DIRECTOR', 'STAFF', 'ADMIN')) NOT NULL,
+        department VARCHAR(100) NOT NULL,
+        position VARCHAR(100) NOT NULL,
+        phone VARCHAR(20),
+        email VARCHAR(100),
+        line_user_id VARCHAR(100),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );`);
+      await dbRun(`INSERT INTO personnel_new (id, emp_code, name, role_type, department, position, phone, email, line_user_id, created_at) SELECT id, emp_code, name, role_type, department, position, phone, email, line_user_id, created_at FROM personnel;`);
+      await dbRun(`DROP TABLE personnel;`);
+      await dbRun(`ALTER TABLE personnel_new RENAME TO personnel;`);
+      await dbRun(`COMMIT;`);
+      console.log('✅ Personnel table migrated to support ADMIN role successfully!');
+    }
+  } catch (mErr) {
+    console.error('Migration error (personnel table):', mErr);
+    try { await dbRun(`ROLLBACK;`); } catch (e) {}
+  }
+
 
   // Queue State Table
   await dbRun(`
