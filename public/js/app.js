@@ -193,7 +193,16 @@ let fullCalendarInstance = null;
 
 async function loadCalendarEvents() {
   const containerEl = document.getElementById('full-calendar-container');
-  if (!containerEl || typeof FullCalendar === 'undefined') return;
+  if (!containerEl) return;
+
+  if (typeof FullCalendar === 'undefined') {
+    containerEl.innerHTML = '<p style="text-align:center; padding:2rem; color:var(--text-muted);">กำลังโหลดสคริปต์ปฏิทิน...</p>';
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js';
+    script.onload = () => loadCalendarEvents();
+    document.head.appendChild(script);
+    return;
+  }
 
   try {
     const res = await fetch('/api/missions/calendar-events');
@@ -204,34 +213,41 @@ async function loadCalendarEvents() {
       return;
     }
 
-    if (fullCalendarInstance) {
-      fullCalendarInstance.destroy();
-    }
-
-    fullCalendarInstance = new FullCalendar.Calendar(containerEl, {
-      initialView: 'dayGridMonth',
-      headerToolbar: {
-        left: 'prev,next today',
-        center: 'title',
-        right: 'dayGridMonth,timeGridWeek,listMonth'
-      },
-      buttonText: {
-        today: 'วันนี้',
-        month: 'เดือน',
-        week: 'สัปดาห์',
-        list: 'รายการ'
-      },
-      events: result.events || [],
-      eventClick: function(info) {
-        openMissionDetailModal(info.event.id);
+    setTimeout(() => {
+      if (fullCalendarInstance) {
+        fullCalendarInstance.destroy();
       }
-    });
 
-    fullCalendarInstance.render();
+      fullCalendarInstance = new FullCalendar.Calendar(containerEl, {
+        initialView: 'dayGridMonth',
+        height: 'auto',
+        headerToolbar: {
+          left: 'prev,next today',
+          center: 'title',
+          right: 'dayGridMonth,timeGridWeek,listMonth'
+        },
+        buttonText: {
+          today: 'วันนี้',
+          month: 'เดือน',
+          week: 'สัปดาห์',
+          list: 'รายการ'
+        },
+        events: result.events || [],
+        eventClick: function(info) {
+          openMissionDetailModal(info.event.id);
+        }
+      });
+
+      fullCalendarInstance.render();
+      setTimeout(() => {
+        if (fullCalendarInstance) fullCalendarInstance.updateSize();
+      }, 100);
+    }, 50);
   } catch (err) {
     console.error('Error loading calendar:', err);
   }
 }
+
 
 
 // -------------------------------------------------------------
