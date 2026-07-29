@@ -729,12 +729,14 @@ async function loadDirectorSelectList() {
     }
 
     const result = await res.json();
+    const list = Array.isArray(result.data) ? result.data : (Array.isArray(result.personnel) ? result.personnel : (Array.isArray(result.members) ? result.members : []));
 
-    if (!result.success || !Array.isArray(result.personnel)) {
-      throw new Error(result.message || 'ไม่สามารถโหลดรายชื่อ ผอ.ฝ่ายได้');
+    if (!result.success || !Array.isArray(list)) {
+      throw new Error(result.error || result.message || 'ไม่สามารถโหลดรายชื่อ ผอ.ฝ่ายได้');
     }
 
-    allDirectorsList = result.personnel;
+    allDirectorsList = list;
+
 
     // 1. หาหัวหน้าตามคิวจริง (DIR-01 ถึง DIR-08)
     const fixedDirector = allDirectorsList
