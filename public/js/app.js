@@ -405,27 +405,35 @@ async function loadQueueView(roleType) {
 
     let html = '';
     members.forEach((m, idx) => {
+      const code = String(m.emp_code || '').trim().toUpperCase();
+      const isExecutiveReserve = (
+        code === 'DIR-09' ||
+        code === 'DIR-10' ||
+        (m.hold_reason && m.hold_reason.includes('สำรอง'))
+      );
+
+      let orderCell = `<strong style="color:var(--primary);">#${idx + 1}</strong>`;
       let statusBadge = '';
-      if (m.status === 'HOLD') {
+      let actions = '';
+
+      if (isExecutiveReserve) {
+        orderCell = `<span class="badge" style="background:rgba(168,85,247,0.12); color:#a855f7; border:1px solid rgba(168,85,247,0.3); font-weight:700;">👑 สำรอง</span>`;
+        statusBadge = `<span class="badge" style="background:#a855f7; color:#ffffff; font-weight:700;"><i class="fa-solid fa-crown"></i> ผู้บริหารสำรอง</span><br><small style="color:#a855f7; font-weight:600;">(สำรอง ไม่เข้าคิวอัตโนมัติ / เลือกเพิ่มได้)</small>`;
+        actions = `<span class="badge" style="background:rgba(168,85,247,0.12); color:#a855f7; border:1px solid rgba(168,85,247,0.3); padding:4px 10px; font-size:0.78rem;"><i class="fa-solid fa-user-shield"></i> ผู้บริหารสำรอง</span>`;
+      } else if (m.status === 'HOLD') {
         statusBadge = `<span class="badge badge-hold"><i class="fa-solid fa-pause"></i> HOLD (ค้างสิทธิ์)</span><br><small style="color:var(--warning);">${escapeHtml(m.hold_reason || '')}</small>`;
+        actions = `<button class="btn btn-primary btn-sm" onclick="unholdPerson(${m.personnel_id})"><i class="fa-solid fa-play"></i> คืนสิทธิ์ปกติ</button>`;
       } else if (m.status === 'COMPLETED') {
         statusBadge = '<span class="badge badge-completed"><i class="fa-solid fa-check"></i> COMPLETED</span>';
+        actions = `<span style="color:var(--text-muted); font-size:0.8rem;">ปฏิบัติกิจกรรมในรอบนี้แล้ว</span>`;
       } else {
         statusBadge = '<span class="badge badge-waiting"><i class="fa-solid fa-clock"></i> WAITING (รอคิว)</span>';
-      }
-
-      let actions = '';
-      if (m.status === 'HOLD') {
-        actions = `<button class="btn btn-primary btn-sm" onclick="unholdPerson(${m.personnel_id})"><i class="fa-solid fa-play"></i> คืนสิทธิ์ปกติ</button>`;
-      } else if (m.status === 'WAITING') {
         actions = `<button class="btn btn-warning btn-sm" onclick="openSkipModal(${m.personnel_id}, '${escapeHtml(m.name)}')"><i class="fa-solid fa-pause"></i> ข้ามคิว (Hold)</button>`;
-      } else {
-        actions = `<span style="color:var(--text-muted); font-size:0.8rem;">ปฏิบัติกิจกรรมในรอบนี้แล้ว</span>`;
       }
 
       html += `
-        <tr>
-          <td><strong style="color:var(--primary);">#${idx + 1}</strong></td>
+        <tr ${isExecutiveReserve ? 'style="background:rgba(168,85,247,0.03);"' : ''}>
+          <td>${orderCell}</td>
           <td><code>${m.emp_code}</code></td>
           <td><strong style="color:var(--text-heading);">${escapeHtml(m.name)}</strong></td>
           <td>${escapeHtml(m.position)}<br><small style="color:var(--text-muted);">${escapeHtml(m.department)}</small></td>
@@ -436,6 +444,7 @@ async function loadQueueView(roleType) {
         </tr>
       `;
     });
+
 
     tbody.innerHTML = html;
   } catch (err) {
@@ -1357,29 +1366,57 @@ function renderPersonnelSelectOptions(list) {
 }
 
 function filterPersonDropdown(keyword) {
+  const select = document.getElementById('indiv-select-person');
   if (!keyword.trim()) {
     renderPersonnelSelectOptions(allPersonnelList);
     return;
   }
 
-  const kw = keyword.toLowerCase();
+  const kw = keyword.toLowerCase().trim();
   const filtered = allPersonnelList.filter(p => 
-    p.name.toLowerCase().includes(kw) || 
-    p.emp_code.toLowerCase().includes(kw) || 
-    p.position.toLowerCase().includes(kw)
+    (p.name && p.name.toLowerCase().includes(kw)) || 
+    (p.emp_code && p.emp_code.toLowerCase().includes(kw)) || 
+    (p.position && p.position.toLowerCase().includes(kw))
   );
 
   renderPersonnelSelectOptions(filtered);
+
+  if (filtered.length > 0 && select && select.options.length > 1) {
+    select.selectedIndex = 1;
+  }
 }
 
 function loadSelectedPerson() {
-  const personId = document.getElementById('indiv-select-person').value;
+  const select = document.getElementById('indiv-select-person');
+  const searchInput = document.getElementById('indiv-search-input');
+  const keyword = searchInput ? searchInput.value.trim() : '';
+
+  let personId = select ? select.value : '';
+
+  if (!personId && keyword) {
+    const kw = keyword.toLowerCase();
+    const match = allPersonnelList.find(p => 
+      (p.name && p.name.toLowerCase().includes(kw)) || 
+      (p.emp_code && p.emp_code.toLowerCase().includes(kw)) || 
+      (p.position && p.position.toLowerCase().includes(kw))
+    );
+
+    if (match) {
+      personId = match.id;
+      if (select) select.value = match.id;
+    } else {
+      showToast(`ไม่พบบุคลากรที่ตรงกับคำว่า "${keyword}"`, 'warning');
+      return;
+    }
+  }
+
   if (personId) {
     loadIndividualHistory(personId);
   } else {
-    showToast('กรุณาเลือกบุคลากร', 'warning');
+    showToast('กรุณาพิมพ์ชื่อ หรือเลือกรหัสบุคลากรเพื่อแสดงประวัติ', 'warning');
   }
 }
+
 
 async function loadIndividualHistory(personId) {
   if (!personId) return;
