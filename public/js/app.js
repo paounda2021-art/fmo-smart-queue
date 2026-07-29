@@ -235,8 +235,22 @@ async function loadCalendarEvents() {
         events: result.events || [],
         eventClick: function(info) {
           openMissionDetailModal(info.event.id);
+        },
+        eventDidMount: function(info) {
+          const props = info.event.extendedProps || {};
+          const title = info.event.title || 'กิจกรรม';
+          const location = props.location || 'สะพานปลา อสป.';
+          const dressCode = props.dressCode || 'ชุดปฏิบัติงาน อสป.';
+          const status = (props.status === 'SUCCESS' || props.status === 'COMPLETED')
+            ? '🟢 SUCCESS (ปฏิบัติเสร็จสิ้น)' 
+            : '🔵 SCHEDULED (รอดำเนินการ)';
+          const description = props.description || '-';
+          const teamInfo = `ผอ.ฝ่าย ${props.directorsCount || 0} ท่าน / พนักงาน ${props.staffCount || 0} ท่าน`;
+
+          info.el.setAttribute('title', `📌 กิจกรรม: ${title}\n📍 สถานที่: ${location}\n👔 การแต่งกาย: ${dressCode}\n👥 ผู้ปฏิบัติงาน: ${teamInfo}\n📊 สถานะ: ${status}\n📝 รายละเอียด: ${description}`);
         }
       });
+
 
       fullCalendarInstance.render();
       setTimeout(() => {
