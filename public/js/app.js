@@ -85,6 +85,35 @@ function goHome() {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+function handleLogout() {
+  if (typeof Swal !== 'undefined') {
+    Swal.fire({
+      title: 'ยืนยันออกจากระบบ?',
+      text: 'คุณต้องการออกจากระบบ FMO Smart Queue ใช่หรือไม่',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: '<i class="fa-solid fa-right-from-bracket"></i> ออกจากระบบ',
+      cancelButtonText: 'ยกเลิก',
+      width: '400px'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        sessionStorage.removeItem('fmo_user');
+        sessionStorage.clear();
+        window.location.replace('/login');
+      }
+    });
+  } else {
+    if (confirm('คุณต้องการออกจากระบบใช่หรือไม่?')) {
+      sessionStorage.removeItem('fmo_user');
+      sessionStorage.clear();
+      window.location.replace('/login');
+    }
+  }
+}
+
+
 // -------------------------------------------------------------
 // LINE REDIRECT HANDLER: ?action=busy&mission_id=X&personnel_id=Y
 // รองรับการกดปุ่ม "ติดภารกิจ" จาก LINE แล้ว redirect มาเปิดหน้าเว็บสำหรับป้อนตัวแทน
