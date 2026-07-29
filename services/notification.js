@@ -645,32 +645,28 @@ async function sendMissionNotification(mission, assignedList, isReallocation = f
         Number(a.is_leader) !== 1
     );
 
-    let teamLeader =
-      directors.find(item => Number(item.is_leader) === 1) ||
-      directors[0] ||
-      null;
-
-    if (!teamLeader && mission?.id) {
+    let allDirectors = [];
+    if (mission?.id) {
       try {
-        const { dbGet } = require('../db/database');
-        const leaderInDb = await dbGet(`
-          SELECT p.name, p.position, p.department, p.emp_code, ma.is_leader, ma.role_type
+        const { dbAll } = require('../db/database');
+        allDirectors = await dbAll(`
+          SELECT p.id, p.name, p.position, p.department, p.emp_code, ma.is_leader, ma.role_type
           FROM mission_assignments ma
           JOIN personnel p ON p.id = ma.personnel_id
           WHERE ma.mission_id = ? AND (ma.is_leader = 1 OR UPPER(ma.role_type) = 'DIRECTOR')
-          ORDER BY ma.is_leader DESC, p.id ASC LIMIT 1;
+          ORDER BY 
+            CASE WHEN UPPER(TRIM(p.emp_code)) = 'DIR-10' THEN 1
+                 WHEN UPPER(TRIM(p.emp_code)) = 'DIR-09' THEN 2
+                 ELSE 3 END, p.id ASC;
         `, [mission.id]);
-
-        if (leaderInDb) {
-          teamLeader = leaderInDb;
-        }
       } catch (e) {
-        console.error('Error fetching team leader from DB:', e);
+        console.error('Error fetching directors from DB:', e);
       }
     }
 
-    const teamLeaderName = formatLeaderTitle(teamLeader);
-
+    if (!allDirectors || allDirectors.length === 0) {
+      allDirectors = directors;
+    }
 
     const timeStr = `${formatDate24h(mission.start_date)} - ${formatDate24h(mission.end_date)}`;
     const lineHeader = isReallocation ? '🚨 [แจ้งเตือนจัดสรรแทนด่วน]' : '📢 [คำสั่งจัดสรรกิจกรรม อสป.]';
@@ -679,11 +675,12 @@ async function sendMissionNotification(mission, assignedList, isReallocation = f
     
     const flexCardJson = createLineFlexCardPayload(
       mission,
-      directors,
+      allDirectors,
       staff,
       isReallocation,
       assignedList
     );
+
 
     // 💡 ส่งจริงเข้ากลุ่ม LINE ถ้ามีการตั้งค่า LINE_GROUP_ID + LINE_CHANNEL_ACCESS_TOKEN ไว้ใน .env
     // (เดิมโค้ดส่วนนี้แค่บันทึกลง log แต่ไม่เคยส่งเข้ากลุ่มจริงเลย เพราะไม่มี groupId ให้ยิงไป)
@@ -771,8 +768,9 @@ async function sendMissionNotification(mission, assignedList, isReallocation = f
         mission,
         person,
         isReallocation,
-        teamLeaderName
+        allDirectors
       );
+
 
       try {
         await axios.post('https://api.line.me/v2/bot/message/push', {
