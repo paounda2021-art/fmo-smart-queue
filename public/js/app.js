@@ -573,8 +573,9 @@ async function loadQueueView(roleType) {
 
         actions = `<span class="badge" style="background:rgba(168,85,247,0.12); color:#a855f7; border:1px solid rgba(168,85,247,0.3); padding:4px 10px; font-size:0.78rem;"><i class="fa-solid fa-user-shield"></i> ผู้บริหาร</span>`;
       } else {
-        const queueNum = (roleType === 'DIRECTOR') ? regularIndex++ : (m.queue_order || regularIndex++);
+        const queueNum = regularIndex++;
         orderCell = `<strong style="color:var(--primary);">#${queueNum}</strong>`;
+
 
 
         if (m.status === 'HOLD') {
