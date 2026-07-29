@@ -1,10 +1,35 @@
 // Notification Service (LINE Flex Message Card & Email Notification Dispatcher)
 const axios = require('axios');
+const nodemailer = require('nodemailer');
 const { dbRun } = require('../db/database');
 
 // 💡 ตั้งค่า URL หลักของระบบ ใช้สำหรับใส่ในลิงก์ปุ่มของ Flex Message / Email
-// แก้ผ่าน .env ได้ด้วยการตั้งค่า APP_BASE_URL ถ้าต้องการเปลี่ยน domain
 const APP_BASE_URL = process.env.APP_BASE_URL || 'https://fmo-smart-queue.fishmarket.co.th/app';
+
+function createMailTransporter() {
+  const host = process.env.SMTP_HOST;
+  const port = Number(process.env.SMTP_PORT || 587);
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+
+  if (!host || !user) {
+    return null;
+  }
+
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: {
+      user,
+      pass
+    },
+    tls: {
+      rejectUnauthorized: false
+    }
+  });
+}
+
 
 function formatDate24h(dateStr) {
   if (!dateStr) return '-';
@@ -715,13 +740,18 @@ async function sendMissionNotification(mission, assignedList, isReallocation = f
     `, [mission.id, `${lineHeader} ${mission.mission_title}`, flexCardJson, groupSendStatus]);
 
     // 2. DISPATCH INDIVIDUAL EMAIL NOTIFICATIONS
+    const mailTransporter = createMailTransporter();
+
     for (const person of assignedList) {
+      const recipientEmail = person.email || (person.emp_code ? `${person.emp_code.toLowerCase()}@fishmarket.co.th` : null);
+      if (!recipientEmail) continue;
+
       const emailSubject = `[FMO Smart Queue] ${isReallocation ? 'แจ้งเตือนจัดสรรแทนด่วน' : 'แจ้งเตือนคำสั่งจัดสรรคิวกิจกรรม'}: ${mission.mission_title}`;
       
       const emailBody = `
-        <div style="font-family: sans-serif; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; max-width: 600px;">
+        <div style="font-family: 'Sarabun', sans-serif; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; max-width: 600px;">
           <h2 style="color: #0284c7;">📢 แจ้งคำสั่งจัดสรรคิวกิจกรรม อสป.</h2>
-          <p>เรียน: <strong>${person.name}</strong> (${person.position} - ${person.department})</p>
+          <p>เรียน: <strong>${person.name}</strong> (${person.position || '-'} - ${person.department || '-'})</p>
           <p>ท่านได้รับการจัดสรรตามลำดับคิว Smart Queue ให้ปฏิบัติกิจกรรมดังนี้:</p>
           
           <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin: 15px 0;">
@@ -740,11 +770,30 @@ async function sendMissionNotification(mission, assignedList, isReallocation = f
         </div>
       `;
 
+      let mailStatus = 'SENT';
+      if (mailTransporter) {
+        try {
+          await mailTransporter.sendMail({
+            from: process.env.SMTP_FROM || `"FMO Smart Queue" <${process.env.SMTP_USER}>`,
+            to: recipientEmail,
+            subject: emailSubject,
+            html: emailBody
+          });
+          console.log(`✅ ส่งอีเมลแจ้งเตือนไปยัง ${person.name} (${recipientEmail}) สำเร็จ`);
+        } catch (mailErr) {
+          console.error(`❌ ส่งอีเมลไปยัง ${person.name} ไม่สำเร็จ:`, mailErr.message);
+          mailStatus = 'FAILED';
+        }
+      } else {
+        console.warn('⚠️ ยังไม่ได้ระบุตั้งค่า SMTP_HOST / SMTP_USER ใน .env ระบบจึงบันทึก log ไว้เปิดรอการตั้งค่าใน .env');
+      }
+
       await dbRun(`
         INSERT INTO notification_logs (mission_id, personnel_id, channel, recipient, subject_title, content_body, status)
-        VALUES (?, ?, 'EMAIL', ?, ?, ?, 'SENT')
-      `, [mission.id, person.personnel_id || person.id, person.email || `${person.emp_code.toLowerCase()}@fishmarket.co.th`, emailSubject, emailBody]);
+        VALUES (?, ?, 'EMAIL', ?, ?, ?, ?)
+      `, [mission.id, person.personnel_id || person.id, recipientEmail, emailSubject, emailBody, mailStatus]);
     }
+
 
     // 3. DISPATCH LINE PUSH MESSAGES TO ASSIGNED PERSONNEL
     // ใช้ createPersonalizedFlexCard แทนเพื่อให้ปุ่มมี postback data เฉพาะบุคคล
