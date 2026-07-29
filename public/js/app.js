@@ -714,8 +714,7 @@ async function confirmSubstitution() {
 }
 
 async function loadDirectorSelectList() {
-  const container =
-    document.getElementById('director-select-list');
+  const container = document.getElementById('director-select-list');
 
   if (!container) {
     console.error('❌ ไม่พบ element: director-select-list');
@@ -723,126 +722,49 @@ async function loadDirectorSelectList() {
   }
 
   try {
-    const res = await fetch('/api/queue/DIRECTOR');
+    const res = await fetch('/api/personnel?role=DIRECTOR');
 
     if (!res.ok) {
-      throw new Error(
-        `เซิร์ฟเวอร์ตอบกลับด้วยสถานะ ${res.status}`
-      );
+      throw new Error(`เซิร์ฟเวอร์ตอบกลับด้วยสถานะ ${res.status}`);
     }
 
     const result = await res.json();
 
-    if (
-      !result.success ||
-      !Array.isArray(result.members)
-    ) {
-      throw new Error(
-        result.message ||
-        'ไม่สามารถโหลดรายชื่อ ผอ.ฝ่ายได้'
-      );
+    if (!result.success || !Array.isArray(result.personnel)) {
+      throw new Error(result.message || 'ไม่สามารถโหลดรายชื่อ ผอ.ฝ่ายได้');
     }
 
-    allDirectorsList = result.members;
+    allDirectorsList = result.personnel;
 
-    // ---------------------------------------------------------
-    // 1. หาหัวหน้าตามคิวจริง
-    //
-    // - ใช้เฉพาะ DIR-01 ถึง DIR-08
-    // - ใช้เฉพาะสถานะ WAITING
-    // - เรียง DIR-01 → DIR-08
-    // ---------------------------------------------------------
-    const fixedDirector =
-      allDirectorsList
-        .filter(person => {
-          const empCode = String(
-            person.emp_code || ''
-          )
-            .trim()
-            .toUpperCase();
+    // 1. หาหัวหน้าตามคิวจริง (DIR-01 ถึง DIR-08)
+    const fixedDirector = allDirectorsList
+      .filter(person => {
+        const empCode = String(person.emp_code || '').trim().toUpperCase();
+        const queueStatus = String(person.queue_status || person.status || 'WAITING').trim().toUpperCase();
+        return /^DIR-0[1-8]$/.test(empCode) && queueStatus === 'WAITING';
+      })
+      .sort((a, b) => (a.queue_order || 99) - (b.queue_order || 99))[0] || null;
 
-          const queueStatus = String(
-            person.queue_status ||
-            person.status ||
-            ''
-          )
-            .trim()
-            .toUpperCase();
+    // 2. ผอ.ฝ่ายสำรอง / ผู้บริหารระดับสูง (DIR-10 และ DIR-09)
+    const reserveOrder = { 'DIR-10': 1, 'DIR-09': 2 };
 
-          return (
-            /^DIR-0[1-8]$/.test(empCode) &&
-            queueStatus === 'WAITING'
-          );
-        })
-        .sort((a, b) => {
-          const codeA = Number(
-            String(a.emp_code || '')
-              .replace(/\D/g, '')
-          );
+    const reserveDirectors = allDirectorsList
+      .filter(person => {
+        const empCode = String(person.emp_code || '').trim().toUpperCase();
+        return ['DIR-10', 'DIR-09'].includes(empCode);
+      })
+      .sort((a, b) => {
+        const codeA = String(a.emp_code || '').trim().toUpperCase();
+        const codeB = String(b.emp_code || '').trim().toUpperCase();
+        return (reserveOrder[codeA] || 99) - (reserveOrder[codeB] || 99);
+      });
 
-          const codeB = Number(
-            String(b.emp_code || '')
-              .replace(/\D/g, '')
-          );
-
-          return codeA - codeB;
-        })[0] || null;
-
-    // ---------------------------------------------------------
-    // 2. ผอ.ฝ่ายสำรอง
-    //
-    // แสดง DIR-10 ก่อน DIR-09
-    // ไม่ถูกเลือกอัตโนมัติ แต่เลือกเพิ่มได้
-    // ---------------------------------------------------------
-    const reserveOrder = {
-      'DIR-10': 1,
-      'DIR-09': 2
-    };
-
-    const reserveDirectors =
-      allDirectorsList
-        .filter(person => {
-          const empCode = String(
-            person.emp_code || ''
-          )
-            .trim()
-            .toUpperCase();
-
-          return [
-            'DIR-10',
-            'DIR-09'
-          ].includes(empCode);
-        })
-        .sort((a, b) => {
-          const codeA = String(
-            a.emp_code || ''
-          )
-            .trim()
-            .toUpperCase();
-
-          const codeB = String(
-            b.emp_code || ''
-          )
-            .trim()
-            .toUpperCase();
-
-          return (
-            (reserveOrder[codeA] || 99) -
-            (reserveOrder[codeB] || 99)
-          );
-        });
-
-    // ---------------------------------------------------------
-    // 3. ลำดับรายการด้านซ้าย
-    //
-    // DIR-10 → DIR-09 → หัวหน้าตามคิวปัจจุบัน
-    // ---------------------------------------------------------
+    // 3. ลำดับรายการด้านซ้าย: DIR-10 → DIR-09 → หัวหน้าตามคิวปัจจุบัน (DIR-01)
     const displayedDirectors = [
       ...reserveDirectors,
-      ...(fixedDirector
-        ? [fixedDirector]
-        : [])
+      ...(fixedDirector ? [fixedDirector] : [])
     ];
+
 
     console.log(
       '✅ หัวหน้าตามคิวปัจจุบัน:',
@@ -1379,9 +1301,11 @@ function renderCandidatesList(containerId, list) {
 
   list.forEach((item, idx) => {
     const isHold = item.queue_status === 'HOLD';
+    const queueNum = item.queue_order ? item.queue_order : (idx + 1);
     const badge = isHold 
       ? '<span class="badge badge-hold"><i class="fa-solid fa-pause"></i> HOLD</span>' 
-      : `<span class="badge badge-waiting">คิว #${idx + 1}</span>`;
+      : `<span class="badge badge-waiting">คิว #${queueNum}</span>`;
+
 
     html += `
       <li style="background:var(--table-row-hover); padding:0.65rem 0.85rem; border-radius:10px; border:1px solid var(--card-border); width:100%; max-width:100%;">
