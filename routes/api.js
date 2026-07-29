@@ -2586,15 +2586,17 @@ async function checkAndUpdateMissionStatus(missionId) {
   if (!missionId) return;
 
   try {
+    // นับจำนวนคนที่ยังค้าง PENDING_ACK หรือยังไม่ได้ตอบรับ
     const pendingRow = await dbGet(
       `SELECT COUNT(*) AS pending_count 
        FROM mission_assignments 
        WHERE mission_id = ? 
          AND assignment_status = 'JOINED' 
-         AND (ack_status IS NULL OR ack_status != 'ACKNOWLEDGED');`,
+         AND (ack_status IS NULL OR ack_status = 'PENDING_ACK' OR ack_status != 'ACKNOWLEDGED');`,
       [missionId]
     );
 
+    // นับจำนวนคนที่ปฏิบัติงานจริงทั้งหมดของกิจกรรมนี้ (สถานะ JOINED)
     const totalRow = await dbGet(
       `SELECT COUNT(*) AS total_count 
        FROM mission_assignments 
@@ -2606,9 +2608,10 @@ async function checkAndUpdateMissionStatus(missionId) {
     const pendingCount = pendingRow ? Number(pendingRow.pending_count) : 0;
     const totalCount = totalRow ? Number(totalRow.total_count) : 0;
 
+    // หากมีพนักงานปฏิบัติงานอยู่ และทุกคนตอบรับครบทั้งหมดแล้ว (pendingCount === 0)
     if (totalCount > 0 && pendingCount === 0) {
       await dbRun(`UPDATE missions SET status = 'SUCCESS' WHERE id = ?;`, [missionId]);
-      console.log(`🎉 อัปเดตสถานะกิจกรรม #${missionId} เป็น SUCCESS (ทุกคนปฏิบัติ/ตอบรับเสร็จสิ้นแล้ว)`);
+      console.log(`🎉 อัปเดตสถานะกิจกรรม #${missionId} เป็น SUCCESS (ทุกคนตอบรับ/ปฏิบัติงานครบถ้วนแล้ว ป้าย NEW จะซ่อนอัตโนมัติ)`);
     } else {
       await dbRun(`UPDATE missions SET status = 'SCHEDULED' WHERE id = ?;`, [missionId]);
     }
@@ -2616,6 +2619,7 @@ async function checkAndUpdateMissionStatus(missionId) {
     console.error('Error checking mission status:', err);
   }
 }
+
 
 // -------------------------------------------------------------
 // 8. ALL MISSIONS & PERSONNEL LISTS
