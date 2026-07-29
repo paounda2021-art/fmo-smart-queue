@@ -738,19 +738,25 @@ async function loadDirectorSelectList() {
       })
       .sort((a, b) => (a.queue_order || 99) - (b.queue_order || 99))[0] || null;
 
-    // 2. ผอ.ฝ่ายสำรอง / ผู้บริหารระดับสูง (DIR-10 และ DIR-09)
+    // 2. ผอ.ฝ่ายสำรอง / ผู้บริหารระดับสูง (DIR-10 และ DIR-09) - Deduplicated
     const reserveOrder = { 'DIR-10': 1, 'DIR-09': 2 };
 
-    const reserveDirectors = allDirectorsList
-      .filter(person => {
-        const empCode = String(person.emp_code || '').trim().toUpperCase();
-        return ['DIR-10', 'DIR-09'].includes(empCode);
-      })
-      .sort((a, b) => {
-        const codeA = String(a.emp_code || '').trim().toUpperCase();
-        const codeB = String(b.emp_code || '').trim().toUpperCase();
-        return (reserveOrder[codeA] || 99) - (reserveOrder[codeB] || 99);
-      });
+    const reserveDirectorsMap = new Map();
+    allDirectorsList.forEach(person => {
+      const empCode = String(person.emp_code || '').trim().toUpperCase();
+      if (['DIR-10', 'DIR-09'].includes(empCode)) {
+        if (!reserveDirectorsMap.has(empCode)) {
+          reserveDirectorsMap.set(empCode, person);
+        }
+      }
+    });
+
+    const reserveDirectors = Array.from(reserveDirectorsMap.values()).sort((a, b) => {
+      const codeA = String(a.emp_code || '').trim().toUpperCase();
+      const codeB = String(b.emp_code || '').trim().toUpperCase();
+      return (reserveOrder[codeA] || 99) - (reserveOrder[codeB] || 99);
+    });
+
 
     // 3. ลำดับรายการด้านซ้าย: DIR-10 → DIR-09 → หัวหน้าตามคิวปัจจุบัน
     const displayedDirectors = [
