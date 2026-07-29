@@ -3023,4 +3023,159 @@ router.post('/line-webhook', async (req, res) => {
   }
 });
 
+
+// GET /api/missions/:id/pdf - ออกเอกสารคำสั่งจัดสรรกิจกรรม (PDF Mission Order Document)
+router.get('/missions/:id/pdf', async (req, res) => {
+
+  try {
+    const missionId = req.params.id;
+    const mission = await dbGet(`SELECT * FROM missions WHERE id = ?`, [missionId]);
+    if (!mission) {
+      return res.status(404).send('<h2>ไม่พบข้อมูลกิจกรรม</h2>');
+    }
+
+    const assigned = await dbAll(`
+      SELECT ma.*, p.emp_code, p.name, p.position, p.department, p.role_type
+      FROM mission_assignments ma
+      JOIN personnel p ON ma.personnel_id = p.id
+      WHERE ma.mission_id = ?
+        AND ma.assignment_status IN ('JOINED', 'SUBSTITUTED')
+      ORDER BY 
+        CASE p.role_type WHEN 'DIRECTOR' THEN 1 ELSE 2 END,
+        p.emp_code ASC
+    `, [missionId]);
+
+    const directors = assigned.filter(a => a.role_type === 'DIRECTOR');
+    const staff = assigned.filter(a => a.role_type === 'STAFF');
+
+    const formatDateStr = (dateVal) => {
+      if (!dateVal) return '-';
+      const d = new Date(dateVal);
+      const months = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+      return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear() + 543} เวลา ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')} น.`;
+    };
+
+    let directorsRowsHtml = directors.map((d, i) => `
+      <tr>
+        <td style="text-align:center; padding:8px; border:1px solid #cbd5e1;">${i + 1}</td>
+        <td style="padding:8px; border:1px solid #cbd5e1;"><strong>${d.name}</strong></td>
+        <td style="padding:8px; border:1px solid #cbd5e1;">${d.position || '-'}</td>
+        <td style="padding:8px; border:1px solid #cbd5e1;">${d.department || '-'}</td>
+        <td style="text-align:center; padding:8px; border:1px solid #cbd5e1; font-weight:bold; color:#0284c7;">หัวหน้าคณะ</td>
+      </tr>
+    `).join('');
+
+    let staffRowsHtml = staff.map((s, i) => `
+      <tr>
+        <td style="text-align:center; padding:8px; border:1px solid #cbd5e1;">${i + 1}</td>
+        <td style="padding:8px; border:1px solid #cbd5e1;"><strong>${s.name}</strong></td>
+        <td style="padding:8px; border:1px solid #cbd5e1;">${s.position || '-'}</td>
+        <td style="padding:8px; border:1px solid #cbd5e1;">${s.department || '-'}</td>
+        <td style="text-align:center; padding:8px; border:1px solid #cbd5e1;">คณะทำงาน</td>
+      </tr>
+    `).join('');
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html lang="th">
+      <head>
+        <meta charset="UTF-8">
+        <title>คำสั่งองค์การสะพานปลา ที่ ${mission.id}/${new Date().getFullYear() + 543}</title>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap">
+        <style>
+          @page { size: A4; margin: 20mm; }
+          body { font-family: 'Sarabun', sans-serif; color: #0f172a; line-height: 1.6; font-size: 14pt; margin: 0; padding: 20px; }
+          .header { text-align: center; margin-bottom: 25px; }
+          .logo { height: 85px; margin-bottom: 10px; }
+          .title { font-size: 18pt; font-weight: 700; color: #0f172a; margin: 5px 0; }
+          .subtitle { font-size: 15pt; font-weight: 600; color: #334155; }
+          .info-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px 20px; margin: 20px 0; }
+          .info-row { margin: 6px 0; }
+          .info-label { font-weight: 700; color: #0284c7; width: 140px; display: inline-block; }
+          table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 12pt; }
+          th { background: #0284c7; color: #ffffff; padding: 10px; border: 1px solid #0284c7; text-align: center; }
+          .section-head { font-size: 14pt; font-weight: 700; color: #0f172a; margin-top: 25px; margin-bottom: 10px; border-bottom: 2px solid #0284c7; padding-bottom: 4px; }
+          .signature-section { margin-top: 50px; display: flex; justify-content: flex-end; }
+          .sig-box { text-align: center; width: 280px; }
+          .sig-line { border-bottom: 1px dotted #475569; margin: 40px 0 10px 0; }
+          @media print {
+            .no-print { display: none !important; }
+            body { padding: 0; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="no-print" style="margin-bottom:20px; text-align:right;">
+          <button onclick="window.print()" style="background:#0284c7; color:white; border:none; padding:10px 20px; font-size:14px; border-radius:8px; cursor:pointer; font-family:Sarabun,sans-serif; font-weight:bold;">
+            🖨️ พิมพ์คำสั่ง / เซฟเป็น PDF
+          </button>
+        </div>
+
+        <div class="header">
+          <img src="/logoFMO.png" class="logo" alt="อสป. Logo">
+          <div class="title">บันทึกข้อความ / คำสั่งองค์การสะพานปลา</div>
+          <div class="subtitle">เรื่อง การจัดสรรบุคลากรเข้าร่วมกิจกรรมตามคำสั่งทางการ</div>
+          <div>ที่ อสป. ${mission.id}/${new Date().getFullYear() + 543}</div>
+        </div>
+
+        <div class="info-box">
+          <div class="info-row"><span class="info-label">📌 ชื่อกิจกรรม:</span> <strong>${mission.mission_title}</strong></div>
+          <div class="info-row"><span class="info-label">📍 สถานที่ปฏิบัติงาน:</span> ${mission.location || 'สะพานปลา อสป.'}</div>
+          <div class="info-row"><span class="info-label">⏰ กำหนดการ (24 ชม.):</span> ${formatDateStr(mission.start_date)} - ${formatDateStr(mission.end_date)}</div>
+          <div class="info-row"><span class="info-label">👔 การแต่งกาย:</span> ${mission.dress_code || 'ชุดปฏิบัติงาน อสป.'}</div>
+          <div class="info-row"><span class="info-label">📝 รายละเอียด:</span> ${mission.description || '-'}</div>
+        </div>
+
+        <div class="section-head">👑 1. รายชื่อหัวหน้าคณะปฏิบัติงาน (ระดับผู้บริหาร/ผอ.ฝ่าย)</div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width:8%;">ลำดับ</th>
+              <th style="width:30%;">ชื่อ - นามสกุล</th>
+              <th style="width:25%;">ตำแหน่ง</th>
+              <th style="width:22%;">สังกัด/ฝ่าย</th>
+              <th style="width:15%;">บทบาท</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${directorsRowsHtml || '<tr><td colspan="5" style="text-align:center; padding:10px;">- ไม่ระบุหัวหน้าคณะ -</td></tr>'}
+          </tbody>
+        </table>
+
+        <div class="section-head">👥 2. รายชื่อคณะทำงานปฏิบัติงาน (พนักงาน อสป.)</div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width:8%;">ลำดับ</th>
+              <th style="width:30%;">ชื่อ - นามสกุล</th>
+              <th style="width:25%;">ตำแหน่ง</th>
+              <th style="width:22%;">สังกัด/ฝ่าย</th>
+              <th style="width:15%;">บทบาท</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${staffRowsHtml || '<tr><td colspan="5" style="text-align:center; padding:10px;">- ไม่มีรายชื่อพนักงาน -</td></tr>'}
+          </tbody>
+        </table>
+
+        <div class="signature-section">
+          <div class="sig-box">
+            <div>อนุมัติให้ดำเนินการตามคำสั่งนี้</div>
+            <div class="sig-line"></div>
+            <div>( ................................................................ )</div>
+            <div style="margin-top:5px;">ผู้อำนวยการองค์การสะพานปลา</div>
+            <div>วันที่ ........ เดือน ........................ พ.ศ. ...........</div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    res.send(htmlContent);
+  } catch (err) {
+    res.status(500).send(`Error generating document: ${err.message}`);
+  }
+});
+
+
 module.exports = router;

@@ -1697,11 +1697,15 @@ function renderMissionsTable(list) {
         <td>${formatDate(m.start_date)}</td>
         <td><span class="badge badge-director">${m.directors_count} ท่าน</span></td>
         <td><span class="badge badge-staff">${m.staff_count} ท่าน</span></td>
-        <td>${statusBadge}</td>
         <td>
           <button class="btn btn-secondary btn-sm" onclick="openMissionDetailModal(${m.id})">
             <i class="fa-solid fa-eye"></i> รายชื่อ & เปลี่ยนตัว
           </button>
+        </td>
+        <td>
+          <a class="btn btn-primary btn-sm" href="/api/missions/${m.id}/pdf" target="_blank" style="background:#0284c7; border-color:#0284c7; font-weight:bold;">
+            <i class="fa-solid fa-file-pdf"></i> คำสั่ง (PDF)
+          </a>
         </td>
       </tr>
     `;
@@ -1709,6 +1713,7 @@ function renderMissionsTable(list) {
 
   tbody.innerHTML = html;
 }
+
 
 function filterMissionsByDate() {
   const startInput = document.getElementById('report-start-date')?.value;
@@ -1771,8 +1776,12 @@ async function openMissionDetailModal(missionId) {
       `การแต่งกาย: ` +
       `${mission.dress_code || 'ชุดปฏิบัติงาน อสป.'}`;
 
+    const pdfBtn = document.getElementById('md-pdf-btn');
+    if (pdfBtn) pdfBtn.href = `/api/missions/${missionId}/pdf`;
+
     const tbody =
       document.getElementById('md-assigned-body');
+
 
     if (!tbody) return;
 
