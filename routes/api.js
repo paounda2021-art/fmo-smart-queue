@@ -407,12 +407,16 @@ router.get('/queue/:roleType', async (req, res) => {
        JOIN personnel p ON qm.personnel_id = p.id
        WHERE qm.role_type = ?
        ORDER BY 
-         CASE qm.status
-           WHEN 'HOLD' THEN 1
-           WHEN 'WAITING' THEN 2
-           WHEN 'COMPLETED' THEN 3
+         CASE 
+           WHEN p.emp_code = 'DIR-10' THEN 1
+           WHEN p.emp_code = 'DIR-09' THEN 2
+           WHEN qm.status = 'HOLD' THEN 3
+           WHEN qm.status = 'WAITING' THEN 4
+           WHEN qm.status = 'COMPLETED' THEN 5
+           ELSE 6
          END,
          qm.queue_order ASC;`,
+
       [roleType]
     );
 

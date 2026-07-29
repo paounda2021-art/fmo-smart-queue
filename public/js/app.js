@@ -467,11 +467,27 @@ async function loadQueueView(roleType) {
       return;
     }
 
-    const members = result.data || result.members || [];
+    let members = result.data || result.members || [];
     const waitingCount = countWaiting(members);
     const totalCount = members.length;
 
+    // ตรึงลำดับผู้บริหารระดับสูง: DIR-10 ลำดับที่ 1 และ DIR-09 ลำดับที่ 2 เสมอ
+    if (roleType === 'DIRECTOR') {
+      const dir10 = members.find(m => String(m.emp_code || '').trim().toUpperCase() === 'DIR-10');
+      const dir09 = members.find(m => String(m.emp_code || '').trim().toUpperCase() === 'DIR-09');
+      const others = members.filter(m => {
+        const code = String(m.emp_code || '').trim().toUpperCase();
+        return code !== 'DIR-10' && code !== 'DIR-09';
+      });
+
+      members = [];
+      if (dir10) members.push(dir10);
+      if (dir09) members.push(dir09);
+      members.push(...others);
+    }
+
     // อัปเดตข้อความบนปุ่มของแท็บปัจจุบัน (แสดงยอดที่เหลือ / จำนวนทั้งหมด)
+
     if (roleType === 'DIRECTOR') {
        document.getElementById('tab-btn-director-text').innerText = `คิว ผอ.ฝ่าย (เหลือ ${waitingCount}/${totalCount} ท่าน)`;
     } else {
@@ -497,7 +513,8 @@ async function loadQueueView(roleType) {
       let actions = '';
 
       if (isExecutiveReserve) {
-        orderCell = `<span class="badge" style="background:rgba(168,85,247,0.12); color:#a855f7; border:1px solid rgba(168,85,247,0.3); font-weight:700;">👑 สำรอง</span>`;
+        orderCell = `<span class="badge" style="background:rgba(168,85,247,0.12); color:#a855f7; border:1px solid rgba(168,85,247,0.3); font-weight:700;">👑 #${idx + 1} (สำรอง)</span>`;
+
         statusBadge = `<span class="badge" style="background:#a855f7; color:#ffffff; font-weight:700;"><i class="fa-solid fa-crown"></i> ผู้บริหารสำรอง</span><br><small style="color:#a855f7; font-weight:600;">(สำรอง ไม่เข้าคิวอัตโนมัติ / เลือกเพิ่มได้)</small>`;
         actions = `<span class="badge" style="background:rgba(168,85,247,0.12); color:#a855f7; border:1px solid rgba(168,85,247,0.3); padding:4px 10px; font-size:0.78rem;"><i class="fa-solid fa-user-shield"></i> ผู้บริหารสำรอง</span>`;
       } else if (m.status === 'HOLD') {
