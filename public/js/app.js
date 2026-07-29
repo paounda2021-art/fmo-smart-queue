@@ -2700,7 +2700,16 @@ async function loadUserManagementView() {
   const roleFilter = document.getElementById('user-role-filter');
   if (roleFilter) roleFilter.value = 'ALL';
 
+  setTimeout(() => {
+    const sInput = document.getElementById('user-search-input');
+    if (sInput && sInput.value) {
+      sInput.value = '';
+      if (typeof filterUserList === 'function') filterUserList();
+    }
+  }, 100);
+
   tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;"><i class="fa-solid fa-spinner fa-spin text-purple"></i> กำลังโหลดข้อมูลผู้ใช้งาน...</td></tr>';
+
 
   try {
     const res = await fetch('/api/users');

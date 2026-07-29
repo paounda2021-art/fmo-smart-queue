@@ -636,7 +636,8 @@
 
         <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 1.25rem;">
           <div style="flex: 1; min-width: 200px;">
-            <input type="text" id="user-search-input" class="form-input" placeholder="🔍 ค้นหาชื่อ, รหัสพนักงาน, ตำแหน่ง..." onkeyup="filterUserList()">
+            <input type="text" id="user-search-input" name="user_search_query_no_autofill" class="form-input" placeholder="🔍 ค้นหาชื่อ, รหัสพนักงาน, ตำแหน่ง..." onkeyup="filterUserList()" autocomplete="off" value="">
+
           </div>
           <div style="width: 220px;">
             <select id="user-role-filter" class="form-select" onchange="filterUserList()">
