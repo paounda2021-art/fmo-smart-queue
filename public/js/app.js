@@ -2746,15 +2746,65 @@ function renderUserTable(users) {
     return;
   }
 
-  let html = '';
-  users.forEach(u => {
-    let roleBadge = `<span class="badge" style="background:#10b981; color:#fff;">👥 พนักงาน</span>`;
-    if (u.role_type === 'DIRECTOR') {
-      roleBadge = `<span class="badge" style="background:#0284c7; color:#fff;">👔 ผอ.ฝ่าย</span>`;
-    } else if (u.role_type === 'ADMIN') {
-      roleBadge = `<span class="badge" style="background:#a855f7; color:#fff;">🛡️ ผู้ดูแลระบบ</span>`;
+  // เรียงลำดับรายการ:
+  // 1. DIR-10 (ผออ.)
+  // 2. DIR-09 (รผอ.บร.)
+  // 3. DIR-01 ถึง DIR-08
+  // 4. ADMIN / OPERATOR อื่นๆ
+  // 5. พนักงาน (STAFF)
+  const sortedUsers = [...users].sort((a, b) => {
+    const codeA = String(a.emp_code || '').trim().toUpperCase();
+    const codeB = String(b.emp_code || '').trim().toUpperCase();
+
+    if (codeA === 'DIR-10') return -1;
+    if (codeB === 'DIR-10') return 1;
+    if (codeA === 'DIR-09') return -1;
+    if (codeB === 'DIR-09') return 1;
+
+    const isDirA = codeA.startsWith('DIR-');
+    const isDirB = codeB.startsWith('DIR-');
+    if (isDirA && !isDirB) return -1;
+    if (!isDirA && isDirB) return 1;
+
+    if (isDirA && isDirB) {
+      const numA = parseInt(codeA.replace(/\D/g, ''), 10) || 99;
+      const numB = parseInt(codeB.replace(/\D/g, ''), 10) || 99;
+      return numA - numB;
     }
 
+    const numA = parseInt(codeA.replace(/\D/g, ''), 10) || 9999;
+    const numB = parseInt(codeB.replace(/\D/g, ''), 10) || 9999;
+    return numA - numB;
+  });
+
+  let html = '';
+  sortedUsers.forEach(u => {
+    const code = String(u.emp_code || '').trim().toUpperCase();
+    const isDir10 = code === 'DIR-10';
+    const isDir09 = code === 'DIR-09';
+    const isExec = isDir10 || isDir09;
+
+    let roleBadge = `<span class="badge" style="background:#10b981; color:#fff;"><i class="fa-solid fa-user"></i> พนักงาน</span>`;
+    if (isDir10) {
+      roleBadge = `<span class="badge" style="background:#a855f7; color:#fff; font-weight:700;"><i class="fa-solid fa-crown"></i> 👑 ผออ.</span>`;
+    } else if (isDir09) {
+      roleBadge = `<span class="badge" style="background:#8b5cf6; color:#fff; font-weight:700;"><i class="fa-solid fa-crown"></i> 👑 รผอ.บร.</span>`;
+    } else if (u.role_type === 'ADMIN') {
+      roleBadge = `<span class="badge" style="background:#6366f1; color:#fff; font-weight:600;"><i class="fa-solid fa-user-shield"></i> แอดมิน</span>`;
+    } else if (u.role_type === 'OPERATOR') {
+      roleBadge = `<span class="badge" style="background:#0284c7; color:#fff; font-weight:600;"><i class="fa-solid fa-user-gear"></i> โอเปอเรเตอร์</span>`;
+    } else if (u.role_type === 'DIRECTOR') {
+      roleBadge = `<span class="badge" style="background:#0284c7; color:#fff; font-weight:600;"><i class="fa-solid fa-user-tie"></i> ผอ.ฝ่าย</span>`;
+    }
+
+    let queueBadge = '';
+    if (isExec) {
+      queueBadge = `<span class="badge" style="background:rgba(168,85,247,0.12); color:#a855f7; border:1px solid rgba(168,85,247,0.3); font-weight:600;">👑 ไม่วนคิว</span>`;
+    } else if (u.queue_order) {
+      queueBadge = `<span class="badge" style="background:var(--bg-card); border:1px solid var(--card-border); color:var(--text-heading); font-weight:600;">คิว #${u.queue_order}</span>`;
+    } else {
+      queueBadge = `<span class="badge" style="background:var(--bg-card); border:1px solid var(--card-border); color:var(--text-muted);">-</span>`;
+    }
 
     const hasLine = u.line_user_id && u.line_user_id.toLowerCase() !== 'email';
     const lineBadge = hasLine
@@ -2766,13 +2816,13 @@ function renderUserTable(users) {
       : '';
 
     html += `
-      <tr>
-        <td><strong>${u.emp_code || '-'}</strong></td>
-        <td><strong>${u.name || '-'}</strong></td>
+      <tr ${isExec ? 'style="background:rgba(168,85,247,0.03);"' : ''}>
+        <td><code>${u.emp_code || '-'}</code></td>
+        <td><strong style="color:var(--text-heading);">${u.name || '-'}</strong></td>
         <td>${roleBadge}</td>
         <td>${u.position || '-'}</td>
         <td>${u.department || 'อสป.'}</td>
-        <td><span class="badge" style="background:var(--bg-card); border:1px solid var(--card-border); color:var(--text-heading);">คิว #${u.queue_order || '-'}</span></td>
+        <td>${queueBadge}</td>
         <td>${lineBadge}</td>
         <td style="white-space:nowrap;">
           <button class="btn btn-sm btn-secondary" onclick="openUserModal(${u.id})" title="แก้ไข"><i class="fa-solid fa-pen-to-square text-sky"></i></button>
@@ -2785,6 +2835,7 @@ function renderUserTable(users) {
 
   tbody.innerHTML = html;
 }
+
 
 function filterUserList() {
   const search = document.getElementById('user-search-input')?.value.toLowerCase().trim() || '';
