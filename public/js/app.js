@@ -2699,12 +2699,18 @@ async function executePeerSwap() {
       const selectedRole = document.getElementById('swap-role-type')?.value || currentQueueRole;
       loadQueueView(selectedRole);
     } else {
-
       showToast(result.error || 'เกิดข้อผิดพลาดในการสลับคิว', 'danger');
     }
+  } catch (err) {
+    console.error('Error executing peer swap:', err);
+    showToast('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'danger');
+  }
+}
+
 // -------------------------------------------------------------
 // 15. USER & ROLE MANAGEMENT FUNCTIONS (ข้อ 6)
 // -------------------------------------------------------------
+
 let allUsersData = [];
 
 async function loadUserManagementView() {
