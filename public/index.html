@@ -857,9 +857,18 @@
         </p>
 
         <div class="form-group" style="margin-bottom: 1rem;">
+          <label class="form-label" style="font-weight:700;">📂 เลือกระดับคิวที่ต้องการสลับ:</label>
+          <select id="swap-role-type" class="form-select" onchange="changePeerSwapRole(this.value)">
+            <option value="DIRECTOR">👔 คิว ผอ.ฝ่าย</option>
+            <option value="STAFF">👥 คิว พนักงาน</option>
+          </select>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1rem;">
           <label class="form-label" style="font-weight:700;">👤 เลือกผู้ขอสลับคิว (คนแรก):</label>
           <select id="swap-person-1" class="form-select" onchange="filterPeerSwapTargets()"></select>
         </div>
+
 
         <div class="form-group" style="margin-bottom: 1rem;">
           <label class="form-label" style="font-weight:700;">🔁 เลือกผู้รับสลับคิว (คนที่สอง):</label>

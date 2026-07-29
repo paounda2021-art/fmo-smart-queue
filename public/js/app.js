@@ -2598,7 +2598,16 @@ async function sendPreEventReminders() {
 // -------------------------------------------------------------
 let peerSwapMembersCache = [];
 
-async function openPeerSwapModal() {
+async function openPeerSwapModal(forcedRole) {
+  const roleToLoad = forcedRole || currentQueueRole || 'DIRECTOR';
+  const roleSelect = document.getElementById('swap-role-type');
+  if (roleSelect) roleSelect.value = roleToLoad;
+
+  await changePeerSwapRole(roleToLoad);
+  openModal('modal-peer-swap');
+}
+
+async function changePeerSwapRole(roleType) {
   const select1 = document.getElementById('swap-person-1');
   const select2 = document.getElementById('swap-person-2');
   const reasonInput = document.getElementById('swap-reason');
@@ -2607,10 +2616,8 @@ async function openPeerSwapModal() {
   if (select1) select1.innerHTML = '<option value="">-- กำลังโหลดรายชื่อ... --</option>';
   if (select2) select2.innerHTML = '<option value="">-- กรุณาเลือกคนแรกก่อน --</option>';
 
-  openModal('modal-peer-swap');
-
   try {
-    const res = await fetch(`/api/queue/${currentQueueRole}`);
+    const res = await fetch(`/api/queue/${roleType}`);
     const result = await res.json();
 
     if (!result.success) {
@@ -2630,13 +2637,13 @@ async function openPeerSwapModal() {
       optionsHtml += `<option value="${m.personnel_id}">[${m.emp_code}] ${m.name} (คิวที่ #${m.queue_order})</option>`;
     });
 
-
     if (select1) select1.innerHTML = optionsHtml;
   } catch (err) {
     console.error('Error loading peer swap members:', err);
     showToast('เกิดข้อผิดพลาดในการโหลดรายชื่อคิว', 'danger');
   }
 }
+
 
 function filterPeerSwapTargets() {
   const select1 = document.getElementById('swap-person-1');
@@ -2688,8 +2695,10 @@ async function executePeerSwap() {
     if (result.success) {
       closeModal('modal-peer-swap');
       showToast(result.message || 'สลับลำดับคิวสำเร็จเรียบร้อยแล้ว', 'success');
-      loadQueueView(currentQueueRole);
+      const selectedRole = document.getElementById('swap-role-type')?.value || currentQueueRole;
+      loadQueueView(selectedRole);
     } else {
+
       showToast(result.error || 'เกิดข้อผิดพลาดในการสลับคิว', 'danger');
     }
   } catch (err) {
