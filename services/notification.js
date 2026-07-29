@@ -392,34 +392,31 @@ function createPersonalizedFlexCard(
             spacing: 'xs',
 
             contents: [
-              // แสดงหัวหน้าคณะเฉพาะเมื่อมีข้อมูล
-              ...((person.team_leader_name || teamLeaderName !== '-')
-                ? [
-                    {
-                      type: 'box',
-                      layout: 'baseline',
-                      spacing: 'sm',
-                      contents: [
-                        {
-                          type: 'text',
-                          text: '👔 หัวหน้าคณะ:',
-                          color: '#64748b',
-                          size: 'xs',
-                          flex: 2
-                        },
-                        {
-                          type: 'text',
-                          text: person.team_leader_name || teamLeaderName || '-',
-                          color: '#1e293b',
-                          size: 'xs',
-                          flex: 5,
-                          wrap: true,
-                          weight: 'bold'
-                        }
-                      ]
-                    }
-                  ]
-                : []),
+              // บังคับแสดงหัวหน้าคณะเป็นบรรทัดแรกก่อนสถานที่เสมอ
+              {
+                type: 'box',
+                layout: 'baseline',
+                spacing: 'sm',
+                contents: [
+                  {
+                    type: 'text',
+                    text: '👔 หัวหน้าคณะ:',
+                    color: '#64748b',
+                    size: 'xs',
+                    flex: 2
+                  },
+                  {
+                    type: 'text',
+                    text: person.team_leader_name || teamLeaderName || '-',
+                    color: '#1e293b',
+                    size: 'xs',
+                    flex: 5,
+                    wrap: true,
+                    weight: 'bold'
+                  }
+                ]
+              },
+
 
 
               {
@@ -644,17 +641,32 @@ async function sendMissionNotification(mission, assignedList, isReallocation = f
         Number(a.is_leader) !== 1
     );
 
-    const teamLeader =
+    let teamLeader =
       directors.find(item => Number(item.is_leader) === 1) ||
       directors[0] ||
       null;
 
-    const teamLeaderName =
-      teamLeader?.name ||
-      teamLeader?.person_name ||
-      assignedList.find(item => item?.team_leader_name)
-        ?.team_leader_name ||
-      '-';
+    if (!teamLeader && mission?.id) {
+      try {
+        const { dbGet } = require('../db/database');
+        const leaderInDb = await dbGet(`
+          SELECT p.name, p.position, p.department, p.emp_code, ma.is_leader, ma.role_type
+          FROM mission_assignments ma
+          JOIN personnel p ON p.id = ma.personnel_id
+          WHERE ma.mission_id = ? AND (ma.is_leader = 1 OR UPPER(ma.role_type) = 'DIRECTOR')
+          ORDER BY ma.is_leader DESC, p.id ASC LIMIT 1;
+        `, [mission.id]);
+
+        if (leaderInDb) {
+          teamLeader = leaderInDb;
+        }
+      } catch (e) {
+        console.error('Error fetching team leader from DB:', e);
+      }
+    }
+
+    const teamLeaderName = formatLeaderTitle(teamLeader);
+
 
     const timeStr = `${formatDate24h(mission.start_date)} - ${formatDate24h(mission.end_date)}`;
     const lineHeader = isReallocation ? '🚨 [แจ้งเตือนจัดสรรแทนด่วน]' : '📢 [คำสั่งจัดสรรกิจกรรม อสป.]';
