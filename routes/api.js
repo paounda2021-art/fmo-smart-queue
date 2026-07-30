@@ -15,13 +15,14 @@ router.post('/login', async (req, res) => {
     const cleanUser = String(username).trim();
     const cleanUserUpper = cleanUser.toUpperCase();
 
-    // ค้นหาจาก emp_code หรือ email
+    // ค้นหาจาก emp_code, email เต็ม, หรือ username หน้า @ (รองรับ amornrat.k, EMP-062)
     const user = await dbGet(`
       SELECT * FROM personnel 
       WHERE UPPER(emp_code) = ? 
          OR UPPER(email) = ? 
          OR UPPER(email) LIKE ?
-    `, [cleanUserUpper, cleanUserUpper, `${cleanUserUpper}@%`]);
+         OR UPPER(email) LIKE ?
+    `, [cleanUserUpper, cleanUserUpper, `${cleanUserUpper}@%`, `%${cleanUserUpper}%`]);
 
     if (!user) {
       return res.status(401).json({ success: false, error: 'ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง' });
