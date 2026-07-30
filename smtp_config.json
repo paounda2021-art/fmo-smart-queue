@@ -1,0 +1,8 @@
+{
+  "smtpServer": "smtp.gmail.com",
+  "port": 587,
+  "enableSsl": true,
+  "username": "ranida.c@fishmarket.co.th",
+  "password": "",
+  "from": "FMO Smart Queue <ranida.c@fishmarket.co.th>"
+}

@@ -36,15 +36,15 @@ function sendEmailViaPowerShell({ to, subject, html }) {
   return new Promise((resolve) => {
     const fs = require('fs');
     const path = require('path');
+    const rootDir = path.resolve(__dirname, '..');
 
     const payload = JSON.stringify({
       to: to || '',
       subject: subject || '',
-      body: html || '',
-      from: process.env.SMTP_FROM || 'carbooking@workd.go.th'
+      body: html || ''
     });
 
-    const scratchDir = path.join(__dirname, '../scratch');
+    const scratchDir = path.join(rootDir, 'scratch');
     if (!fs.existsSync(scratchDir)) {
       fs.mkdirSync(scratchDir, { recursive: true });
     }
@@ -57,26 +57,42 @@ function sendEmailViaPowerShell({ to, subject, html }) {
 
     const escapedJsonFile = jsonFile.replace(/\\/g, '\\\\');
     const escapedPsFile = psFile.replace(/\\/g, '\\\\');
+    const escapedRootDir = rootDir.replace(/\\/g, '\\\\');
 
     const psContent = `
       try {
         $jsonText = Get-Content -Path "${escapedJsonFile}" -Raw -Encoding UTF8
         $emailData = ConvertFrom-Json $jsonText
-        $mail = New-Object System.Net.Mail.MailMessage
-        $fromAddr = if ($emailData.from) { $emailData.from } else { "carbooking@workd.go.th" }
-        $mail.From = New-Object System.Net.Mail.MailAddress($fromAddr)
-        $emailData.to.Split(',') | ForEach-Object { if ($_.Trim()) { $mail.To.Add($_.Trim()) } }
-        $mail.Subject = $emailData.subject
-        $mail.Body = $emailData.body
-        $mail.IsBodyHtml = $true
-        $mail.BodyEncoding = [System.Text.Encoding]::UTF8
-        $mail.SubjectEncoding = [System.Text.Encoding]::UTF8
+        $configPath = Join-Path "${escapedRootDir}" "smtp_config.json"
+        
+        if (Test-Path $configPath) {
+          $cfg = Get-Content $configPath -Raw -Encoding UTF8 | ConvertFrom-Json
+          $mail = New-Object System.Net.Mail.MailMessage
+          $fromAddr = if ($cfg.from) { $cfg.from } else { "carbooking@workd.go.th" }
+          $mail.From = New-Object System.Net.Mail.MailAddress($fromAddr)
+          $emailData.to.Split(',') | ForEach-Object { if ($_.Trim()) { $mail.To.Add($_.Trim()) } }
+          $mail.Subject = $emailData.subject
+          $mail.Body = $emailData.body
+          $mail.IsBodyHtml = $true
+          $mail.BodyEncoding = [System.Text.Encoding]::UTF8
+          $mail.SubjectEncoding = [System.Text.Encoding]::UTF8
 
-        $smtp = New-Object System.Net.Mail.SmtpClient("localhost", 25)
-        $smtp.Timeout = 10000
-        $smtp.Send($mail)
-        $mail.Dispose()
-        $smtp.Dispose()
+          $smtp = New-Object System.Net.Mail.SmtpClient($cfg.smtpServer, $cfg.port)
+          if ($cfg.enableSsl -ne $null) { $smtp.EnableSsl = [bool]$cfg.enableSsl }
+          $smtp.Timeout = 10000
+
+          if ($cfg.username -and $cfg.password) {
+            $smtp.UseDefaultCredentials = $false
+            $smtp.Credentials = New-Object System.Net.NetworkCredential($cfg.username, $cfg.password)
+          } else {
+            $smtp.UseDefaultCredentials = $false
+            $smtp.Credentials = $null
+          }
+
+          $smtp.Send($mail)
+          $mail.Dispose()
+          $smtp.Dispose()
+        }
       } catch {
         Write-Host "Error sending email: $_"
       } finally {
@@ -91,12 +107,13 @@ function sendEmailViaPowerShell({ to, subject, html }) {
       if (err) {
         console.error('❌ Failed to send email via PowerShell script:', err.message);
       } else {
-        console.log(`✅ Queued email via PowerShell script to: ${to}`);
+        console.log(`✅ Queued email via PowerShell (car-booking pattern) to: ${to}`);
       }
       resolve();
     });
   });
 }
+
 
 
 
