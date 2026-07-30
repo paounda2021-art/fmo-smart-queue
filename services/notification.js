@@ -828,12 +828,23 @@ async function sendMissionNotification(mission, assignedList, isReallocation = f
       VALUES (?, NULL, 'LINE_GROUP', 'กลุ่มไลน์แจ้งเตือนภารกิจ อสป. (FMO Line Flex Card Group)', ?, ?, ?)
     `, [mission.id, `${lineHeader} ${mission.mission_title}`, flexCardJson, groupSendStatus]);
 
-    // 2. DISPATCH INDIVIDUAL EMAIL NOTIFICATIONS
-    const mailTransporter = createMailTransporter();
-
+    // 2. DISPATCH INDIVIDUAL EMAIL NOTIFICATIONS (เฉพาะผู้ที่ยังไม่ได้ผูก LINE และมี EMAIL ในฐานข้อมูลจริงเท่านั้น)
     for (const person of assignedList) {
-      const recipientEmail = person.email || (person.emp_code ? `${person.emp_code.toLowerCase()}@fishmarket.co.th` : null);
-      if (!recipientEmail) continue;
+      const targetLineId = String(person.line_user_id || '').trim();
+      const hasLine = targetLineId && targetLineId.startsWith('U');
+
+      // 💡 หากบุคลากรผูก LINE แล้ว ➔ ระบบจะส่ง LINE Flex Card การ์ดสีฟ้าเป็นหลัก และข้ามการส่งอีเมลซ้ำ
+      if (hasLine) {
+        console.log(`ℹ️ ${person.name} (${person.emp_code || '-'}) ผูก LINE เรียบร้อยแล้ว จึงแจ้งเตือนผ่าน LINE การ์ดฟ้าเป็นหลัก และข้ามการส่งอีเมลซ้ำ`);
+        continue;
+      }
+
+      // 💡 หากยังไม่ได้ผูก LINE ➔ ตรวจสอบที่อยู่อีเมลจริงในฐานข้อมูลเท่านั้น (ไม่สุ่มสร้างขึ้นมาเอง)
+      const recipientEmail = String(person.email || '').trim();
+      if (!recipientEmail || recipientEmail === 'null' || !recipientEmail.includes('@')) {
+        console.log(`ℹ️ ${person.name} (${person.emp_code || '-'}) ยังไม่ได้ผูก LINE และไม่มีที่อยู่อีเมลในระบบ จึงข้ามการส่งอีเมลส่วนตัว`);
+        continue;
+      }
 
       const emailSubject = `[FMO Smart Queue] ${isReallocation ? 'แจ้งเตือนจัดสรรแทนด่วน' : 'แจ้งเตือนคำสั่งจัดสรรคิวกิจกรรม'}: ${mission.mission_title}`;
       
@@ -877,6 +888,7 @@ async function sendMissionNotification(mission, assignedList, isReallocation = f
         VALUES (?, ?, 'EMAIL', ?, ?, ?, ?)
       `, [mission.id, person.personnel_id || person.id, recipientEmail, emailSubject, emailBody, mailStatus]);
     }
+
 
 
     // 3. DISPATCH LINE PUSH MESSAGES TO ASSIGNED PERSONNEL
