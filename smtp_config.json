@@ -1,8 +1,8 @@
 {
-  "smtpServer": "mail.workd.go.th",
-  "port": 25,
+  "smtpServer": "webmail.workd.go.th",
+  "port": 587,
   "enableSsl": false,
-  "username": "",
-  "password": "",
-  "from": "FMO Smart Queue <carbooking@workd.go.th>"
+  "username": "ranida.c@fishmarket.co.th",
+  "password": "iDa010758@",
+  "from": "FMO Smart Queue <ranida.c@fishmarket.co.th>"
 }
