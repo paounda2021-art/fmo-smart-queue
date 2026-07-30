@@ -73,18 +73,17 @@ function applyMenuPermissions(userObj = null) {
 
   if (!user) return;
 
-  let perms = [];
-  const roleUpper = String(user.role || user.role_type || '').toUpperCase();
-  const isAdmin = roleUpper === 'ADMIN' || user.role === 'admin';
+  const codeUpper = String(user.empCode || user.emp_code || user.username || '').trim().toUpperCase();
 
-  if (isAdmin) {
-    // Admin ได้สิทธิ์ครบทุกเมนู
+  // 👑 บัญชี Super Admin หลัก (ADMIN) ได้รับครบทุกเมนู
+  if (codeUpper === 'ADMIN') {
     document.querySelectorAll('.nav-btn[data-menu]').forEach(btn => {
       btn.style.display = 'inline-flex';
     });
     return;
   }
 
+  let perms = [];
   try {
     perms = typeof user.menu_permissions === 'string'
       ? JSON.parse(user.menu_permissions)
@@ -96,7 +95,7 @@ function applyMenuPermissions(userObj = null) {
     perms = ['quick', 'queue'];
   }
 
-  // ควบคุมการแสดงผลของปุ่มเมนูกดบน Navbar ทันที 0ms
+  // ควบคุมการแสดงผลของปุ่มเมนูกดบน Navbar ให้ตรงกับสิทธิ์ที่กำหนดไว้จริง 100%
   document.querySelectorAll('.nav-btn[data-menu]').forEach(btn => {
     const menuKey = btn.getAttribute('data-menu');
     if (perms.includes(menuKey)) {
@@ -115,6 +114,7 @@ function applyMenuPermissions(userObj = null) {
     }
   }
 }
+
 
 
 function renderUserBadge() {
