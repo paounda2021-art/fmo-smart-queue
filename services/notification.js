@@ -814,33 +814,17 @@ async function sendMissionNotification(mission, assignedList, isReallocation = f
       `;
 
       let mailStatus = 'SENT';
-      if (mailTransporter) {
-        try {
-          await mailTransporter.sendMail({
-            from: process.env.SMTP_FROM || `"FMO Smart Queue" <${process.env.SMTP_USER}>`,
-            to: recipientEmail,
-            subject: emailSubject,
-            html: emailBody
-          });
-          console.log(`✅ ส่งอีเมลแจ้งเตือนไปยัง ${person.name} (${recipientEmail}) สำเร็จ`);
-        } catch (mailErr) {
-          console.error(`❌ ส่งอีเมลไปยัง ${person.name} ไม่สำเร็จ:`, mailErr.message);
-          mailStatus = 'FAILED';
-        }
-      } else {
-        try {
-          await sendEmailViaPowerShell({
-            to: recipientEmail,
-            subject: emailSubject,
-            html: emailBody
-          });
-          console.log(`✅ ส่งอีเมลแจ้งเตือนผ่าน Windows Mail Relay ไปยัง ${person.name} (${recipientEmail}) สำเร็จ`);
-        } catch (psErr) {
-          console.error(`❌ ส่งอีเมลผ่าน Windows Mail Relay ไม่สำเร็จ:`, psErr.message);
-          mailStatus = 'FAILED';
-        }
+      try {
+        await sendEmailViaPowerShell({
+          to: recipientEmail,
+          subject: emailSubject,
+          html: emailBody
+        });
+        console.log(`✅ ส่งอีเมลแจ้งเตือนผ่าน Windows Mail Relay ไปยัง ${person.name} (${recipientEmail}) สำเร็จ`);
+      } catch (psErr) {
+        console.error(`❌ ส่งอีเมลไปยัง ${person.name} ไม่สำเร็จ:`, psErr.message);
+        mailStatus = 'FAILED';
       }
-
 
       await dbRun(`
         INSERT INTO notification_logs (mission_id, personnel_id, channel, recipient, subject_title, content_body, status)
@@ -861,10 +845,11 @@ async function sendMissionNotification(mission, assignedList, isReallocation = f
       if (!lineToken) continue;
 
       const targetLineId = String(person.line_user_id || '').trim();
-      if (!targetLineId || targetLineId.toLowerCase() === 'email') {
-        console.log(`ℹ️ ${person.name} (${person.emp_code || '-'}) กำหนดช่องทางแจ้งเตือนเป็นอีเมล (email) จึงข้ามการส่ง LINE ให้คนนี้`);
+      if (!targetLineId || !targetLineId.startsWith('U')) {
+        console.log(`ℹ️ ${person.name} (${person.emp_code || '-'}) ยังไม่ได้ผูก LINE User ID จึงข้ามการส่ง Push ส่วนตัวให้คนนี้`);
         continue;
       }
+
 
       // ดึงชื่อคนที่ถูกแทนถ้าไม่มี substitute_for_name
       let substituteForName = person.substitute_for_name || null;
