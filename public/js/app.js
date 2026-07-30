@@ -2455,19 +2455,21 @@ function togglePermissionChecklist(roleType) {
   if (roleType === 'ADMIN') {
     checkboxes.forEach(cb => { cb.checked = true; cb.disabled = true; });
     if (selectAllCb) { selectAllCb.checked = true; selectAllCb.disabled = true; }
-  } else if (roleType === 'OPERATOR') {
-    checkboxes.forEach(cb => { cb.disabled = false; });
-    if (selectAllCb) selectAllCb.disabled = false;
-    updateSelectAllState();
   } else {
-    checkboxes.forEach(cb => { 
-      cb.disabled = false;
-      cb.checked = ['queue', 'calendar'].includes(cb.value); 
+    // 💡 เฉพาะแอดมินระบบ (ADMIN) เท่านั้นที่สามารถใช้งานเมนูจัดการผู้ใช้งานได้
+    checkboxes.forEach(cb => {
+      if (cb.value === 'user-management') {
+        cb.checked = false;
+        cb.disabled = true;
+      } else {
+        cb.disabled = false;
+      }
     });
     if (selectAllCb) selectAllCb.disabled = false;
     updateSelectAllState();
   }
 }
+
 
 
 function openUserModal(userId = null) {
