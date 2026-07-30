@@ -8,55 +8,10 @@ const APP_BASE_URL = process.env.APP_BASE_URL || 'https://fmo-smart-queue.fishma
 
 const { exec } = require('child_process');
 
-function createMailTransporter() {
-  const host = process.env.SMTP_HOST;
-  const port = Number(process.env.SMTP_PORT || 587);
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
+// Email dispatcher disabled by design - relying 100% on LINE OA Flex Cards
+async function sendEmailNotification() { return false; }
+function sendEmailViaPowerShell() { return Promise.resolve(); }
 
-  if (!host || !user) {
-    return null;
-  }
-
-  return nodemailer.createTransport({
-    host,
-    port,
-    secure: port === 465,
-    auth: {
-      user,
-      pass
-    },
-    tls: {
-      rejectUnauthorized: false
-    }
-  });
-}
-
-async function sendEmailNotification({ to, subject, html }) {
-  if (!to || !to.includes('@')) return false;
-
-  try {
-    const transporter = createMailTransporter();
-    if (transporter) {
-      await transporter.sendMail({
-        from: `"${process.env.SMTP_FROM_NAME || 'FMO Smart Queue'}" <${process.env.SMTP_USER || 'carbooking@workd.go.th'}>`,
-        to,
-        subject,
-        html
-      });
-      console.log(`✅ ส่งอีเมลแจ้งเตือนสำเร็จไปยัง: ${to}`);
-      return true;
-    }
-  } catch (err) {
-    console.error(`❌ Email Dispatch Error (${to}):`, err.message);
-  }
-  return false;
-}
-
-function sendEmailViaPowerShell({ to, subject, html }) {
-  // 🚀 ส่งอีเมลเบื้องหลังด้วย Pure Node.js โดยไม่เรียก cmd.exe หรือ PowerShell ภายนอก ไม่เด้งหน้าต่างดำบนหน้าจอ 100%
-  return sendEmailNotification({ to, subject, html });
-}
 
 
 
@@ -849,67 +804,8 @@ async function sendMissionNotification(mission, assignedList, isReallocation = f
     }
 
 
-    // 3. DISPATCH INDIVIDUAL EMAIL NOTIFICATIONS (เฉพาะผู้ที่ยังไม่ได้ผูก LINE เท่านั้น และส่งหลังจบ LINE 100%)
-    for (const person of assignedList) {
-      const targetLineId = String(person.line_user_id || '').trim();
-      const hasLine = targetLineId && targetLineId.startsWith('U');
-
-      // 💡 หากบุคลากรผูก LINE แล้ว ➔ ข้ามการส่งอีเมลซ้ำเด็ดขาด!
-      if (hasLine) {
-        continue;
-      }
-
-      // 💡 หากยังไม่ได้ผูก LINE ➔ ตรวจสอบที่อยู่อีเมลจริงในฐานข้อมูลเท่านั้น
-      const recipientEmail = String(person.email || '').trim();
-      if (!recipientEmail || recipientEmail === 'null' || !recipientEmail.includes('@')) {
-        console.log(`ℹ️ ${person.name} (${person.emp_code || '-'}) ยังไม่ได้ผูก LINE และไม่มีที่อยู่อีเมลในระบบ จึงข้ามการส่งอีเมลส่วนตัว`);
-        continue;
-      }
-
-      const emailSubject = `[FMO Smart Queue] ${isReallocation ? 'แจ้งเตือนจัดสรรแทนด่วน' : 'แจ้งเตือนคำสั่งจัดสรรคิวกิจกรรม'}: ${mission.mission_title}`;
-      
-      const emailBody = `
-        <div style="font-family: 'Sarabun', sans-serif; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; max-width: 600px;">
-          <h2 style="color: #0284c7;">📢 แจ้งคำสั่งจัดสรรคิวกิจกรรม อสป.</h2>
-          <p>เรียน: <strong>${person.name}</strong> (${person.position || '-'} - ${person.department || '-'})</p>
-          <p>ท่านได้รับการจัดสรรตามลำดับคิว Smart Queue ให้ปฏิบัติกิจกรรมดังนี้:</p>
-          
-          <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin: 15px 0;">
-            <p style="margin: 4px 0;"><strong>กิจกรรม:</strong> ${mission.mission_title}</p>
-            <p style="margin: 4px 0;"><strong>สถานที่:</strong> ${mission.location || '-'}</p>
-            <p style="margin: 4px 0;"><strong>ช่วงเวลา (24 ชม.):</strong> ${timeStr}</p>
-            <p style="margin: 4px 0;"><strong>การแต่งกาย:</strong> ${mission.dress_code || 'ชุดปฏิบัติงาน อสป.'}</p>
-          </div>
-
-          <p style="color: #d97706;"><strong>⏰ ข้อปฏิบัติตน:</strong> กรุณามาถึงสถานที่ปฏิบัติงานก่อนเวลาเริ่มอย่างน้อย 30 นาที</p>
-          
-          <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #e2e8f0;">
-            <p>กรุณากดตอบรับสถานะเข้าร่วมกิจกรรม:</p>
-            <a href="${APP_BASE_URL}" style="background: #10b981; color: white; padding: 10px 18px; border-radius: 6px; text-decoration: none; font-weight: bold; margin-right: 10px;">🟢 กดรับทราบ</a>
-          </div>
-        </div>
-      `;
-
-      let mailStatus = 'SENT';
-      try {
-        await sendEmailViaPowerShell({
-          to: recipientEmail,
-          subject: emailSubject,
-          html: emailBody
-        });
-        console.log(`✅ ส่งอีเมลแจ้งเตือนไปยัง ${person.name} (${recipientEmail}) สำเร็จ`);
-      } catch (psErr) {
-        console.error(`❌ ส่งอีเมลไปยัง ${person.name} ไม่สำเร็จ:`, psErr.message);
-        mailStatus = 'FAILED';
-      }
-
-      await dbRun(`
-        INSERT INTO notification_logs (mission_id, personnel_id, channel, recipient, subject_title, content_body, status)
-        VALUES (?, ?, 'EMAIL', ?, ?, ?, ?)
-      `, [mission.id, person.personnel_id || person.id, recipientEmail, emailSubject, emailBody, mailStatus]);
-    }
-
     return true;
+
 
 
   } catch (err) {
