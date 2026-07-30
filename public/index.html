@@ -19,7 +19,8 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script src="/vendor/fullcalendar.min.js"></script>
 
-  <link rel="stylesheet" href="/css/styles.css?v=1.0.6">
+  <link rel="stylesheet" href="/css/styles.css?v=1.0.7">
+
 
 
 
@@ -144,7 +145,7 @@
               <div class="grid-2">
                 <div class="form-group">
                   <label style="font-size: 0.85rem;"><i class="fa-solid fa-calendar-day text-emerald"></i> วันเวลาเริ่มต้น (เวลา 24 ชม.) *</label>
-                  <div style="display: flex; gap: 6px;">
+                  <div class="datetime-picker-group" style="display: flex; gap: 6px;">
                     <input type="date" id="alloc-start-date" class="form-control" required onchange="autoFetchOnNumberChange()">
                     <select id="alloc-start-time" class="form-control" style="width: 110px; font-weight: 600; text-align: center;" onchange="autoFetchOnNumberChange()"></select>
                   </div>
@@ -152,12 +153,13 @@
 
                 <div class="form-group">
                   <label style="font-size: 0.85rem;"><i class="fa-solid fa-calendar-check text-emerald"></i> วันเวลาสิ้นสุด (เวลา 24 ชม.) *</label>
-                  <div style="display: flex; gap: 6px;">
+                  <div class="datetime-picker-group" style="display: flex; gap: 6px;">
                     <input type="date" id="alloc-end-date" class="form-control" required>
                     <select id="alloc-end-time" class="form-control" style="width: 110px; font-weight: 600; text-align: center;"></select>
                   </div>
                 </div>
               </div>
+
 
               <div class="form-group" style="margin-bottom: 0;">
                 <label style="font-size: 0.85rem;"><i class="fa-solid fa-align-left text-muted"></i> รายละเอียดกำหนดการ (ถ้ามี)</label>
@@ -1075,7 +1077,8 @@
     </div>
   </div>
 
-  <script src="/js/app.js?v=1.0.6"></script>
+  <script src="/js/app.js?v=1.0.7"></script>
+
 
 
 
