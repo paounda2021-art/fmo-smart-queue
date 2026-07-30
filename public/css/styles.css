@@ -920,4 +920,84 @@ body.light-mode .modal-box {
   .hide-on-mobile {
     display: none !important;
   }
-}
+
+  .navbar-top {
+    padding: 0.5rem 0.75rem !important;
+    gap: 8px !important;
+  }
+
+  .brand-logo {
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  .brand-text h1 {
+    font-size: 1.05rem !important;
+  }
+
+  .brand-sub {
+    font-size: 0.72rem !important;
+  }
+
+  .navbar-actions {
+    padding: 4px 8px !important;
+    gap: 6px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .user-badge-box {
+    padding: 3px 8px !important;
+    border-radius: 10px !important;
+    font-size: 0.75rem !important;
+    flex: 1 !important;
+    min-width: 0 !important;
+  }
+
+  .user-name {
+    font-size: 0.76rem !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .user-meta {
+    font-size: 0.65rem !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .theme-toggle-btn {
+    width: 34px !important;
+    height: 34px !important;
+    font-size: 0.9rem !important;
+    flex-shrink: 0 !important;
+  }
+
+  .navbar-nav {
+    padding: 4px 2px !important;
+    gap: 4px !important;
+  }
+
+  .nav-btn {
+    padding: 0.45rem 0.75rem !important;
+    font-size: 0.8rem !important;
+    border-radius: 8px !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* Queue Action Bar Buttons Responsiveness */
+  #view-queue .glass-card > div[style*="display: flex"],
+  #view-queue .queue-action-buttons {
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+
+  #view-queue .btn {
+    font-size: 0.78rem !important;
+    padding: 0.45rem 0.7rem !important;
+    border-radius: 8px !important;
+  }
+}
+
