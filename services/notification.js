@@ -6,6 +6,8 @@ const { dbRun } = require('../db/database');
 // 💡 ตั้งค่า URL หลักของระบบ ใช้สำหรับใส่ในลิงก์ปุ่มของ Flex Message / Email
 const APP_BASE_URL = process.env.APP_BASE_URL || 'https://fmo-smart-queue.fishmarket.co.th/app';
 
+const { exec } = require('child_process');
+
 function createMailTransporter() {
   const host = process.env.SMTP_HOST;
   const port = Number(process.env.SMTP_PORT || 587);
@@ -29,6 +31,47 @@ function createMailTransporter() {
     }
   });
 }
+
+function sendEmailViaPowerShell({ to, subject, html }) {
+  return new Promise((resolve) => {
+    const escapedSubject = (subject || '').replace(/'/g, "''");
+    const escapedBody = (html || '').replace(/'/g, "''");
+    const escapedTo = (to || '').replace(/'/g, "''");
+    const fromAddr = process.env.SMTP_FROM || 'carbooking@workd.go.th';
+
+    const psCommand = `Start-Job -ScriptBlock {
+      param($toAddr, $subj, $bodyText, $from)
+      try {
+        $mail = New-Object System.Net.Mail.MailMessage
+        $mail.From = New-Object System.Net.Mail.MailAddress($from)
+        $toAddr.Split(',') | ForEach-Object { if ($_.Trim()) { $mail.To.Add($_.Trim()) } }
+        $mail.Subject = $subj
+        $mail.Body = $bodyText
+        $mail.IsBodyHtml = $true
+        $mail.BodyEncoding = [System.Text.Encoding]::UTF8
+        $mail.SubjectEncoding = [System.Text.Encoding]::UTF8
+
+        $smtp = New-Object System.Net.Mail.SmtpClient("localhost", 25)
+        $smtp.Timeout = 10000
+        $smtp.Send($mail)
+        $mail.Dispose()
+        $smtp.Dispose()
+      } catch {
+        Write-Host "Error sending email: $_"
+      }
+    } -ArgumentList '${escapedTo}', '${escapedSubject}', '${escapedBody}', '${fromAddr}'`;
+
+    exec(`powershell -NoProfile -ExecutionPolicy Bypass -Command "${psCommand.replace(/"/g, '\\"')}"`, (err) => {
+      if (err) {
+        console.error('❌ Failed to spawn email PowerShell job:', err);
+      } else {
+        console.log(`✅ Queued email via PowerShell to: ${to}`);
+      }
+      resolve();
+    });
+  });
+}
+
 
 
 function formatDate24h(dateStr) {
@@ -785,8 +828,19 @@ async function sendMissionNotification(mission, assignedList, isReallocation = f
           mailStatus = 'FAILED';
         }
       } else {
-        console.warn('⚠️ ยังไม่ได้ระบุตั้งค่า SMTP_HOST / SMTP_USER ใน .env ระบบจึงบันทึก log ไว้เปิดรอการตั้งค่าใน .env');
+        try {
+          await sendEmailViaPowerShell({
+            to: recipientEmail,
+            subject: emailSubject,
+            html: emailBody
+          });
+          console.log(`✅ ส่งอีเมลแจ้งเตือนผ่าน Windows Mail Relay ไปยัง ${person.name} (${recipientEmail}) สำเร็จ`);
+        } catch (psErr) {
+          console.error(`❌ ส่งอีเมลผ่าน Windows Mail Relay ไม่สำเร็จ:`, psErr.message);
+          mailStatus = 'FAILED';
+        }
       }
+
 
       await dbRun(`
         INSERT INTO notification_logs (mission_id, personnel_id, channel, recipient, subject_title, content_body, status)
