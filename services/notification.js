@@ -774,18 +774,92 @@ async function sendMissionNotification(mission, assignedList, isReallocation = f
       VALUES (?, NULL, 'LINE_GROUP', 'กลุ่มไลน์แจ้งเตือนภารกิจ อสป. (FMO Line Flex Card Group)', ?, ?, ?)
     `, [mission.id, `${lineHeader} ${mission.mission_title}`, flexCardJson, groupSendStatus]);
 
-    // 2. DISPATCH INDIVIDUAL EMAIL NOTIFICATIONS (เฉพาะผู้ที่ยังไม่ได้ผูก LINE และมี EMAIL ในฐานข้อมูลจริงเท่านั้น)
+    // 2. DISPATCH LINE PUSH FLEX CARDS TO ASSIGNED PERSONNEL (ส่ง LINE เป็นอันดับแรกสุดเสมอ!)
+    const lineToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+
+    if (!lineToken) {
+      console.warn('⚠️ ไม่ได้ตั้งค่า LINE_CHANNEL_ACCESS_TOKEN ใน .env ระบบจะไม่ส่ง LINE push message ให้ใครเลย');
+    }
+
+    for (const person of assignedList) {
+      if (!lineToken) continue;
+
+      const targetLineId = String(person.line_user_id || '').trim();
+      if (!targetLineId || !targetLineId.startsWith('U')) {
+        console.log(`ℹ️ ${person.name} (${person.emp_code || '-'}) ยังไม่ได้ผูก LINE User ID จึงข้ามการส่ง Push ส่วนตัวให้คนนี้`);
+        continue;
+      }
+
+      // ดึงชื่อคนที่ถูกแทนถ้าไม่มี substitute_for_name
+      let substituteForName = person.substitute_for_name || null;
+      if (!substituteForName && isReallocation && mission?.id && (person.personnel_id || person.id)) {
+        try {
+          const { dbGet } = require('../db/database');
+          const subRecord = await dbGet(`
+            SELECT orig_p.name AS orig_name
+            FROM mission_assignments ma
+            JOIN personnel orig_p ON orig_p.id = ma.substituted_for_personnel_id
+            WHERE ma.mission_id = ? AND ma.personnel_id = ? AND ma.substituted_for_personnel_id IS NOT NULL;
+          `, [mission.id, person.personnel_id || person.id]);
+
+          if (subRecord && subRecord.orig_name) {
+            substituteForName = subRecord.orig_name;
+          }
+        } catch (e) {
+          console.error('Error fetching substitute_for_name:', e);
+        }
+      }
+
+      const personWithSubName = {
+        ...person,
+        substitute_for_name: substituteForName || person.substitute_for_name || '-'
+      };
+
+      // สร้าง Flex Card เฉพาะบุคคล พร้อมปุ่ม postback (ACK|missionId|personnelId)
+      const personalCard = createPersonalizedFlexCard(
+        mission,
+        personWithSubName,
+        isReallocation,
+        allDirectors
+      );
+
+      try {
+        await axios.post('https://api.line.me/v2/bot/message/push', {
+          to: person.line_user_id,
+          messages: [personalCard]
+        }, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${lineToken}`
+          }
+        });
+        console.log(`✅ ส่ง LINE Flex Card ให้ ${person.name} สำเร็จ (isReallocation = ${isReallocation})`);
+
+        await dbRun(`
+          INSERT INTO notification_logs (mission_id, personnel_id, channel, recipient, subject_title, content_body, status)
+          VALUES (?, ?, 'LINE', ?, ?, ?, 'SENT')
+        `, [mission.id, person.personnel_id || person.id, person.name, `${lineHeader} ${mission.mission_title}`, JSON.stringify(personalCard)]);
+      } catch (lineError) {
+        console.error(`❌ ส่ง LINE ให้ ${person.name} ไม่สำเร็จ:`, lineError.response?.data || lineError.message);
+        await dbRun(`
+          INSERT INTO notification_logs (mission_id, personnel_id, channel, recipient, subject_title, content_body, status)
+          VALUES (?, ?, 'LINE', ?, ?, ?, 'FAILED')
+        `, [mission.id, person.personnel_id || person.id, person.name, `${lineHeader} ${mission.mission_title}`, lineError.message]);
+      }
+    }
+
+
+    // 3. DISPATCH INDIVIDUAL EMAIL NOTIFICATIONS (เฉพาะผู้ที่ยังไม่ได้ผูก LINE เท่านั้น และส่งหลังจบ LINE 100%)
     for (const person of assignedList) {
       const targetLineId = String(person.line_user_id || '').trim();
       const hasLine = targetLineId && targetLineId.startsWith('U');
 
-      // 💡 หากบุคลากรผูก LINE แล้ว ➔ ระบบจะส่ง LINE Flex Card การ์ดสีฟ้าเป็นหลัก และข้ามการส่งอีเมลซ้ำ
+      // 💡 หากบุคลากรผูก LINE แล้ว ➔ ข้ามการส่งอีเมลซ้ำเด็ดขาด!
       if (hasLine) {
-        console.log(`ℹ️ ${person.name} (${person.emp_code || '-'}) ผูก LINE เรียบร้อยแล้ว จึงแจ้งเตือนผ่าน LINE การ์ดฟ้าเป็นหลัก และข้ามการส่งอีเมลซ้ำ`);
         continue;
       }
 
-      // 💡 หากยังไม่ได้ผูก LINE ➔ ตรวจสอบที่อยู่อีเมลจริงในฐานข้อมูลเท่านั้น (ไม่สุ่มสร้างขึ้นมาเอง)
+      // 💡 หากยังไม่ได้ผูก LINE ➔ ตรวจสอบที่อยู่อีเมลจริงในฐานข้อมูลเท่านั้น
       const recipientEmail = String(person.email || '').trim();
       if (!recipientEmail || recipientEmail === 'null' || !recipientEmail.includes('@')) {
         console.log(`ℹ️ ${person.name} (${person.emp_code || '-'}) ยังไม่ได้ผูก LINE และไม่มีที่อยู่อีเมลในระบบ จึงข้ามการส่งอีเมลส่วนตัว`);
@@ -823,7 +897,7 @@ async function sendMissionNotification(mission, assignedList, isReallocation = f
           subject: emailSubject,
           html: emailBody
         });
-        console.log(`✅ ส่งอีเมลแจ้งเตือนผ่าน Windows Mail Relay ไปยัง ${person.name} (${recipientEmail}) สำเร็จ`);
+        console.log(`✅ ส่งอีเมลแจ้งเตือนไปยัง ${person.name} (${recipientEmail}) สำเร็จ`);
       } catch (psErr) {
         console.error(`❌ ส่งอีเมลไปยัง ${person.name} ไม่สำเร็จ:`, psErr.message);
         mailStatus = 'FAILED';
@@ -835,88 +909,8 @@ async function sendMissionNotification(mission, assignedList, isReallocation = f
       `, [mission.id, person.personnel_id || person.id, recipientEmail, emailSubject, emailBody, mailStatus]);
     }
 
-
-
-    // 3. DISPATCH LINE PUSH MESSAGES TO ASSIGNED PERSONNEL
-    // ใช้ createPersonalizedFlexCard แทนเพื่อให้ปุ่มมี postback data เฉพาะบุคคล
-    const lineToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-
-    if (!lineToken) {
-      console.warn('⚠️ ไม่ได้ตั้งค่า LINE_CHANNEL_ACCESS_TOKEN ใน .env ระบบจะไม่ส่ง LINE push message ให้ใครเลย');
-    }
-
-    for (const person of assignedList) {
-      if (!lineToken) continue;
-
-      const targetLineId = String(person.line_user_id || '').trim();
-      if (!targetLineId || !targetLineId.startsWith('U')) {
-        console.log(`ℹ️ ${person.name} (${person.emp_code || '-'}) ยังไม่ได้ผูก LINE User ID จึงข้ามการส่ง Push ส่วนตัวให้คนนี้`);
-        continue;
-      }
-
-
-      // ดึงชื่อคนที่ถูกแทนถ้าไม่มี substitute_for_name
-      let substituteForName = person.substitute_for_name || null;
-      if (!substituteForName && isReallocation && mission?.id && (person.personnel_id || person.id)) {
-        try {
-          const { dbGet } = require('../db/database');
-          const subRecord = await dbGet(`
-            SELECT orig_p.name AS orig_name
-            FROM mission_assignments ma
-            JOIN personnel orig_p ON orig_p.id = ma.substituted_for_personnel_id
-            WHERE ma.mission_id = ? AND ma.personnel_id = ? AND ma.substituted_for_personnel_id IS NOT NULL;
-          `, [mission.id, person.personnel_id || person.id]);
-
-          if (subRecord && subRecord.orig_name) {
-            substituteForName = subRecord.orig_name;
-          }
-        } catch (e) {
-          console.error('Error fetching substitute_for_name:', e);
-        }
-      }
-
-      const personWithSubName = {
-        ...person,
-        substitute_for_name: substituteForName || person.substitute_for_name || '-'
-      };
-
-      // สร้าง Flex Card เฉพาะบุคคล พร้อมปุ่ม postback (ACK|missionId|personnelId)
-      const personalCard = createPersonalizedFlexCard(
-        mission,
-        personWithSubName,
-        isReallocation,
-        allDirectors
-      );
-
-
-
-      try {
-        await axios.post('https://api.line.me/v2/bot/message/push', {
-          to: person.line_user_id,
-          messages: [personalCard]
-        }, {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${lineToken}`
-          }
-        });
-        console.log(`✅ ส่ง LINE Flex Card ให้ ${person.name} สำเร็จ (isReallocation = ${isReallocation})`);
-
-        await dbRun(`
-          INSERT INTO notification_logs (mission_id, personnel_id, channel, recipient, subject_title, content_body, status)
-          VALUES (?, ?, 'LINE', ?, ?, ?, 'SENT')
-        `, [mission.id, person.personnel_id || person.id, person.name, `${lineHeader} ${mission.mission_title}`, JSON.stringify(personalCard)]);
-      } catch (lineError) {
-        console.error(`❌ ส่ง LINE ให้ ${person.name} ไม่สำเร็จ:`, lineError.response?.data || lineError.message);
-        await dbRun(`
-          INSERT INTO notification_logs (mission_id, personnel_id, channel, recipient, subject_title, content_body, status)
-          VALUES (?, ?, 'LINE', ?, ?, ?, 'FAILED')
-        `, [mission.id, person.personnel_id || person.id, person.name, `${lineHeader} ${mission.mission_title}`, lineError.message]);
-      }
-    }
-
-
     return true;
+
 
   } catch (err) {
     console.error('Notification dispatch error:', err);
