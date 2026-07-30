@@ -2907,6 +2907,9 @@ function openUserModal(userId = null) {
     ? `<i class="fa-solid fa-user-pen text-purple"></i> แก้ไขข้อมูลผู้ใช้งาน`
     : `<i class="fa-solid fa-user-plus text-purple"></i> เพิ่มผู้ใช้งานใหม่`;
 
+  const passElem = document.getElementById('user-form-password');
+  if (passElem) passElem.value = '';
+
   if (userId) {
     const user = allUsersData.find(u => Number(u.id) === Number(userId));
     if (user) {
@@ -2940,13 +2943,17 @@ async function saveUser() {
   const department = document.getElementById('user-form-department').value.trim();
   const phone = document.getElementById('user-form-phone').value.trim();
   const email = document.getElementById('user-form-email').value.trim();
+  const passwordElem = document.getElementById('user-form-password');
+  const password = passwordElem ? passwordElem.value.trim() : '';
+
+  const selectedPerms = Array.from(document.querySelectorAll('.menu-perm-cb:checked')).map(cb => cb.value);
 
   if (!emp_code || !name) {
     Swal.fire('ข้อผิดพลาด', 'กรุณากรอกรหัสพนักงาน และชื่อ-นามสกุลให้ครบถ้วน', 'warning');
     return;
   }
 
-  const payload = { emp_code, name, role_type, position, department, phone, email };
+  const payload = { emp_code, name, role_type, position, department, phone, email, password, menu_permissions: selectedPerms };
 
   try {
     const url = id ? `/api/users/${id}` : '/api/users';
@@ -2971,6 +2978,7 @@ async function saveUser() {
     Swal.fire('ข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อบันทึกข้อมูลผู้ใช้งานได้', 'error');
   }
 }
+
 
 async function deleteUser(id, name, empCode) {
   const result = await Swal.fire({
