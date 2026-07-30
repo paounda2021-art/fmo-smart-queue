@@ -699,11 +699,12 @@ router.post('/line-webhook', async (req, res) => {
                   'กรุณาติดต่อเจ้าหน้าที่ค่ะ'
               }];
             } else {
-              const assignment = await dbGet(
+              let assignment = await dbGet(
                 `
                 SELECT
                   ma.*,
                   p.name AS person_name,
+                  p.name,
                   m.mission_title,
                   m.description,
                   m.location,
@@ -716,15 +717,40 @@ router.post('/line-webhook', async (req, res) => {
                 JOIN missions m
                   ON m.id = ma.mission_id
                 WHERE ma.mission_id = ?
-                  AND ma.personnel_id = ?
+                  AND (ma.personnel_id = ? OR p.line_user_id = ?)
                 ORDER BY ma.id DESC
                 LIMIT 1;
                 `,
                 [
                   missionId,
-                  personnelId
+                  personnelId,
+                  lineUserId
                 ]
               );
+
+              if (!assignment) {
+                assignment = await dbGet(
+                  `
+                  SELECT
+                    ma.*,
+                    p.name AS person_name,
+                    p.name,
+                    m.mission_title,
+                    m.description,
+                    m.location,
+                    m.start_date,
+                    m.end_date,
+                    m.dress_code
+                  FROM mission_assignments ma
+                  JOIN personnel p ON p.id = ma.personnel_id
+                  JOIN missions m ON m.id = ma.mission_id
+                  WHERE p.line_user_id = ?
+                  ORDER BY ma.id DESC
+                  LIMIT 1;
+                  `,
+                  [lineUserId]
+                );
+              }
 
               if (!assignment) {
                 replyMessages = [{
@@ -755,7 +781,7 @@ router.post('/line-webhook', async (req, res) => {
                   [assignment.id]
                 );
 
-                await checkAndUpdateMissionStatus(missionId);
+                await checkAndUpdateMissionStatus(assignment.mission_id);
 
 
                 const missionDescription = String(
@@ -769,7 +795,7 @@ router.post('/line-webhook', async (req, res) => {
                 replyMessages = [{
                   type: 'text',
                   text:
-                    `✅ รับทราบแล้วค่ะ คุณ ${assignment.person_name || '-'}\n\n` +
+                    `✅ รับทราบแล้วค่ะ คุณ ${assignment.person_name || assignment.name || '-'}\n\n` +
                     `📋 กิจกรรม:\n${assignment.mission_title || '-'}\n\n` +
                     `📍 สถานที่: ${assignment.location || '-'}\n` +
                     `⏰ เวลา (24 ชม.): ${timeStr}\n` +
@@ -785,19 +811,34 @@ router.post('/line-webhook', async (req, res) => {
             const missionId = Number.parseInt(missionIdRaw, 10);
             const personnelId = Number.parseInt(personnelIdRaw, 10);
 
-            const assignment = await dbGet(
+            let assignment = await dbGet(
               `
               SELECT ma.*, p.name, m.mission_title
               FROM mission_assignments ma
               JOIN personnel p ON p.id = ma.personnel_id
               JOIN missions m ON m.id = ma.mission_id
               WHERE ma.mission_id = ?
-                AND ma.personnel_id = ?
+                AND (ma.personnel_id = ? OR p.line_user_id = ?)
               ORDER BY ma.id DESC
               LIMIT 1;
               `,
-              [missionId, personnelId]
+              [missionId, personnelId, lineUserId]
             );
+
+            if (!assignment) {
+              assignment = await dbGet(
+                `
+                SELECT ma.*, p.name, m.mission_title
+                FROM mission_assignments ma
+                JOIN personnel p ON p.id = ma.personnel_id
+                JOIN missions m ON m.id = ma.mission_id
+                WHERE p.line_user_id = ?
+                ORDER BY ma.id DESC
+                LIMIT 1;
+                `,
+                [lineUserId]
+              );
+            }
 
             if (!assignment) {
               replyMessages = [{
@@ -850,7 +891,7 @@ router.post('/line-webhook', async (req, res) => {
                         action: {
                           type: 'postback',
                           label: '🟡 ไม่มีคนแทน (ให้ระบบเลื่อนคิว)',
-                          data: `NO_SUB|${missionId}|${personnelId}`,
+                          data: `NO_SUB|${assignment.mission_id}|${assignment.personnel_id}`,
                           displayText: '🟡 ไม่มีผู้ปฏิบัติงานแทน (ขอลา)'
                         }
                       }
@@ -864,20 +905,36 @@ router.post('/line-webhook', async (req, res) => {
             const missionId = Number.parseInt(missionIdRaw, 10);
             const personnelId = Number.parseInt(personnelIdRaw, 10);
 
-            const assignment = await dbGet(
+            let assignment = await dbGet(
               `
               SELECT ma.*, p.name, p.role_type, m.mission_title
               FROM mission_assignments ma
               JOIN personnel p ON p.id = ma.personnel_id
               JOIN missions m ON m.id = ma.mission_id
               WHERE ma.mission_id = ?
-                AND ma.personnel_id = ?
+                AND (ma.personnel_id = ? OR p.line_user_id = ?)
                 AND ma.assignment_status IN ('JOINED', 'BUSY_PENDING')
               ORDER BY ma.id DESC
               LIMIT 1;
               `,
-              [missionId, personnelId]
+              [missionId, personnelId, lineUserId]
             );
+
+            if (!assignment) {
+              assignment = await dbGet(
+                `
+                SELECT ma.*, p.name, p.role_type, m.mission_title
+                FROM mission_assignments ma
+                JOIN personnel p ON p.id = ma.personnel_id
+                JOIN missions m ON m.id = ma.mission_id
+                WHERE p.line_user_id = ?
+                  AND ma.assignment_status IN ('JOINED', 'BUSY_PENDING')
+                ORDER BY ma.id DESC
+                LIMIT 1;
+                `,
+                [lineUserId]
+              );
+            }
 
             if (!assignment) {
               replyMessages = [{
