@@ -32,91 +32,32 @@ function createMailTransporter() {
   });
 }
 
-function sendEmailViaPowerShell({ to, subject, html }) {
-  return new Promise((resolve) => {
-    const fs = require('fs');
-    const path = require('path');
-    const rootDir = path.resolve(__dirname, '..');
+async function sendEmailNotification({ to, subject, html }) {
+  if (!to || !to.includes('@')) return false;
 
-    const payload = JSON.stringify({
-      to: to || '',
-      subject: subject || '',
-      body: html || ''
-    });
-
-    const scratchDir = path.join(rootDir, 'scratch');
-    if (!fs.existsSync(scratchDir)) {
-      fs.mkdirSync(scratchDir, { recursive: true });
+  try {
+    const transporter = createMailTransporter();
+    if (transporter) {
+      await transporter.sendMail({
+        from: `"${process.env.SMTP_FROM_NAME || 'FMO Smart Queue'}" <${process.env.SMTP_USER || 'carbooking@workd.go.th'}>`,
+        to,
+        subject,
+        html
+      });
+      console.log(`✅ ส่งอีเมลแจ้งเตือนสำเร็จไปยัง: ${to}`);
+      return true;
     }
-
-    const fileId = `${Date.now()}_${Math.floor(Math.random() * 10000)}`;
-    const jsonFile = path.join(scratchDir, `mail_${fileId}.json`);
-    const psFile = path.join(scratchDir, `mail_${fileId}.ps1`);
-
-    fs.writeFileSync(jsonFile, payload, 'utf8');
-
-    const escapedJsonFile = jsonFile.replace(/\\/g, '\\\\');
-    const escapedPsFile = psFile.replace(/\\/g, '\\\\');
-    const escapedRootDir = rootDir.replace(/\\/g, '\\\\');
-
-    const psContent = `
-      try {
-        $jsonText = Get-Content -Path "${escapedJsonFile}" -Raw -Encoding UTF8
-        $emailData = ConvertFrom-Json $jsonText
-        $configPath = Join-Path "${escapedRootDir}" "smtp_config.json"
-        
-        if (Test-Path $configPath) {
-          $cfg = Get-Content $configPath -Raw -Encoding UTF8 | ConvertFrom-Json
-          $mail = New-Object System.Net.Mail.MailMessage
-          $fromAddr = if ($cfg.from) { $cfg.from } else { "carbooking@workd.go.th" }
-          $mail.From = New-Object System.Net.Mail.MailAddress($fromAddr)
-          $emailData.to.Split(',') | ForEach-Object { if ($_.Trim()) { $mail.To.Add($_.Trim()) } }
-          $mail.Subject = $emailData.subject
-          $mail.Body = $emailData.body
-          $mail.IsBodyHtml = $true
-          $mail.BodyEncoding = [System.Text.Encoding]::UTF8
-          $mail.SubjectEncoding = [System.Text.Encoding]::UTF8
-
-          $smtp = New-Object System.Net.Mail.SmtpClient($cfg.smtpServer, $cfg.port)
-          if ($cfg.enableSsl -ne $null) { $smtp.EnableSsl = [bool]$cfg.enableSsl }
-          $smtp.Timeout = 8000
-
-          if ($cfg.username -and $cfg.password) {
-            $smtp.UseDefaultCredentials = $false
-            $smtp.Credentials = New-Object System.Net.NetworkCredential($cfg.username, $cfg.password)
-          } else {
-            $smtp.UseDefaultCredentials = $false
-            $smtp.Credentials = $null
-          }
-
-          $smtp.Send($mail)
-          $mail.Dispose()
-          $smtp.Dispose()
-        }
-      } catch {
-        Write-Host "Error sending email: $_"
-      } finally {
-        Remove-Item -Path "${escapedJsonFile}" -ErrorAction SilentlyContinue
-        Remove-Item -Path "${escapedPsFile}" -ErrorAction SilentlyContinue
-      }
-    `;
-
-    fs.writeFileSync(psFile, psContent, 'utf8');
-
-    // 🚀 รันแบบ Non-Interactive & Hidden Window ไม่ให้เด้ง Terminal ค้าง
-    const cmd = `powershell -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "${psFile}"`;
-    exec(cmd, { timeout: 10000 }, (err) => {
-      if (err) {
-        try { if (fs.existsSync(jsonFile)) fs.unlinkSync(jsonFile); } catch(e){}
-        try { if (fs.existsSync(psFile)) fs.unlinkSync(psFile); } catch(e){}
-      } else {
-        console.log(`✅ ส่งอีเมลแจ้งเตือนผ่าน Windows Mail Relay ไปยัง ${to} เรียบร้อย`);
-      }
-    });
-
-    resolve();
-  });
+  } catch (err) {
+    console.error(`❌ Email Dispatch Error (${to}):`, err.message);
+  }
+  return false;
 }
+
+function sendEmailViaPowerShell({ to, subject, html }) {
+  // 🚀 ส่งอีเมลเบื้องหลังด้วย Pure Node.js โดยไม่เรียก cmd.exe หรือ PowerShell ภายนอก ไม่เด้งหน้าต่างดำบนหน้าจอ 100%
+  return sendEmailNotification({ to, subject, html });
+}
+
 
 
 
