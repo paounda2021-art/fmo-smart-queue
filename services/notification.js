@@ -990,7 +990,10 @@ async function dispatchPreEventReminders() {
       const diffHours = (startMs - nowMs) / (1000 * 60 * 60);
 
       const isUrgent2h = (diffHours <= 2.5 && diffHours >= 0);
-      const reminderTag = isUrgent2h ? '🔔 เตือนด่วน (อีก 1-2 ชม.)' : '🔔 เตือนความจำล่วงหน้า (24 ชม.)';
+      const reminderTag = isUrgent2h ? '🔔 เตือนความจำใกล้ถึงเวลา (อีก 2 ชม.)' : '🔔 เตือนความจำล่วงหน้า (1 วัน)';
+      const headerBgColor = isUrgent2h ? '#d97706' : '#eab308'; // โทนสีเหลืองละมุนสบายตา
+      const headerSubColor = isUrgent2h ? '#fef3c7' : '#fefce8';
+      const textHighlightColor = isUrgent2h ? '#b45309' : '#ca8a04';
 
       for (const person of assigned) {
         const alreadySent = await dbAll(`
@@ -1011,10 +1014,10 @@ async function dispatchPreEventReminders() {
               header: {
                 type: 'box',
                 layout: 'vertical',
-                backgroundColor: isUrgent2h ? '#fcf997' : '#d97706',
+                backgroundColor: headerBgColor,
                 paddingAll: '16px',
                 contents: [
-                  { type: 'text', text: 'FMO SMART QUEUE AUTOMATED SYSTEM', color: '#fef3c7', size: 'xxs', weight: 'bold' },
+                  { type: 'text', text: 'FMO SMART QUEUE AUTOMATED SYSTEM', color: headerSubColor, size: 'xxs', weight: 'bold' },
                   { type: 'text', text: `${reminderTag}`, color: '#ffffff', size: 'md', weight: 'bold', margin: 'xs', wrap: true }
                 ]
               },
@@ -1025,7 +1028,7 @@ async function dispatchPreEventReminders() {
                 spacing: 'md',
                 contents: [
                   { type: 'text', text: mission.mission_title, weight: 'bold', size: 'md', color: '#0f172a', wrap: true },
-                  { type: 'text', text: `👤 เรียน: คุณ ${person.name}`, size: 'sm', color: isUrgent2h ? '#dc2626' : '#d97706', weight: 'bold', wrap: true },
+                  { type: 'text', text: `👤 เรียน: คุณ ${person.name}`, size: 'sm', color: textHighlightColor, weight: 'bold', wrap: true },
                   {
                     type: 'box',
                     layout: 'vertical',
@@ -1033,19 +1036,21 @@ async function dispatchPreEventReminders() {
                     spacing: 'xs',
                     contents: [
                       { type: 'text', text: `📍 สถานที่: ${mission.location || 'สะพานปลา อสป.'}`, size: 'xs', color: '#1e293b', wrap: true },
-                      { type: 'text', text: `⏰ เวลาเริ่มงาน (24 ชม.): ${timeStr}`, size: 'xs', color: isUrgent2h ? '#dc2626' : '#d97706', weight: 'bold' },
-                      { type: 'text', text: `👔 การแต่งกาย: ${mission.dress_code || 'ชุดปฏิบัติงาน อสป.'}`, size: 'xs', color: '#a855f7', wrap: true }
+                      { type: 'text', text: `⏰ เวลาเริ่มงาน (24 ชม.): ${timeStr}`, size: 'xs', color: textHighlightColor, weight: 'bold' },
+                      { type: 'text', text: `👔 การแต่งกาย: ${mission.dress_code || 'ชุดปฏิบัติงาน อสป.'}`, size: 'xs', color: '#8b5cf6', wrap: true }
                     ]
                   },
                   {
                     type: 'box',
                     layout: 'vertical',
-                    backgroundColor: isUrgent2h ? '#fee2e2' : '#fef3c7',
+                    backgroundColor: '#fefce8',
+                    borderColor: '#fef08a',
+                    borderWidth: '1px',
                     paddingAll: '10px',
                     cornerRadius: '8px',
                     margin: 'md',
                     contents: [
-                      { type: 'text', text: isUrgent2h ? '🚨 งานกำลังจะเริ่มขึ้นในอีก 1-2 ชั่วโมง! กรุณาเตรียมพร้อมปฏิบัติงานทันที' : '⏱️ กรุณามาถึงสถานที่ปฏิบัติงานก่อนเวลาเริ่มอย่างน้อย 30 นาที', size: 'xxs', color: isUrgent2h ? '#991b1b' : '#b45309', wrap: true }
+                      { type: 'text', text: isUrgent2h ? '🚨 กิจกรรมกำลังจะเริ่มขึ้นในอีก 2 ชั่วโมงข้างหน้า! กรุณาเตรียมพร้อมปฏิบัติงานทันที' : '⏱️ กรุณามาถึงสถานที่ปฏิบัติงานก่อนเวลาเริ่มอย่างน้อย 30 นาที', size: 'xxs', color: '#854d0e', wrap: true }
                     ]
                   }
                 ]
