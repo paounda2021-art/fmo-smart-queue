@@ -34,19 +34,40 @@ function createMailTransporter() {
 
 function sendEmailViaPowerShell({ to, subject, html }) {
   return new Promise((resolve) => {
-    const escapedSubject = (subject || '').replace(/'/g, "''");
-    const escapedBody = (html || '').replace(/'/g, "''");
-    const escapedTo = (to || '').replace(/'/g, "''");
-    const fromAddr = process.env.SMTP_FROM || 'carbooking@workd.go.th';
+    const fs = require('fs');
+    const path = require('path');
 
-    const psCommand = `Start-Job -ScriptBlock {
-      param($toAddr, $subj, $bodyText, $from)
+    const payload = JSON.stringify({
+      to: to || '',
+      subject: subject || '',
+      body: html || '',
+      from: process.env.SMTP_FROM || 'carbooking@workd.go.th'
+    });
+
+    const scratchDir = path.join(__dirname, '../scratch');
+    if (!fs.existsSync(scratchDir)) {
+      fs.mkdirSync(scratchDir, { recursive: true });
+    }
+
+    const fileId = `${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+    const jsonFile = path.join(scratchDir, `mail_${fileId}.json`);
+    const psFile = path.join(scratchDir, `mail_${fileId}.ps1`);
+
+    fs.writeFileSync(jsonFile, payload, 'utf8');
+
+    const escapedJsonFile = jsonFile.replace(/\\/g, '\\\\');
+    const escapedPsFile = psFile.replace(/\\/g, '\\\\');
+
+    const psContent = `
       try {
+        $jsonText = Get-Content -Path "${escapedJsonFile}" -Raw -Encoding UTF8
+        $emailData = ConvertFrom-Json $jsonText
         $mail = New-Object System.Net.Mail.MailMessage
-        $mail.From = New-Object System.Net.Mail.MailAddress($from)
-        $toAddr.Split(',') | ForEach-Object { if ($_.Trim()) { $mail.To.Add($_.Trim()) } }
-        $mail.Subject = $subj
-        $mail.Body = $bodyText
+        $fromAddr = if ($emailData.from) { $emailData.from } else { "carbooking@workd.go.th" }
+        $mail.From = New-Object System.Net.Mail.MailAddress($fromAddr)
+        $emailData.to.Split(',') | ForEach-Object { if ($_.Trim()) { $mail.To.Add($_.Trim()) } }
+        $mail.Subject = $emailData.subject
+        $mail.Body = $emailData.body
         $mail.IsBodyHtml = $true
         $mail.BodyEncoding = [System.Text.Encoding]::UTF8
         $mail.SubjectEncoding = [System.Text.Encoding]::UTF8
@@ -58,19 +79,27 @@ function sendEmailViaPowerShell({ to, subject, html }) {
         $smtp.Dispose()
       } catch {
         Write-Host "Error sending email: $_"
+      } finally {
+        Remove-Item -Path "${escapedJsonFile}" -ErrorAction SilentlyContinue
+        Remove-Item -Path "${escapedPsFile}" -ErrorAction SilentlyContinue
       }
-    } -ArgumentList '${escapedTo}', '${escapedSubject}', '${escapedBody}', '${fromAddr}'`;
+    `;
 
-    exec(`powershell -NoProfile -ExecutionPolicy Bypass -Command "${psCommand.replace(/"/g, '\\"')}"`, (err) => {
+    fs.writeFileSync(psFile, psContent, 'utf8');
+
+    exec(`powershell -NoProfile -ExecutionPolicy Bypass -File "${psFile}"`, (err) => {
       if (err) {
-        console.error('❌ Failed to spawn email PowerShell job:', err);
+        console.error('❌ Failed to send email via PowerShell script:', err.message);
       } else {
-        console.log(`✅ Queued email via PowerShell to: ${to}`);
+        console.log(`✅ Queued email via PowerShell script to: ${to}`);
       }
       resolve();
     });
   });
 }
+
+
+
 
 
 
