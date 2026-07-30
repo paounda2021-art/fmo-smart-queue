@@ -50,20 +50,23 @@ function initApp() {
   populate24HourTimeOptions('alloc-start-time', '09:00');
   populate24HourTimeOptions('alloc-end-time', '17:00');
   setDefaultMissionTimes();
-  loadDirectorSelectList();
 
   // ดึงแท็บเดิมจาก hash หรือ localStorage (ถ้าไม่มี ให้เปิด quick หน้าแรก)
   const hashTab = (window.location.hash || '').replace('#', '').trim();
   const savedTab = hashTab || localStorage.getItem('fmo_active_tab') || 'quick';
   switchTab(savedTab);
 
-  loadDashboardStats();
-  loadQueueView('DIRECTOR');
-  loadPersonnelDropdown();
-  loadAllMissions();
+  // 🚀 Parallel Data Loading - ยิงดึงข้อมูลขนานกันทุก API เพื่อความเร็วสูงสุด
+  Promise.all([
+    loadDirectorSelectList(),
+    loadDashboardStats(),
+    loadQueueView('DIRECTOR'),
+    loadPersonnelDropdown(),
+    loadAllMissions()
+  ]).catch(err => console.error('Error in parallel init fetch:', err));
 }
 
-async function applyMenuPermissions(userObj = null) {
+function applyMenuPermissions(userObj = null) {
   let user = userObj;
 
   if (!user) {
@@ -87,36 +90,18 @@ async function applyMenuPermissions(userObj = null) {
     return;
   }
 
-  // หากเป็นผู้ใช้งานทั่วไป พยายามดึงสิทธิ์ล่าสุดจาก DB (ถ้ามี empCode/username)
-  if (user.empCode || user.username) {
-    try {
-      const code = user.empCode || user.username;
-      const res = await fetch(`/api/users`);
-      const allUsers = await res.json();
-      if (Array.isArray(allUsers)) {
-        const found = allUsers.find(u => String(u.emp_code).toUpperCase() === String(code).toUpperCase());
-        if (found && found.menu_permissions) {
-          perms = typeof found.menu_permissions === 'string' ? JSON.parse(found.menu_permissions) : (found.menu_permissions || []);
-        }
-      }
-    } catch(e) {}
-  }
-
-  // Fallback ถ้าดึงสิทธิ์ไม่ได้
-  if (!perms || perms.length === 0) {
-    try {
-      perms = typeof user.menu_permissions === 'string' ? JSON.parse(user.menu_permissions) : (user.menu_permissions || []);
-    } catch(e){}
-  }
+  try {
+    perms = typeof user.menu_permissions === 'string'
+      ? JSON.parse(user.menu_permissions)
+      : (user.menu_permissions || []);
+  } catch(e){}
 
   // ถ้ายังคงว่างเปล่า กำหนดสิทธิ์ตั้งต้นเป็น quick และ queue
   if (!perms || perms.length === 0) {
     perms = ['quick', 'queue'];
   }
 
-  console.log(`🔐 [RBAC] เมนูที่สิทธิ์ได้รับอนุญาต (${user.label || user.username}):`, perms);
-
-  // ควบคุมการแสดงผลของปุ่มเมนูกดบน Navbar
+  // ควบคุมการแสดงผลของปุ่มเมนูกดบน Navbar ทันที 0ms
   document.querySelectorAll('.nav-btn[data-menu]').forEach(btn => {
     const menuKey = btn.getAttribute('data-menu');
     if (perms.includes(menuKey)) {
@@ -130,12 +115,12 @@ async function applyMenuPermissions(userObj = null) {
   const currentTab = (window.location.hash || '').replace('#', '').trim() || localStorage.getItem('fmo_active_tab') || 'quick';
   if (!perms.includes(currentTab)) {
     const firstAllowed = perms[0] || 'quick';
-    console.warn(`⚠️ เมนู "${currentTab}" ไม่ได้รับอนุญาต! กำลังเปลี่ยนไปยังหน้า "${firstAllowed}"`);
     if (typeof switchTab === 'function') {
       switchTab(firstAllowed);
     }
   }
 }
+
 
 function renderUserBadge() {
   const sessionUser = sessionStorage.getItem('fmo_user');
