@@ -19,7 +19,8 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script src="/vendor/fullcalendar.min.js"></script>
 
-  <link rel="stylesheet" href="/css/styles.css?v=1.0.5">
+  <link rel="stylesheet" href="/css/styles.css?v=1.0.6">
+
 
 
 </head>
@@ -407,7 +408,7 @@
     <!-- 2. DUAL QUEUE VISUALIZER VIEW -->
     <section id="view-queue" class="view-content">
       <div class="glass-card">
-        <div class="card-header">
+        <div class="card-header queue-header-layout">
           <div>
             <div class="card-title">
               <i class="fa-solid fa-layer-group"></i> กระดานคิวเข้าร่วมกิจกรรม Dual Rotation Queue
@@ -415,24 +416,32 @@
             <div class="card-subtitle">แสดงลำดับคิว สถานะค้างสิทธิ์ (Hold_In_Round) และการวนรอบของบุคลากร อสป.</div>
           </div>
 
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="tab-btn-director" class="btn btn-primary btn-sm" onclick="loadQueueView('DIRECTOR')">
-              <i class="fa-solid fa-user-tie"></i> <span id="tab-btn-director-text">คิว ผอ.ฝ่าย (กำลังโหลด...)</span>
-            </button>
-            <button id="tab-btn-staff" class="btn btn-secondary btn-sm" onclick="loadQueueView('STAFF')">
-              <i class="fa-solid fa-users"></i> <span id="tab-btn-staff-text">คิว พนักงาน (กำลังโหลด...)</span>
-            </button>
-            <button class="btn btn-secondary btn-sm" onclick="downloadCsvTemplate()">
-              <i class="fa-solid fa-download"></i> 📄 ดาวน์โหลดเทมเพลต CSV
-            </button>
-            <button class="btn btn-secondary btn-sm" onclick="openPeerSwapModal()" style="background:#a855f7; border-color:#a855f7; color:#ffffff;">
-              <i class="fa-solid fa-arrows-rotate"></i> 🔄 สลับคิวพนักงาน (Peer Swap)
-            </button>
-            <button class="btn btn-warning btn-sm" onclick="openImportCsvModal()">
-              <i class="fa-solid fa-file-import"></i> 📥 นำเข้าชุดข้อมูลจริง (CSV)
-            </button>
+          <div class="queue-toolbar-wrapper">
+            <!-- Segmented Role Switcher -->
+            <div class="queue-segmented-control">
+              <button id="tab-btn-director" class="queue-segment-btn btn-primary active" onclick="loadQueueView('DIRECTOR')">
+                <i class="fa-solid fa-user-tie"></i> <span id="tab-btn-director-text">ผอ.ฝ่าย</span>
+              </button>
+              <button id="tab-btn-staff" class="queue-segment-btn btn-secondary" onclick="loadQueueView('STAFF')">
+                <i class="fa-solid fa-users"></i> <span id="tab-btn-staff-text">พนักงาน</span>
+              </button>
+            </div>
 
+            <!-- Action Tools Bar -->
+            <div class="queue-tools-group">
+              <button class="btn btn-purple btn-sm" onclick="openPeerSwapModal()" title="สลับคิวพนักงาน (Peer Swap)">
+                <i class="fa-solid fa-arrows-rotate"></i> <span>สลับคิว</span>
+              </button>
+              <button class="btn btn-secondary btn-sm" onclick="downloadCsvTemplate()" title="ดาวน์โหลดเทมเพลต CSV">
+                <i class="fa-solid fa-download"></i> <span>เทมเพลต CSV</span>
+              </button>
+              <button class="btn btn-warning btn-sm" onclick="openImportCsvModal()" title="นำเข้าชุดข้อมูลจริง (CSV)">
+                <i class="fa-solid fa-file-import"></i> <span>นำเข้า CSV</span>
+              </button>
+            </div>
           </div>
+        </div>
+
 
 
         <!-- Executive Reserve Info Banner -->
@@ -1066,7 +1075,8 @@
     </div>
   </div>
 
-  <script src="/js/app.js?v=1.0.5"></script>
+  <script src="/js/app.js?v=1.0.6"></script>
+
 
 
 

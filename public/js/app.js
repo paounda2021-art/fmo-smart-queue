@@ -490,11 +490,11 @@ async function loadQueueView(roleType) {
   const btnStaff = document.getElementById('tab-btn-staff');
 
   if (roleType === 'DIRECTOR') {
-    btnDir.className = 'btn btn-primary btn-sm';
-    btnStaff.className = 'btn btn-secondary btn-sm';
+    if (btnDir) btnDir.className = 'queue-segment-btn btn-primary active';
+    if (btnStaff) btnStaff.className = 'queue-segment-btn btn-secondary';
   } else {
-    btnDir.className = 'btn btn-secondary btn-sm';
-    btnStaff.className = 'btn btn-primary btn-sm';
+    if (btnDir) btnDir.className = 'queue-segment-btn btn-secondary';
+    if (btnStaff) btnStaff.className = 'queue-segment-btn btn-primary active';
   }
 
   const tbody = document.getElementById('queue-table-body');
@@ -515,11 +515,12 @@ async function loadQueueView(roleType) {
        const otherTotal = otherMembers.length;
        
        if (otherRole === 'STAFF') {
-          document.getElementById('tab-btn-staff-text').innerText = `คิว พนักงาน (เหลือ ${otherWaitingCount}/${otherTotal} ท่าน)`;
+          document.getElementById('tab-btn-staff-text').innerText = `พนักงาน (${otherWaitingCount}/${otherTotal})`;
        } else {
-          document.getElementById('tab-btn-director-text').innerText = `คิว ผอ.ฝ่าย (เหลือ ${otherWaitingCount}/${otherTotal} ท่าน)`;
+          document.getElementById('tab-btn-director-text').innerText = `ผอ.ฝ่าย (${otherWaitingCount}/${otherTotal})`;
        }
     })
+
     .catch(err => console.log('Background fetch error:', err));
 
   try {
@@ -553,10 +554,11 @@ async function loadQueueView(roleType) {
     // อัปเดตข้อความบนปุ่มของแท็บปัจจุบัน (แสดงยอดที่เหลือ / จำนวนทั้งหมด)
 
     if (roleType === 'DIRECTOR') {
-       document.getElementById('tab-btn-director-text').innerText = `คิว ผอ.ฝ่าย (เหลือ ${waitingCount}/${totalCount} ท่าน)`;
+       document.getElementById('tab-btn-director-text').innerText = `ผอ.ฝ่าย (${waitingCount}/${totalCount})`;
     } else {
-       document.getElementById('tab-btn-staff-text').innerText = `คิว พนักงาน (เหลือ ${waitingCount}/${totalCount} ท่าน)`;
+       document.getElementById('tab-btn-staff-text').innerText = `พนักงาน (${waitingCount}/${totalCount})`;
     }
+
 
     if (members.length === 0) {
        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">ไม่พบข้อมูลบุคลากรในระบบ</td></tr>';
