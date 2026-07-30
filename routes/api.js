@@ -699,6 +699,7 @@ router.post('/line-webhook', async (req, res) => {
                   'กรุณาติดต่อเจ้าหน้าที่ค่ะ'
               }];
             } else {
+              // ค้นหาด้วย missionId + personnelId จาก postback data ก่อน (แม่นยำที่สุด)
               let assignment = await dbGet(
                 `
                 SELECT
@@ -717,17 +718,14 @@ router.post('/line-webhook', async (req, res) => {
                 JOIN missions m
                   ON m.id = ma.mission_id
                 WHERE ma.mission_id = ?
-                  AND (ma.personnel_id = ? OR p.line_user_id = ?)
+                  AND ma.personnel_id = ?
                 ORDER BY ma.id DESC
                 LIMIT 1;
                 `,
-                [
-                  missionId,
-                  personnelId,
-                  lineUserId
-                ]
+                [missionId, personnelId]
               );
 
+              // fallback: ค้นหาด้วย missionId + line_user_id (กรณี personnelId ใน card ไม่ตรง)
               if (!assignment) {
                 assignment = await dbGet(
                   `
@@ -744,11 +742,14 @@ router.post('/line-webhook', async (req, res) => {
                   FROM mission_assignments ma
                   JOIN personnel p ON p.id = ma.personnel_id
                   JOIN missions m ON m.id = ma.mission_id
-                  WHERE p.line_user_id = ?
-                  ORDER BY ma.id DESC
+                  WHERE ma.mission_id = ?
+                    AND p.line_user_id = ?
+                    AND ma.ack_status = 'PENDING_ACK'
+                    AND ma.assignment_status = 'JOINED'
+                  ORDER BY ma.id ASC
                   LIMIT 1;
                   `,
-                  [lineUserId]
+                  [missionId, lineUserId]
                 );
               }
 
@@ -818,13 +819,14 @@ router.post('/line-webhook', async (req, res) => {
               JOIN personnel p ON p.id = ma.personnel_id
               JOIN missions m ON m.id = ma.mission_id
               WHERE ma.mission_id = ?
-                AND (ma.personnel_id = ? OR p.line_user_id = ?)
+                AND ma.personnel_id = ?
               ORDER BY ma.id DESC
               LIMIT 1;
               `,
-              [missionId, personnelId, lineUserId]
+              [missionId, personnelId]
             );
 
+            // fallback: หาด้วย missionId + line_user_id (กรณี personnelId ไม่ตรง)
             if (!assignment) {
               assignment = await dbGet(
                 `
@@ -832,11 +834,13 @@ router.post('/line-webhook', async (req, res) => {
                 FROM mission_assignments ma
                 JOIN personnel p ON p.id = ma.personnel_id
                 JOIN missions m ON m.id = ma.mission_id
-                WHERE p.line_user_id = ?
-                ORDER BY ma.id DESC
+                WHERE ma.mission_id = ?
+                  AND p.line_user_id = ?
+                  AND ma.assignment_status = 'JOINED'
+                ORDER BY ma.id ASC
                 LIMIT 1;
                 `,
-                [lineUserId]
+                [missionId, lineUserId]
               );
             }
 
@@ -912,14 +916,15 @@ router.post('/line-webhook', async (req, res) => {
               JOIN personnel p ON p.id = ma.personnel_id
               JOIN missions m ON m.id = ma.mission_id
               WHERE ma.mission_id = ?
-                AND (ma.personnel_id = ? OR p.line_user_id = ?)
+                AND ma.personnel_id = ?
                 AND ma.assignment_status IN ('JOINED', 'BUSY_PENDING')
               ORDER BY ma.id DESC
               LIMIT 1;
               `,
-              [missionId, personnelId, lineUserId]
+              [missionId, personnelId]
             );
 
+            // fallback: หาด้วย missionId + line_user_id (กรณี personnelId ไม่ตรง)
             if (!assignment) {
               assignment = await dbGet(
                 `
@@ -927,12 +932,13 @@ router.post('/line-webhook', async (req, res) => {
                 FROM mission_assignments ma
                 JOIN personnel p ON p.id = ma.personnel_id
                 JOIN missions m ON m.id = ma.mission_id
-                WHERE p.line_user_id = ?
+                WHERE ma.mission_id = ?
+                  AND p.line_user_id = ?
                   AND ma.assignment_status IN ('JOINED', 'BUSY_PENDING')
-                ORDER BY ma.id DESC
+                ORDER BY ma.id ASC
                 LIMIT 1;
                 `,
-                [lineUserId]
+                [missionId, lineUserId]
               );
             }
 
