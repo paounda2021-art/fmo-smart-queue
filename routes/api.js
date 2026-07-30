@@ -849,7 +849,59 @@ router.post('/line-webhook', async (req, res) => {
                 type: 'text',
                 text: '❌ ไม่พบข้อมูลการจัดสรรในระบบ กรุณาติดต่อเจ้าหน้าที่ค่ะ'
               }];
+            } else if (assignment.assignment_status === 'BUSY_PENDING') {
+              // กดซ้ำขณะรอระบุผู้แทน
+              replyMessages = [{
+                type: 'flex',
+                altText: '🔴 แจ้งติดภารกิจ / ขอลา',
+                contents: {
+                  type: 'bubble',
+                  header: {
+                    type: 'box',
+                    layout: 'vertical',
+                    backgroundColor: '#dc2626',
+                    paddingAll: '14px',
+                    contents: [
+                      { type: 'text', text: '🔴 แจ้งติดภารกิจ / ขอลา', color: '#ffffff', weight: 'bold', size: 'md' }
+                    ]
+                  },
+                  body: {
+                    type: 'box',
+                    layout: 'vertical',
+                    paddingAll: '16px',
+                    spacing: 'md',
+                    contents: [
+                      { type: 'text', text: `กิจกรรม: ${assignment.mission_title || '-'}`, weight: 'bold', size: 'sm', wrap: true },
+                      { type: 'text', text: `⚠️ ท่านได้แจ้งติดภารกิจแล้ว กรุณาพิมพ์รหัสพนักงานผู้ปฏิบัติงานแทน (เช่น EMP-025)\n\nหรือกดปุ่มด้านล่างหากไม่มีผู้ปฏิบัติงานแทน`, size: 'xs', color: '#334155', wrap: true }
+                    ]
+                  },
+                  footer: {
+                    type: 'box',
+                    layout: 'vertical',
+                    contents: [
+                      {
+                        type: 'button',
+                        style: 'secondary',
+                        color: '#f1f5f9',
+                        action: {
+                          type: 'postback',
+                          label: '🟡 ไม่มีคนแทน (ให้ระบบเลื่อนคิว)',
+                          data: `NO_SUB|${assignment.mission_id}|${assignment.personnel_id}`,
+                          displayText: '🟡 ไม่มีผู้ปฏิบัติงานแทน (ขอลา)'
+                        }
+                      }
+                    ]
+                  }
+                }
+              }];
+            } else if (['SUBSTITUTED', 'DECLINED_NO_SUBSTITUTE'].includes(assignment.assignment_status)) {
+              // ดำเนินการเรียบร้อยแล้ว
+              replyMessages = [{
+                type: 'text',
+                text: `ℹ️ ท่านได้แจ้งติดภารกิจในกิจกรรมนี้เรียบร้อยแล้วค่ะ\n\nระบบได้จัดการให้เรียบร้อยแล้ว ขอบคุณค่ะ 🙏`
+              }];
             } else {
+
               await dbRun(
                 `
                 UPDATE mission_assignments
