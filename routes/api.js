@@ -872,7 +872,63 @@ router.post('/line-webhook', async (req, res) => {
                     spacing: 'md',
                     contents: [
                       { type: 'text', text: `กิจกรรม: ${assignment.mission_title || '-'}`, weight: 'bold', size: 'sm', wrap: true },
-                      { type: 'text', text: `⚠️ ท่านได้แจ้งติดภารกิจแล้ว กรุณาพิมพ์รหัสพนักงานผู้ปฏิบัติงานแทน (เช่น EMP-025)\n\nหรือกดปุ่มด้านล่างหากไม่มีผู้ปฏิบัติงานแทน`, size: 'xs', color: '#334155', wrap: true }
+                      { type: 'text', text: `เรียน คุณ ${assignment.name}`, size: 'xs', color: '#64748b' },
+                      
+                      // 💡 แถบสีอ่อนสำหรับตัวเลือกที่ 1 (กรณีมีผู้ปฏิบัติงานแทน)
+                      {
+                        type: 'box',
+                        layout: 'vertical',
+                        backgroundColor: '#fff7ed',
+                        borderColor: '#fed7aa',
+                        borderWidth: '1px',
+                        cornerRadius: '8px',
+                        paddingAll: '10px',
+                        contents: [
+                          {
+                            type: 'text',
+                            text: 'กรณีมีผู้ปฏิบัติงานแทน :',
+                            weight: 'bold',
+                            size: 'xs',
+                            color: '#c2410c'
+                          },
+                          {
+                            type: 'text',
+                            text: 'กรุณาพิมพ์รหัสพนักงาน (เช่น EMP-025)',
+                            size: 'xs',
+                            color: '#431407',
+                            wrap: true,
+                            margin: 'xs'
+                          }
+                        ]
+                      },
+
+                      // 💡 แถบสีอ่อนสำหรับตัวเลือกที่ 2 (กรณีไม่มีผู้ปฏิบัติงานแทน)
+                      {
+                        type: 'box',
+                        layout: 'vertical',
+                        backgroundColor: '#f8fafc',
+                        borderColor: '#cbd5e1',
+                        borderWidth: '1px',
+                        cornerRadius: '8px',
+                        paddingAll: '10px',
+                        contents: [
+                          {
+                            type: 'text',
+                            text: 'กรณีไม่มีผู้ปฏิบัติงานแทน :',
+                            weight: 'bold',
+                            size: 'xs',
+                            color: '#334155'
+                          },
+                          {
+                            type: 'text',
+                            text: 'กรุณากดปุ่มด้านล่างเพื่อให้ระบบเลื่อนคิวถัดไปให้อัตโนมัติ',
+                            size: 'xs',
+                            color: '#1e293b',
+                            wrap: true,
+                            margin: 'xs'
+                          }
+                        ]
+                      }
                     ]
                   },
                   footer: {
@@ -958,7 +1014,62 @@ router.post('/line-webhook', async (req, res) => {
                     contents: [
                       { type: 'text', text: `กิจกรรม: ${assignment.mission_title || '-'}`, weight: 'bold', size: 'sm', wrap: true },
                       { type: 'text', text: `เรียน คุณ ${assignment.name}`, size: 'xs', color: '#64748b' },
-                      { type: 'text', text: 'กรณีมีผู้ปฏิบัติงานแทน : กรุณาพิมพ์รหัสพนักงาน (เช่น EMP-025)\n\nกรณีไม่มีผู้ปฏิบัติงานแทน : กรุณากดปุ่มด้านล่างเพื่อให้ระบบเลื่อนคิวถัดไปให้อัตโนมัติ', size: 'xs', color: '#334155', wrap: true }
+                      
+                      // 💡 แถบสีอ่อนสำหรับตัวเลือกที่ 1 (กรณีมีผู้ปฏิบัติงานแทน)
+                      {
+                        type: 'box',
+                        layout: 'vertical',
+                        backgroundColor: '#fff7ed',
+                        borderColor: '#fed7aa',
+                        borderWidth: '1px',
+                        cornerRadius: '8px',
+                        paddingAll: '10px',
+                        contents: [
+                          {
+                            type: 'text',
+                            text: 'กรณีมีผู้ปฏิบัติงานแทน :',
+                            weight: 'bold',
+                            size: 'xs',
+                            color: '#c2410c'
+                          },
+                          {
+                            type: 'text',
+                            text: 'กรุณาพิมพ์รหัสพนักงาน (เช่น EMP-025)',
+                            size: 'xs',
+                            color: '#431407',
+                            wrap: true,
+                            margin: 'xs'
+                          }
+                        ]
+                      },
+
+                      // 💡 แถบสีอ่อนสำหรับตัวเลือกที่ 2 (กรณีไม่มีผู้ปฏิบัติงานแทน)
+                      {
+                        type: 'box',
+                        layout: 'vertical',
+                        backgroundColor: '#f8fafc',
+                        borderColor: '#cbd5e1',
+                        borderWidth: '1px',
+                        cornerRadius: '8px',
+                        paddingAll: '10px',
+                        contents: [
+                          {
+                            type: 'text',
+                            text: 'กรณีไม่มีผู้ปฏิบัติงานแทน :',
+                            weight: 'bold',
+                            size: 'xs',
+                            color: '#334155'
+                          },
+                          {
+                            type: 'text',
+                            text: 'กรุณากดปุ่มด้านล่างเพื่อให้ระบบเลื่อนคิวถัดไปให้อัตโนมัติ',
+                            size: 'xs',
+                            color: '#1e293b',
+                            wrap: true,
+                            margin: 'xs'
+                          }
+                        ]
+                      }
                     ]
                   },
                   footer: {

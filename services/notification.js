@@ -622,7 +622,7 @@ function createPersonalizedFlexCard(
                       type: 'postback',
                       label: '🔴 ติดภารกิจ',
                       data: `BUSY|${missionId}|${personnelId}`,
-                      displayText: 'กรุณาพิมพ์รหัสผู้ปฏิบัติงานแทน'
+                      displayText: '🔴 กรุณาเลือกเหตุผลของท่าน'
                     }
                   }
                 ]
