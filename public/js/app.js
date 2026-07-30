@@ -2452,23 +2452,18 @@ function togglePermissionChecklist(roleType) {
   const checkboxes = document.querySelectorAll('.menu-perm-cb');
   const selectAllCb = document.getElementById('menu-perm-select-all');
 
-  if (roleType === 'ADMIN') {
-    checkboxes.forEach(cb => { cb.checked = true; cb.disabled = true; });
-    if (selectAllCb) { selectAllCb.checked = true; selectAllCb.disabled = true; }
-  } else {
-    // 💡 เฉพาะแอดมินระบบ (ADMIN) เท่านั้นที่สามารถใช้งานเมนูจัดการผู้ใช้งานได้
-    checkboxes.forEach(cb => {
-      if (cb.value === 'user-management') {
-        cb.checked = false;
-        cb.disabled = true;
-      } else {
-        cb.disabled = false;
-      }
-    });
-    if (selectAllCb) selectAllCb.disabled = false;
-    updateSelectAllState();
+  // 💡 ปลดล็อกช่องสิทธิ์เมนูทั้งหมด ไม่ล็อกสีเทา (disabled) เพื่อให้แอดมินแก้ไขสิทธิ์ได้อิสระสำหรับทุกบทบาท
+  checkboxes.forEach(cb => {
+    cb.disabled = false;
+  });
+
+  if (selectAllCb) {
+    selectAllCb.disabled = false;
   }
+
+  updateSelectAllState();
 }
+
 
 
 
