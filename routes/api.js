@@ -93,34 +93,8 @@ async function generateMissionCode() {
         throw error; // โยน Error กลับไปให้ Route จัดการ
     }
 }
-// Helper: Auto-advance round if everyone completed
-/*async function checkAndAdvanceRound(roleType) {
-  const state = await dbGet(`SELECT current_round FROM queue_state WHERE role_type = ?;`, [roleType]);
-  const currentRound = state ? state.current_round : 1;
+}
 
-  const remaining = await dbGet(
-    `SELECT COUNT(*) as count FROM queue_members WHERE role_type = ? AND current_round = ? AND status != 'COMPLETED';`,
-    [roleType, currentRound]
-  );
-
-  if (remaining && remaining.count === 0) {
-    const nextRound = currentRound + 1;
-    console.log(`🔄 Strict Round Control: All ${roleType} members completed Round ${currentRound}. Advancing to Round ${nextRound}!`);
-
-    await dbRun(`UPDATE queue_state SET current_round = ?, updated_at = CURRENT_TIMESTAMP WHERE role_type = ?;`, [nextRound, roleType]);
-
-    await dbRun(
-      `UPDATE queue_members 
-       SET current_round = ?, status = 'WAITING', hold_reason = NULL, hold_timestamp = NULL 
-       WHERE role_type = ?;`,
-      [nextRound, roleType]
-    );
-
-    return { roundAdvanced: true, newRound: nextRound };
-  }
-
-  return { roundAdvanced: false, currentRound };
-}*/
 
 // -------------------------------------------------------------
 // Helper: Fisher–Yates Shuffle

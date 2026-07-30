@@ -1021,121 +1021,10 @@ async function loadDirectorSelectList() {
       </p>
     `;
   }
-}
-
-function onDirectorSelectionChange(
-  changedCheckbox = null
-) {
-  // ---------------------------------------------------------
-  // DIR-01 เป็นหัวหน้าฟิก ห้ามยกเลิก
-  // ---------------------------------------------------------
-  if (
-    changedCheckbox &&
-    changedCheckbox.dataset.fixed === '1'
-  ) {
-    changedCheckbox.checked = true;
-  }
-
-  const checkedBoxes =
-    document.querySelectorAll(
-      '#director-select-list ' +
-      '.director-checkbox:checked'
-    );
-
-  const selectedIds =
-    Array.from(checkedBoxes)
-      .map(checkbox =>
-        Number.parseInt(
-          checkbox.value,
-          10
-        )
-      )
-      .filter(Number.isInteger);
-
-  // ---------------------------------------------------------
-  // อัปเดตป้ายจำนวนผู้ถูกเลือก
-  // ---------------------------------------------------------
-  const badge =
-    document.getElementById(
-      'selected-directors-badge'
-    );
-
-  if (badge) {
-    badge.textContent =
-      `เลือกแล้ว ${selectedIds.length} ท่าน`;
-  }
-
-  // ---------------------------------------------------------
-  // ดึงข้อมูลเฉพาะผู้ที่ถูกเลือก
-  // ---------------------------------------------------------
-  previewedDirectors =
-    allDirectorsList.filter(person => {
-      const personnelId = Number(
-        person.personnel_id ||
-        person.id
-      );
-
-      return selectedIds.includes(
-        personnelId
-      );
-    });
-
-    // 3. ลำดับด้านซ้าย:
-    //    DIR-10 → DIR-09 → DIR-01
-    // ---------------------------------------------------------
-    const displayedDirectors = [
-      ...reserveDirectors,
-      ...(fixedDirector
-        ? [fixedDirector]
-        : [])
-    ];
-  
-    // ---------------------------------------------------------
-  // เรียงการ์ดด้านขวา:
-  // 1. DIR-01 เป็นคิว #1
-  // 2. ตัวสำรองที่เลือกเพิ่ม เช่น DIR-10 เป็นคิว #2
-  // 3. DIR-09 เป็นลำดับถัดไป
-  // ---------------------------------------------------------
-  previewedDirectors.sort((a, b) => {
-    const order = {
-      'DIR-01': 1,
-      'DIR-10': 2,
-      'DIR-09': 3
-    };
-
-    const codeA = String(
-      a.emp_code || ''
-    )
-      .trim()
-      .toUpperCase();
-
-    const codeB = String(
-      b.emp_code || ''
-    )
-      .trim()
-      .toUpperCase();
-
-    return (
-      (order[codeA] || 99) -
-      (order[codeB] || 99)
-    );
-  });
-
-  // แสดงหัวหน้าทีมทางขวาตามที่เลือกจริง
-  renderCandidatesList(
-    'preview-directors-list',
-    previewedDirectors
-  );
-
-  console.log(
-    '👔 หัวหน้าทีมที่เลือก:',
-    previewedDirectors.map(
-      person => person.emp_code
-    )
-  );
-}
+}}
 
 function onDirectorSelectionChange(changedCheckbox = null) {
+
   // DIR-01 เป็นหัวหน้าฟิก ห้ามยกเลิก
   if (
     changedCheckbox &&
@@ -2882,24 +2771,6 @@ function renderUserTable(users) {
 }
 
 
-function filterUserList() {
-  const search = document.getElementById('user-search-input')?.value.toLowerCase().trim() || '';
-  const role = document.getElementById('user-role-filter')?.value || 'ALL';
-
-  let filtered = allUsersData.filter(u => {
-    const matchSearch = !search ||
-      (u.name && u.name.toLowerCase().includes(search)) ||
-      (u.emp_code && u.emp_code.toLowerCase().includes(search)) ||
-      (u.position && u.position.toLowerCase().includes(search)) ||
-      (u.department && u.department.toLowerCase().includes(search));
-
-    const matchRole = role === 'ALL' || u.role_type === role;
-
-    return matchSearch && matchRole;
-  });
-
-  renderUserTable(filtered);
-}
 
 
 
