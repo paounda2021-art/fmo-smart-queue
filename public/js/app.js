@@ -1004,24 +1004,11 @@ async function loadDirectorSelectList() {
     // อัปเดตจำนวนที่เลือกและการ์ดด้านขวา
     onDirectorSelectionChange();
   } catch (err) {
-    console.error(
-      'Error loading director select list:',
-      err
-    );
-
-    container.innerHTML = `
-      <p
-        style="
-          color: #dc2626;
-          font-size: 0.82rem;
-          margin: 0;
-        "
-      >
-        ไม่สามารถโหลดรายชื่อ ผอ.ฝ่ายได้
-      </p>
-    `;
+    console.error('Error loading director select list:', err);
+    container.innerHTML = `<p style="color: #dc2626; font-size: 0.82rem; margin: 0;">ไม่สามารถโหลดรายชื่อ ผอ.ฝ่ายได้</p>`;
   }
-}}
+}
+
 
 function onDirectorSelectionChange(changedCheckbox = null) {
 
