@@ -51,20 +51,15 @@ function initApp() {
   populate24HourTimeOptions('alloc-end-time', '17:00');
   setDefaultMissionTimes();
 
+  // 🚀 ดึงข้อมูล ผอ.ฝ่าย สำหรับหน้าจัดสรรคิวทันที (Instant Load < 100ms)
+  loadDirectorSelectList();
+
   // ดึงแท็บเดิมจาก hash หรือ localStorage (ถ้าไม่มี ให้เปิด quick หน้าแรก)
   const hashTab = (window.location.hash || '').replace('#', '').trim();
   const savedTab = hashTab || localStorage.getItem('fmo_active_tab') || 'quick';
   switchTab(savedTab);
-
-  // 🚀 Parallel Data Loading - ยิงดึงข้อมูลขนานกันทุก API เพื่อความเร็วสูงสุด
-  Promise.all([
-    loadDirectorSelectList(),
-    loadDashboardStats(),
-    loadQueueView('DIRECTOR'),
-    loadPersonnelDropdown(),
-    loadAllMissions()
-  ]).catch(err => console.error('Error in parallel init fetch:', err));
 }
+
 
 function applyMenuPermissions(userObj = null) {
   let user = userObj;
