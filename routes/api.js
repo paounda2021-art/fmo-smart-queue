@@ -4,6 +4,64 @@ const axios = require('axios');
 const { dbRun, dbGet, dbAll } = require('../db/database');
 const { sendMissionNotification, formatDate24h } = require('../services/notification');
 
+// POST /api/login - ตรวจสอบการเข้าสู่ระบบจากตาราง personnel ใน SQLite
+router.post('/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ success: false, error: 'กรุณากรอกชื่อผู้ใช้งานและรหัสผ่าน' });
+    }
+
+    const cleanUser = String(username).trim();
+    const cleanUserUpper = cleanUser.toUpperCase();
+
+    // ค้นหาจาก emp_code หรือ email
+    const user = await dbGet(`
+      SELECT * FROM personnel 
+      WHERE UPPER(emp_code) = ? 
+         OR UPPER(email) = ? 
+         OR UPPER(email) LIKE ?
+    `, [cleanUserUpper, cleanUserUpper, `${cleanUserUpper}@%`]);
+
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง' });
+    }
+
+    // ตรวจสอบรหัสผ่าน
+    const dbPass = user.password || '123456';
+    if (String(password) !== String(dbPass)) {
+      return res.status(401).json({ success: false, error: 'ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง' });
+    }
+
+    const roleMap = {
+      'ADMIN': { role: 'admin', roleLabel: 'ผู้ดูแลระบบ (Admin)' },
+      'OPERATOR': { role: 'staff', roleLabel: 'เจ้าหน้าที่ปฏิบัติการ (Operator)' },
+      'DIRECTOR': { role: 'staff', roleLabel: 'ผอ.ฝ่าย (Director)' },
+      'STAFF': { role: 'staff', roleLabel: 'พนักงาน (Staff)' }
+    };
+
+    const rInfo = roleMap[user.role_type] || { role: 'staff', roleLabel: 'พนักงาน (Staff)' };
+
+    res.json({
+      success: true,
+      message: `ยินดีต้อนรับ คุณ${user.name}`,
+      user: {
+        username: user.emp_code,
+        label: user.name,
+        empCode: user.emp_code,
+        position: user.position || 'เจ้าหน้าที่ อสป.',
+        department: user.department || 'อสป.',
+        role: rInfo.role,
+        roleLabel: rInfo.roleLabel,
+        menu_permissions: user.menu_permissions ? JSON.parse(user.menu_permissions) : []
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+
 // Helper: Generate Auto-Running Mission Code (FMO-ATMMYY-XXX)
 async function generateMissionCode() {
     const now = new Date();

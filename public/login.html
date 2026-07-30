@@ -632,54 +632,70 @@
       btn.classList.add('loading');
       btn.disabled = true;
 
-      /* Simulate async auth (300ms delay to feel responsive) */
-      await new Promise(r => setTimeout(r, 600));
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
 
-      const match = CREDENTIALS.find(c => c.username === username && c.password === password);
+        if (data.success && data.user) {
+          if (remember) {
+            localStorage.setItem('fmo_remembered_user', username);
+          } else {
+            localStorage.removeItem('fmo_remembered_user');
+          }
 
-      if (match) {
-        /* Save remember-me */
-        if (remember) {
-          localStorage.setItem('fmo_remembered_user', username);
+          sessionStorage.setItem('fmo_user', JSON.stringify({
+            ...data.user,
+            loginAt: new Date().toISOString()
+          }));
+
+          showAlert(`✅ ยินดีต้อนรับ ${data.user.label} — กำลังเข้าสู่ระบบ...`, 'success');
+
+          setTimeout(() => {
+            window.location.href = '/app';
+          }, 800);
+          return;
         } else {
-          localStorage.removeItem('fmo_remembered_user');
+          // Fallback check matching local CREDENTIALS if offline/legacy
+          const match = CREDENTIALS.find(c => c.username.toLowerCase() === username.toLowerCase() && c.password === password);
+          if (match) {
+            sessionStorage.setItem('fmo_user', JSON.stringify({
+              username: match.username,
+              label: match.label,
+              empCode: match.empCode || '',
+              position: match.position || 'เจ้าหน้าที่ อสป.',
+              role: match.role || 'admin',
+              roleLabel: match.roleLabel || 'ผู้ดูแลระบบ (Admin)',
+              loginAt: new Date().toISOString()
+            }));
+            showAlert(`✅ ยินดีต้อนรับ ${match.label} — กำลังเข้าสู่ระบบ...`, 'success');
+            setTimeout(() => { window.location.href = '/app'; }, 800);
+            return;
+          }
+          throw new Error(data.error || 'ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง');
         }
-
-        /* Store session including role for RBAC */
-        sessionStorage.setItem('fmo_user', JSON.stringify({
-          username,
-          label: match.label,
-          empCode: match.empCode || '',
-          position: match.position || 'เจ้าหน้าที่ อสป.',
-          role: match.role || 'admin',
-          roleLabel: match.roleLabel || 'ผู้ดูแลระบบ (Admin)',
-          loginAt: new Date().toISOString()
-        }));
-
-
-        showAlert(`✅ ยินดีต้อนรับ ${match.label} — กำลังเข้าสู่ระบบ...`, 'success');
-
-        /* Redirect after short delay */
-        setTimeout(() => {
-          window.location.href = '/app';
-        }, 900);
-      } else {
+      } catch (err) {
         btn.classList.remove('loading');
         btn.disabled = false;
-        showAlert('ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง');
+        showAlert(err.message || 'ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง');
 
-        /* Shake animation */
         const card = document.querySelector('.login-card');
-        card.animate([
-          { transform: 'translateX(0)' },
-          { transform: 'translateX(-8px)' },
-          { transform: 'translateX(8px)' },
-          { transform: 'translateX(-6px)' },
-          { transform: 'translateX(6px)' },
-          { transform: 'translateX(0)' }
-        ], { duration: 380, easing: 'ease-out' });
+        if (card && card.animate) {
+          card.animate([
+            { transform: 'translateX(0)' },
+            { transform: 'translateX(-8px)' },
+            { transform: 'translateX(8px)' },
+            { transform: 'translateX(-6px)' },
+            { transform: 'translateX(6px)' },
+            { transform: 'translateX(0)' }
+          ], { duration: 380, easing: 'ease-out' });
+        }
       }
     }
+
 
     /* ─── Forgot Password ─── */
     function showForgotMsg(e) {

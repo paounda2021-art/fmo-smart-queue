@@ -200,7 +200,32 @@ async function initSchema() {
 
   await dbRun(`INSERT OR IGNORE INTO queue_state (role_type, current_round) VALUES ('DIRECTOR', 1);`);
   await dbRun(`INSERT OR IGNORE INTO queue_state (role_type, current_round) VALUES ('STAFF', 1);`);
+
+  // Ensure default Auth Users exist in personnel table with correct initial passwords
+  const authSeedUsers = [
+    { emp_code: 'ADMIN', name: 'ผู้ดูแลระบบ (Admin)', role_type: 'ADMIN', department: 'อสป.', position: 'ผู้ดูแลระบบระบบจัดสรรคิว', email: 'admin@fmo.or.th', password: 'Fmo@2026#Adm!' },
+    { emp_code: 'EMP-043', name: 'น.ส.พิมพ์ลดา อัศวเศรษฐชัย', role_type: 'ADMIN', department: 'ประชาสัมพันธ์', position: 'นักประชาสัมพันธ์', email: 'pimrada.a@fishmarket.co.th', password: 'Pim@043#Fmo!' },
+    { emp_code: 'EMP-062', name: 'น.ส.อมรรัตน์ ขุนทอง', role_type: 'ADMIN', department: 'เทคโนโลยีสารสนเทศ', position: 'นักวิชาการคอมพิวเตอร์', email: 'amornrat.k@fishmarket.co.th', password: 'Amorn@062#Fmo!' },
+    { emp_code: 'EMP-102', name: 'นายวาทิต แตงนวลจันทร์', role_type: 'OPERATOR', department: 'ปฏิบัติการ', position: 'เจ้าหน้าที่บันทึกคิว', email: 'watit.t@fishmarket.co.th', password: 'Watit@1234' }
+  ];
+
+  for (const u of authSeedUsers) {
+    try {
+      const existing = await dbGet(`SELECT id, password FROM personnel WHERE UPPER(emp_code) = ? OR UPPER(email) LIKE ?`, [u.emp_code.toUpperCase(), `%${u.emp_code.toLowerCase()}%`]);
+      if (existing) {
+        if (!existing.password) {
+          await dbRun(`UPDATE personnel SET password = ?, role_type = ? WHERE id = ?`, [u.password, u.role_type, existing.id]);
+        }
+      } else {
+        await dbRun(`
+          INSERT INTO personnel (emp_code, name, role_type, department, position, email, password)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `, [u.emp_code, u.name, u.role_type, u.department, u.position, u.email, u.password]);
+      }
+    } catch (e) {}
+  }
 }
+
 
 module.exports = {
   db,
