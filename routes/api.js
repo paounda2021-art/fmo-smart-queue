@@ -1209,11 +1209,9 @@ router.post('/line-webhook', async (req, res) => {
           }
 
           // -----------------------------------------------------------
-          // B4. รหัส EMP-/DIR-
-          // ถ้ามี BUSY_PENDING = ใช้เป็นตัวแทน
-          // ถ้าไม่มี = ใช้ตรวจ/ผูกบัญชี LINE
+          // B4. รหัส EMP-/DIR- หรือระบุตัวแทนขณะมี BUSY_PENDING
           // -----------------------------------------------------------
-          else if (/^(EMP|DIR)-\d+$/i.test(userMessage)) {
+          else if (/^(EMP|DIR)-\d+$/i.test(userMessage) || /^\d{1,4}$/.test(userMessage) || (rawText.length >= 2 && !rawText.includes(' '))) {
             const pendingAssignment = await dbGet(
               `
               SELECT
@@ -1241,23 +1239,31 @@ router.post('/line-webhook', async (req, res) => {
             );
 
             if (pendingAssignment) {
+              let searchEmpCode = userMessage;
+              if (/^\d+$/.test(userMessage)) {
+                searchEmpCode = `EMP-${userMessage.padStart(3, '0')}`;
+              }
+
               const substituteUser = await dbGet(
                 `
                 SELECT *
                 FROM personnel
-                WHERE UPPER(TRIM(emp_code)) = ?;
+                WHERE UPPER(TRIM(emp_code)) = ?
+                   OR UPPER(TRIM(emp_code)) = ?
+                   OR name LIKE ?;
                 `,
-                [userMessage]
+                [userMessage, searchEmpCode, `%${rawText}%`]
               );
 
               if (!substituteUser) {
                 messagesPayload = [{
                   type: 'text',
-                  text: `❌ ไม่พบรหัส ${userMessage}`
+                  text: `❌ ไม่พบข้อมูลพนักงาน "${rawText}" ในระบบค่ะ\n\nกรุณาพิมพ์รหัสพนักงาน (เช่น EMP-025) หรือชื่อพนักงานที่จะปฏิบัติงานแทน\nหรือกดปุ่ม 🟡 ไม่มีคนแทน ในการ์ดสีแดงด้านบนค่ะ`
                 }];
               } else if (Number(substituteUser.id) === Number(pendingAssignment.personnel_id)) {
                 messagesPayload = [{
                   type: 'text',
+
                   text: '⚠️ ไม่สามารถเลือกตนเองเป็นผู้ปฏิบัติงานแทนได้ค่ะ'
                 }];
               } else {
