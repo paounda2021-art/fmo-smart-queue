@@ -1112,27 +1112,32 @@ function onDirectorSelectionChange(changedCheckbox = null) {
   previewedDirectors = Array.from(selectedMap.values());
 
 
-  // ด้านขวาเรียง DIR-01 ก่อน แล้ว DIR-10 และ DIR-09
+  // 👑 เรียงการ์ดฝั่งขวาตามลำดับชั้นผู้บริหาร (Hierarchy Priority):
+  // 1. ผู้บริหารระดับสูง (DIR-10 ผออ. -> DIR-09 รผอ.บร.) แสดงผลเป็นลำดับแรกสุดเสมอ
+  // 2. ผอ.ฝ่ายที่วนคิวตามระบบอัตโนมัติประจำรอบ (DIR-01 ถึง DIR-08) แสดงผลลำดับถัดมา
   const directorOrder = {
-    'DIR-01': 1,
-    'DIR-10': 2,
-    'DIR-09': 3
+    'DIR-10': 1, // 👑 ผออ. (ผู้บริหารระดับสูง) แสดงเป็นลำดับแรกสุดเสมอ
+    'DIR-09': 2, // 👑 รผอ.บร. (ผู้บริหารระดับสูง) แสดงเป็นลำดับสอง
+    'DIR-01': 3,
+    'DIR-02': 4,
+    'DIR-03': 5,
+    'DIR-04': 6,
+    'DIR-05': 7,
+    'DIR-06': 8,
+    'DIR-07': 9,
+    'DIR-08': 10
   };
 
   previewedDirectors.sort((a, b) => {
-    const codeA = String(a.emp_code || '')
-      .trim()
-      .toUpperCase();
+    const codeA = String(a.emp_code || '').trim().toUpperCase();
+    const codeB = String(b.emp_code || '').trim().toUpperCase();
 
-    const codeB = String(b.emp_code || '')
-      .trim()
-      .toUpperCase();
+    const orderA = directorOrder[codeA] || 99;
+    const orderB = directorOrder[codeB] || 99;
 
-    return (
-      (directorOrder[codeA] || 99) -
-      (directorOrder[codeB] || 99)
-    );
+    return orderA - orderB;
   });
+
 
   // แสดงหัวหน้าทีมด้านขวาตาม Checkbox ที่เลือกจริง
   renderCandidatesList(
