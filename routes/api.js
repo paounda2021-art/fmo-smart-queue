@@ -895,11 +895,36 @@ router.post('/line-webhook', async (req, res) => {
                 }
               }];
             } else if (['SUBSTITUTED', 'DECLINED_NO_SUBSTITUTE'].includes(assignment.assignment_status)) {
-              // ดำเนินการเรียบร้อยแล้ว
-              replyMessages = [{
-                type: 'text',
-                text: `ℹ️ ท่านได้แจ้งติดภารกิจในกิจกรรมนี้เรียบร้อยแล้วค่ะ\n\nระบบได้จัดการให้เรียบร้อยแล้ว ขอบคุณค่ะ 🙏`
-              }];
+              // 🚀 หากกดปุ่มติดภารกิจซ้ำในภารกิจที่ดำเนินการแล้ว ➔ แสดงข้อความการตอบกลับเดิมซ้ำ 100%
+              const replacementAssignment = await dbGet(
+                `
+                SELECT ma.*, p.name AS replacement_name, p.emp_code AS replacement_emp_code
+                FROM mission_assignments ma
+                JOIN personnel p ON p.id = ma.personnel_id
+                WHERE ma.mission_id = ?
+                  AND ma.substituted_for_personnel_id = ?
+                ORDER BY ma.id DESC
+                LIMIT 1;
+                `,
+                [assignment.mission_id, assignment.personnel_id]
+              );
+
+              if (replacementAssignment) {
+                replyMessages = [{
+                  type: 'text',
+                  text:
+                    `🔴 บันทึกการติดภารกิจของคุณ ${assignment.name} เรียบร้อยแล้วค่ะ\n(ถือว่าใช้สิทธิ์ในรอบนี้แล้ว)\n\n` +
+                    `👤\nระบบได้จัดสรรพนักงานลำดับถัดไปคือ คุณ ${replacementAssignment.replacement_name} (${replacementAssignment.replacement_emp_code}) ปฏิบัติงานแทนให้อัตโนมัติเรียบร้อยแล้วค่ะ\n\n` +
+                    `📩 แจ้งเตือนผู้ปฏิบัติงานคนใหม่เรียบร้อยแล้ว ทางไลน์`
+                }];
+              } else {
+                replyMessages = [{
+                  type: 'text',
+                  text:
+                    `🔴 บันทึกการติดภารกิจของคุณ ${assignment.name} เรียบร้อยแล้วค่ะ\n(ถือว่าใช้สิทธิ์ในรอบนี้แล้ว)\n\n` +
+                    `⚠️ ขณะนี้ไม่มีพนักงานคงเหลือในคิวเพื่อปฏิบัติงานแทน ระบบจึงลงประวัติขอลาไว้ให้เรียบร้อยค่ะ`
+                }];
+              }
             } else {
 
               await dbRun(
@@ -969,7 +994,6 @@ router.post('/line-webhook', async (req, res) => {
               JOIN missions m ON m.id = ma.mission_id
               WHERE ma.mission_id = ?
                 AND ma.personnel_id = ?
-                AND ma.assignment_status IN ('JOINED', 'BUSY_PENDING')
               ORDER BY ma.id DESC
               LIMIT 1;
               `,
@@ -986,7 +1010,6 @@ router.post('/line-webhook', async (req, res) => {
                 JOIN missions m ON m.id = ma.mission_id
                 WHERE ma.mission_id = ?
                   AND p.line_user_id = ?
-                  AND ma.assignment_status IN ('JOINED', 'BUSY_PENDING')
                 ORDER BY ma.id ASC
                 LIMIT 1;
                 `,
@@ -999,6 +1022,37 @@ router.post('/line-webhook', async (req, res) => {
                 type: 'text',
                 text: '❌ ไม่พบข้อมูลการจัดสรรในระบบ กรุณาติดต่อเจ้าหน้าที่ค่ะ'
               }];
+            } else if (['DECLINED_NO_SUBSTITUTE', 'SUBSTITUTED'].includes(assignment.assignment_status)) {
+              // 🚀 หากกดปุ่มไม่มีคนแทนซ้ำ ➔ แสดงข้อความเดิมซ้ำ 100%
+              const replacementAssignment = await dbGet(
+                `
+                SELECT ma.*, p.name AS replacement_name, p.emp_code AS replacement_emp_code
+                FROM mission_assignments ma
+                JOIN personnel p ON p.id = ma.personnel_id
+                WHERE ma.mission_id = ?
+                  AND ma.substituted_for_personnel_id = ?
+                ORDER BY ma.id DESC
+                LIMIT 1;
+                `,
+                [assignment.mission_id, assignment.personnel_id]
+              );
+
+              if (replacementAssignment) {
+                replyMessages = [{
+                  type: 'text',
+                  text:
+                    `🔴 บันทึกการติดภารกิจของคุณ ${assignment.name} เรียบร้อยแล้วค่ะ\n(ถือว่าใช้สิทธิ์ในรอบนี้แล้ว)\n\n` +
+                    `👤\nระบบได้จัดสรรพนักงานลำดับถัดไปคือ คุณ ${replacementAssignment.replacement_name} (${replacementAssignment.replacement_emp_code}) ปฏิบัติงานแทนให้อัตโนมัติเรียบร้อยแล้วค่ะ\n\n` +
+                    `📩 แจ้งเตือนผู้ปฏิบัติงานคนใหม่เรียบร้อยแล้ว ทางไลน์`
+                }];
+              } else {
+                replyMessages = [{
+                  type: 'text',
+                  text:
+                    `🔴 บันทึกการติดภารกิจของคุณ ${assignment.name} เรียบร้อยแล้วค่ะ\n(ถือว่าใช้สิทธิ์ในรอบนี้แล้ว)\n\n` +
+                    `⚠️ ขณะนี้ไม่มีพนักงานคงเหลือในคิวเพื่อปฏิบัติงานแทน ระบบจึงลงประวัติขอลาไว้ให้เรียบร้อยค่ะ`
+                }];
+              }
             } else {
               await dbRun(
                 `UPDATE mission_assignments 
@@ -1063,23 +1117,19 @@ router.post('/line-webhook', async (req, res) => {
                   ).catch(e => console.error('Notification dispatch error:', e));
                 }
 
-                const channelNotice = (nextCandidate.line_user_id && nextCandidate.line_user_id.toLowerCase() !== 'email')
-                  ? 'LINE และ อีเมล'
-                  : 'ทางอีเมล';
-
                 replyMessages = [{
                   type: 'text',
                   text:
-                    `🔴 บันทึกการติดภารกิจของคุณ ${assignment.name} เรียบร้อยแล้วค่ะ (ถือว่าใช้สิทธิ์ในรอบนี้แล้ว)\n\n` +
-                    `👤 ระบบได้จัดสรรพนักงานลำดับถัดไปคือ คุณ ${nextCandidate.name} (${nextCandidate.emp_code}) ปฏิบัติงานแทนให้อัตโนมัติเรียบร้อยแล้วค่ะ\n\n` +
-                    `📩 แจ้งเตือนผู้ปฏิบัติงานคนใหม่เรียบร้อยแล้ว (${channelNotice})`
+                    `🔴 บันทึกการติดภารกิจของคุณ ${assignment.name} เรียบร้อยแล้วค่ะ\n(ถือว่าใช้สิทธิ์ในรอบนี้แล้ว)\n\n` +
+                    `👤\nระบบได้จัดสรรพนักงานลำดับถัดไปคือ คุณ ${nextCandidate.name} (${nextCandidate.emp_code}) ปฏิบัติงานแทนให้อัตโนมัติเรียบร้อยแล้วค่ะ\n\n` +
+                    `📩 แจ้งเตือนผู้ปฏิบัติงานคนใหม่เรียบร้อยแล้ว ทางไลน์`
                 }];
               } else {
                 await checkAndAdvanceRound(assignment.role_type);
                 replyMessages = [{
                   type: 'text',
                   text:
-                    `🔴 บันทึกการติดภารกิจของคุณ ${assignment.name} เรียบร้อยแล้วค่ะ (ถือว่าใช้สิทธิ์ในรอบนี้แล้ว)\n\n` +
+                    `🔴 บันทึกการติดภารกิจของคุณ ${assignment.name} เรียบร้อยแล้วค่ะ\n(ถือว่าใช้สิทธิ์ในรอบนี้แล้ว)\n\n` +
                     `⚠️ ขณะนี้ไม่มีพนักงานคงเหลือในคิวเพื่อปฏิบัติงานแทน ระบบจึงลงประวัติขอลาไว้ให้เรียบร้อยค่ะ`
                 }];
               }
