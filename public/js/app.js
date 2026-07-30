@@ -46,6 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function initApp() {
   renderUserBadge();
+  applyMenuPermissions();
   populate24HourTimeOptions('alloc-start-time', '09:00');
   populate24HourTimeOptions('alloc-end-time', '17:00');
   setDefaultMissionTimes();
@@ -62,6 +63,80 @@ function initApp() {
   loadAllMissions();
 }
 
+async function applyMenuPermissions(userObj = null) {
+  let user = userObj;
+
+  if (!user) {
+    const sessionUser = sessionStorage.getItem('fmo_user');
+    if (sessionUser) {
+      try { user = JSON.parse(sessionUser); } catch(e){}
+    }
+  }
+
+  if (!user) return;
+
+  let perms = [];
+  const roleUpper = String(user.role || user.role_type || '').toUpperCase();
+  const isAdmin = roleUpper === 'ADMIN' || user.role === 'admin';
+
+  if (isAdmin) {
+    // Admin ได้สิทธิ์ครบทุกเมนู
+    document.querySelectorAll('.nav-btn[data-menu]').forEach(btn => {
+      btn.style.display = 'inline-flex';
+    });
+    return;
+  }
+
+  // หากเป็นผู้ใช้งานทั่วไป พยายามดึงสิทธิ์ล่าสุดจาก DB (ถ้ามี empCode/username)
+  if (user.empCode || user.username) {
+    try {
+      const code = user.empCode || user.username;
+      const res = await fetch(`/api/users`);
+      const allUsers = await res.json();
+      if (Array.isArray(allUsers)) {
+        const found = allUsers.find(u => String(u.emp_code).toUpperCase() === String(code).toUpperCase());
+        if (found && found.menu_permissions) {
+          perms = typeof found.menu_permissions === 'string' ? JSON.parse(found.menu_permissions) : (found.menu_permissions || []);
+        }
+      }
+    } catch(e) {}
+  }
+
+  // Fallback ถ้าดึงสิทธิ์ไม่ได้
+  if (!perms || perms.length === 0) {
+    try {
+      perms = typeof user.menu_permissions === 'string' ? JSON.parse(user.menu_permissions) : (user.menu_permissions || []);
+    } catch(e){}
+  }
+
+  // ถ้ายังคงว่างเปล่า กำหนดสิทธิ์ตั้งต้นเป็น quick และ queue
+  if (!perms || perms.length === 0) {
+    perms = ['quick', 'queue'];
+  }
+
+  console.log(`🔐 [RBAC] เมนูที่สิทธิ์ได้รับอนุญาต (${user.label || user.username}):`, perms);
+
+  // ควบคุมการแสดงผลของปุ่มเมนูกดบน Navbar
+  document.querySelectorAll('.nav-btn[data-menu]').forEach(btn => {
+    const menuKey = btn.getAttribute('data-menu');
+    if (perms.includes(menuKey)) {
+      btn.style.display = 'inline-flex';
+    } else {
+      btn.style.display = 'none';
+    }
+  });
+
+  // หากสลับไปหน้าเมนูที่ไม่ได้รับอนุญาต ให้เปลี่ยนสลับไปหน้าแรกที่สิทธิ์เข้าถึงได้โดยอัตโนมัติ
+  const currentTab = (window.location.hash || '').replace('#', '').trim() || localStorage.getItem('fmo_active_tab') || 'quick';
+  if (!perms.includes(currentTab)) {
+    const firstAllowed = perms[0] || 'quick';
+    console.warn(`⚠️ เมนู "${currentTab}" ไม่ได้รับอนุญาต! กำลังเปลี่ยนไปยังหน้า "${firstAllowed}"`);
+    if (typeof switchTab === 'function') {
+      switchTab(firstAllowed);
+    }
+  }
+}
+
 function renderUserBadge() {
   const sessionUser = sessionStorage.getItem('fmo_user');
   if (!sessionUser) return;
@@ -75,6 +150,8 @@ function renderUserBadge() {
     if (nameEl) nameEl.textContent = userObj.label || userObj.username || 'ผู้ใช้งาน';
     if (posEl) posEl.textContent = userObj.position || (userObj.empCode ? `รหัส ${userObj.empCode}` : 'เจ้าหน้าที่ อสป.');
     if (roleEl) roleEl.textContent = userObj.roleLabel || (userObj.role === 'admin' ? 'แอดมิน (Admin)' : 'เจ้าหน้าที่ (Staff)');
+
+    applyMenuPermissions(userObj);
   } catch (e) {
     console.error('Error rendering user badge:', e);
   }
@@ -84,6 +161,7 @@ function goHome() {
   switchTab('quick');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
+
 
 function handleLogout() {
   if (typeof Swal !== 'undefined') {
