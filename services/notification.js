@@ -79,7 +79,7 @@ function sendEmailViaPowerShell({ to, subject, html }) {
 
           $smtp = New-Object System.Net.Mail.SmtpClient($cfg.smtpServer, $cfg.port)
           if ($cfg.enableSsl -ne $null) { $smtp.EnableSsl = [bool]$cfg.enableSsl }
-          $smtp.Timeout = 10000
+          $smtp.Timeout = 8000
 
           if ($cfg.username -and $cfg.password) {
             $smtp.UseDefaultCredentials = $false
@@ -103,16 +103,21 @@ function sendEmailViaPowerShell({ to, subject, html }) {
 
     fs.writeFileSync(psFile, psContent, 'utf8');
 
-    exec(`powershell -NoProfile -ExecutionPolicy Bypass -File "${psFile}"`, (err) => {
+    // 🚀 รันแบบ Non-Interactive & Hidden Window ไม่ให้เด้ง Terminal ค้าง
+    const cmd = `powershell -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "${psFile}"`;
+    exec(cmd, { timeout: 10000 }, (err) => {
       if (err) {
-        console.error('❌ Failed to send email via PowerShell script:', err.message);
+        try { if (fs.existsSync(jsonFile)) fs.unlinkSync(jsonFile); } catch(e){}
+        try { if (fs.existsSync(psFile)) fs.unlinkSync(psFile); } catch(e){}
       } else {
-        console.log(`✅ Queued email via PowerShell (car-booking pattern) to: ${to}`);
+        console.log(`✅ ส่งอีเมลแจ้งเตือนผ่าน Windows Mail Relay ไปยัง ${to} เรียบร้อย`);
       }
-      resolve();
     });
+
+    resolve();
   });
 }
+
 
 
 
@@ -1113,17 +1118,27 @@ async function dispatchPreEventReminders() {
   try {
     const { dbAll, dbRun } = require('../db/database');
 
+    // 💡 ป้องกันการ์ดส้มส่งตัดหน้าการ์ดฟ้า:
+    // ค้นหากิจกรรมที่จะจัดขึ้นล่วงหน้าใน 24 ชม. ที่ถูกสร้างมาแล้วอย่างน้อย 3 นาที
+    // และเคยส่งการ์ดแจ้งคำสั่งจัดสรรสีฟ้าสำเร็จเรียบร้อยแล้วเท่านั้น
     const upcomingMissions = await dbAll(`
       SELECT m.*
       FROM missions m
       WHERE m.start_date >= DATETIME('now')
         AND m.start_date <= DATETIME('now', '+24 hours')
+        AND m.created_at <= DATETIME('now', '-3 minutes')
         AND m.status IN ('SCHEDULED', 'SUCCESS')
+        AND EXISTS (
+          SELECT 1 FROM notification_logs nl 
+          WHERE nl.mission_id = m.id 
+            AND (nl.subject_title LIKE '%คำสั่งจัดสรร%' OR nl.subject_title LIKE '%แจ้งเตือนจัดสรร%')
+        )
     `);
 
     if (upcomingMissions.length === 0) {
       return { success: true, count: 0, message: 'ไม่พบกิจกรรมที่จะจัดขึ้นในอีก 24 ชั่วโมงข้างหน้า' };
     }
+
 
     const lineToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
     let totalReminded = 0;
