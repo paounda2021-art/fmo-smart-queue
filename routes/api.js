@@ -90,10 +90,11 @@ async function generateMissionCode() {
         return prefix + String(nextNumber).padStart(3, '0');
     } catch (error) {
         console.error('Error generating mission code:', error);
-        throw error; // โยน Error กลับไปให้ Route จัดการ
+        throw error;
     }
 }
-}
+
+
 
 
 // -------------------------------------------------------------
