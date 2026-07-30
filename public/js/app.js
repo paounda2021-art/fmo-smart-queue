@@ -1161,17 +1161,20 @@ function onDirectorSelectionChange(changedCheckbox = null) {
       `เลือกแล้ว ${selectedIds.length} ท่าน`;
   }
 
-  // ดึงรายชื่อที่เลือกจริง
-  previewedDirectors = (allDirectorsList || [])
-    .filter(person => {
-      const personnelId = String(
-        person.personnel_id ||
-        person.id ||
-        ''
-      );
+  // ดึงรายชื่อที่เลือกจริง (Deduplicate)
+  const selectedMap = new Map();
+  (allDirectorsList || []).forEach(person => {
+    const personnelId = String(person.personnel_id || person.id || '');
+    const empCode = String(person.emp_code || '').trim().toUpperCase();
+    const key = empCode || personnelId;
 
-      return selectedIds.includes(personnelId);
-    });
+    if (selectedIds.includes(personnelId) && !selectedMap.has(key)) {
+      selectedMap.set(key, person);
+    }
+  });
+
+  previewedDirectors = Array.from(selectedMap.values());
+
 
   // ด้านขวาเรียง DIR-01 ก่อน แล้ว DIR-10 และ DIR-09
   const directorOrder = {

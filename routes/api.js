@@ -432,7 +432,9 @@ router.get('/queue/:roleType', async (req, res) => {
         FROM queue_members qm
         JOIN personnel p ON qm.personnel_id = p.id
         WHERE qm.role_type = 'DIRECTOR'
+          AND UPPER(TRIM(p.emp_code)) NOT IN ('DIR-10', 'DIR-09')
         ORDER BY qm.queue_order ASC;
+
       `);
 
       members = [...execs, ...regularDirs];
