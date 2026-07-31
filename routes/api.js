@@ -838,7 +838,6 @@ router.post('/line-webhook', async (req, res) => {
                   const fileUrl = assignment.attachment_file.startsWith('http')
                     ? assignment.attachment_file
                     : `${baseUrl}${assignment.attachment_file}`;
-                  const fileName = assignment.attachment_name || 'ดาวน์โหลดเอกสารกำหนดการ';
 
                   fileFlexMsg = {
                     type: 'flex',
@@ -853,16 +852,6 @@ router.post('/line-webhook', async (req, res) => {
                         paddingAll: '14px',
                         contents: [
                           { type: 'text', text: '✅ ตอบรับเข้าร่วมกิจกรรมเรียบร้อยแล้ว', color: '#ffffff', size: 'sm', weight: 'bold' }
-                        ]
-                      },
-                      body: {
-                        type: 'box',
-                        layout: 'vertical',
-                        paddingAll: '16px',
-                        spacing: 'sm',
-                        contents: [
-                          { type: 'text', text: '📎 เอกสารแนบกำหนดการปฏิบัติงาน:', size: 'xs', color: '#047857', weight: 'bold' },
-                          { type: 'text', text: fileName, size: 'sm', color: '#0f172a', weight: 'bold', wrap: true, margin: 'xs' }
                         ]
                       },
                       footer: {
@@ -885,9 +874,7 @@ router.post('/line-webhook', async (req, res) => {
                       }
                     }
                   };
-                }
 
-                if (fileFlexMsg) {
                   replyMessages = [
                     {
                       type: 'text',
@@ -898,7 +885,8 @@ router.post('/line-webhook', async (req, res) => {
                         `⏰ เวลา (24 ชม.): ${timeStr}\n` +
                         `👔 การแต่งกาย: ${assignment.dress_code || 'ชุดปฏิบัติงาน อสป.'}\n\n` +
                         `📝 รายละเอียด/กำหนดการ:\n${missionDescription || 'ไม่มีรายละเอียดเพิ่มเติม'}\n\n` +
-                        `ระบบได้บันทึกการตอบรับเรียบร้อยแล้วค่ะ ท่านสามารถกดดาวน์โหลดไฟล์เอกสารกำหนดการจากปุ่มด้านล่างนี้ได้เลยค่ะ 👇`
+                        `📎 ลิงก์ดาวน์โหลดเอกสารกำหนดการ:\n${fileUrl}\n\n` +
+                        `ระบบได้บันทึกการตอบรับเรียบร้อยแล้ว ขอบคุณค่ะ 🙏`
                     },
                     fileFlexMsg
                   ];

@@ -548,20 +548,7 @@ function createPersonalizedFlexCard(
             ]
           },
 
-          ...(fileUrl ? [{
-            type: 'box',
-            layout: 'vertical',
-            backgroundColor: '#eff6ff',
-            borderColor: '#bfdbfe',
-            borderWidth: '1px',
-            paddingAll: '10px',
-            cornerRadius: '8px',
-            margin: 'md',
-            contents: [
-              { type: 'text', text: '📎 เอกสารกำหนดการแนบ:', size: 'xxs', color: '#1d4ed8', weight: 'bold' },
-              { type: 'text', text: fileName, size: 'xs', color: '#1e40af', weight: 'bold', wrap: true, margin: 'xs' }
-            ]
-          }] : []),
+
 
           {
             type: 'box',
