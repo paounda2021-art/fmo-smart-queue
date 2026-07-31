@@ -1761,8 +1761,7 @@ async function openMissionDetailModal(missionId) {
 
     const { mission, assigned = [] } = result;
 
-    document.getElementById('md-title').innerText =
-      mission.mission_title;
+    document.getElementById('md-title').innerText = mission.mission_title;
 
     document.getElementById('md-location-time').innerText =
       `สถานที่: ${mission.location || '-'} | ` +
@@ -1772,7 +1771,7 @@ async function openMissionDetailModal(missionId) {
     document.getElementById('md-dress-code').innerHTML =
       `การแต่งกาย: ${escapeHtml(mission.dress_code || 'ชุดปฏิบัติงาน อสป.')}` +
       (mission.attachment_file ? `<div style="margin-top:8px;"><a href="${mission.attachment_file}" target="_blank" class="btn btn-outline-primary btn-sm" style="font-weight:bold; padding:4px 10px;"><i class="fa-solid fa-paperclip"></i> 📄 ${escapeHtml(mission.attachment_name || 'ดาวน์โหลดเอกสารกำหนดการ')}</a></div>` : '') +
-      `<div style="margin-top:10px;"><button class="btn btn-warning btn-sm" onclick="openEditScheduleModal(${mission.id})" style="font-weight:bold; background:#ea580c; border:none; color:#fff; padding:6px 12px;"><i class="fa-solid fa-calendar-pen"></i> ✏️ อัปเดตเปลี่ยนแปลงกำหนดการ & แจ้ง LINE อัตโนมัติ</button></div>`;
+      `<div style="margin-top:10px;"><button type="button" class="btn btn-warning btn-sm" onclick="openEditScheduleModal(${mission.id})" style="font-weight:bold; background:#ea580c; border:none; color:#fff; padding:6px 12px;"><i class="fa-solid fa-calendar-pen"></i> ✏️ อัปเดตเปลี่ยนแปลงกำหนดการ & แจ้ง LINE อัตโนมัติ</button></div>`;
 
     const tbody =
       document.getElementById('md-assigned-body');
