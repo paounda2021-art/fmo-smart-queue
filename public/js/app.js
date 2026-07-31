@@ -668,7 +668,7 @@ async function loadQueueView(roleType) {
 
         if (m.status === 'HOLD') {
           statusBadge = `<span class="badge badge-hold"><i class="fa-solid fa-pause"></i> HOLD (ค้างสิทธิ์)</span><br><small style="color:var(--warning);">${escapeHtml(m.hold_reason || '')}</small>`;
-          actions = `<button class="btn btn-primary btn-sm" onclick="unholdPerson(${m.personnel_id})"><i class="fa-solid fa-play"></i> คืนสิทธิ์ปกติ</button>`;
+          actions = `<button class="btn btn-primary btn-sm" onclick="unholdPerson(${m.personnel_id}, this)"><i class="fa-solid fa-play"></i> คืนสิทธิ์ปกติ</button>`;
         } else if (m.status === 'COMPLETED') {
           statusBadge = '<span class="badge badge-completed"><i class="fa-solid fa-check"></i> COMPLETED</span>';
           actions = `<span style="color:var(--text-muted); font-size:0.8rem;">ปฏิบัติกิจกรรมในรอบนี้แล้ว</span>`;
@@ -743,9 +743,35 @@ async function confirmSkipHold() {
   }
 }
 
-async function unholdPerson(personnelId) {
+async function unholdPerson(personnelId, btnElem) {
   try {
     const pId = Number.parseInt(personnelId, 10);
+
+    // ⚡ Instant Optimistic UI Update: เปลี่ยนป้ายและปุ่มบนหน้าจอทันทีใน 0.01 วินาที!
+    let targetRow = null;
+    if (btnElem && btnElem.closest) {
+      targetRow = btnElem.closest('tr');
+    }
+    if (!targetRow) {
+      const allBtns = document.querySelectorAll(`button[onclick*="unholdPerson(${pId}"]`);
+      if (allBtns.length > 0) {
+        targetRow = allBtns[0].closest('tr');
+      }
+    }
+
+    if (targetRow) {
+      // ค้นหาเซลล์สถานะและปุ่ม action ในแถว
+      const statusCell = targetRow.querySelector('.badge-hold')?.closest('td') || targetRow.cells[4];
+      const actionCell = targetRow.cells[5] || targetRow.cells[targetRow.cells.length - 1];
+
+      if (statusCell) {
+        statusCell.innerHTML = '<span class="badge badge-waiting"><i class="fa-solid fa-clock"></i> WAITING (รอคิว)</span>';
+      }
+      if (actionCell) {
+        actionCell.innerHTML = `<button class="btn btn-warning btn-sm" onclick="openSkipModal(${pId}, '')"><i class="fa-solid fa-pause"></i> ข้ามคิว (Hold)</button>`;
+      }
+    }
+
     const res = await fetch('/api/queue/unhold', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -755,15 +781,16 @@ async function unholdPerson(personnelId) {
 
     if (result.success) {
       showToast('🎉 คืนสิทธิ์ให้บุคลากรกลับสู่สถานะรอคิวปกติเรียบร้อยแล้ว', 'success');
-      if (typeof loadQueueView === 'function') {
-        await loadQueueView(currentQueueRole || 'DIRECTOR');
-        await loadQueueView('STAFF');
-        await loadQueueView('DIRECTOR');
-      }
-      if (typeof loadDashboardStats === 'function') loadDashboardStats();
-      if (typeof previewCandidates === 'function') previewCandidates();
+      setTimeout(async () => {
+        if (typeof loadQueueView === 'function') {
+          await loadQueueView(currentQueueRole || 'DIRECTOR');
+        }
+        if (typeof loadDashboardStats === 'function') loadDashboardStats();
+        if (typeof previewCandidates === 'function') previewCandidates();
+      }, 400);
     } else {
       showToast(`Error: ${result.error}`, 'danger');
+      if (typeof loadQueueView === 'function') loadQueueView(currentQueueRole);
     }
   } catch (err) {
     console.error('Unhold error:', err);
