@@ -2396,6 +2396,8 @@ function downloadCsvTemplate() {
 function filterUserList() {
   const search = document.getElementById('user-search-input')?.value.toLowerCase().trim() || '';
   const role = document.getElementById('user-role-filter')?.value || 'ALL';
+  const dept = document.getElementById('user-dept-filter')?.value || 'ALL';
+  const line = document.getElementById('user-line-filter')?.value || 'ALL';
 
   let filtered = allUsersData.filter(u => {
     const matchSearch = !search ||
@@ -2406,10 +2408,52 @@ function filterUserList() {
 
     const matchRole = role === 'ALL' || u.role_type === role;
 
-    return matchSearch && matchRole;
+    const matchDept = dept === 'ALL' || (u.department && u.department.trim() === dept);
+
+    const isLineConnected = Boolean(u.line_user_id && u.line_user_id.trim() !== '' && u.line_user_id.toLowerCase() !== 'email');
+    const matchLine = line === 'ALL' || 
+      (line === 'CONNECTED' && isLineConnected) || 
+      (line === 'DISCONNECTED' && !isLineConnected);
+
+    return matchSearch && matchRole && matchDept && matchLine;
   });
 
   renderUserTable(filtered);
+}
+
+function resetUserFilters() {
+  const sInput = document.getElementById('user-search-input');
+  if (sInput) sInput.value = '';
+  const rFilter = document.getElementById('user-role-filter');
+  if (rFilter) rFilter.value = 'ALL';
+  const dFilter = document.getElementById('user-dept-filter');
+  if (dFilter) dFilter.value = 'ALL';
+  const lFilter = document.getElementById('user-line-filter');
+  if (lFilter) lFilter.value = 'ALL';
+  filterUserList();
+}
+
+function populateDepartmentFilterOptions() {
+  const deptSelect = document.getElementById('user-dept-filter');
+  if (!deptSelect) return;
+
+  const currentVal = deptSelect.value;
+  const depts = new Set();
+  allUsersData.forEach(u => {
+    if (u.department && u.department.trim()) {
+      depts.add(u.department.trim());
+    }
+  });
+
+  const sortedDepts = Array.from(depts).sort();
+  let html = '<option value="ALL">ทุกสังกัด / ฝ่าย</option>';
+  sortedDepts.forEach(d => {
+    html += `<option value="${d}">${d}</option>`;
+  });
+  deptSelect.innerHTML = html;
+  if (sortedDepts.includes(currentVal)) {
+    deptSelect.value = currentVal;
+  }
 }
 
 function toggleSelectAllMenuPermissions(isChecked) {
@@ -2707,7 +2751,8 @@ async function loadUserManagementView() {
 
     if (data.success) {
       allUsersData = data.users || [];
-      renderUserTable(allUsersData);
+      populateDepartmentFilterOptions();
+      filterUserList();
     } else {
       tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--danger);">เกิดข้อผิดพลาด: ${data.error}</td></tr>`;
     }
