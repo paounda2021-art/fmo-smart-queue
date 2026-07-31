@@ -11,6 +11,23 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// 💡 Bypass ngrok free warning page automatically
+app.use((req, res, next) => {
+  res.setHeader('ngrok-skip-browser-warning', 'true');
+  next();
+});
+
+// Route พิเศษส่งไฟล์อัปโหลดตรงข้ามหน้าเตือน ngrok
+app.get('/uploads/:filename', (req, res) => {
+  const filePath = path.join(__dirname, 'public', 'uploads', req.params.filename);
+  res.setHeader('ngrok-skip-browser-warning', 'true');
+  res.sendFile(filePath, (err) => {
+    if (err) {
+      res.status(404).send('ไม่พบไฟล์เอกสารที่ระบุ');
+    }
+  });
+});
+
 // Serve static frontend files (Disable default index.html serving)
 app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
