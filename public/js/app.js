@@ -737,17 +737,18 @@ async function confirmSkipHold() {
 
 async function unholdPerson(personnelId) {
   try {
+    const pId = Number.parseInt(personnelId, 10);
     const res = await fetch('/api/queue/unhold', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ personnel_id: personnelId })
+      body: JSON.stringify({ personnel_id: pId })
     });
     const result = await res.json();
 
     if (result.success) {
-      loadQueueView(currentQueueRole);
-      loadDashboardStats();
-      previewCandidates();
+      await loadQueueView(currentQueueRole);
+      if (typeof loadDashboardStats === 'function') loadDashboardStats();
+      if (typeof previewCandidates === 'function') previewCandidates();
       showToast('🎉 คืนสิทธิ์ให้บุคลากรกลับสู่สถานะรอคิวปกติเรียบร้อยแล้ว', 'success');
     } else {
       showToast(`Error: ${result.error}`, 'danger');

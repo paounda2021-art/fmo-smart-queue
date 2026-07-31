@@ -2754,11 +2754,22 @@ router.post('/queue/unhold', async (req, res) => {
     const { personnel_id } = req.body;
     if (!personnel_id) return res.status(400).json({ success: false, error: 'personnel_id is required' });
 
+    const targetId = Number.parseInt(personnel_id, 10);
+
+    // 1. อัปเดตตาราง queue_members ให้สถานะกลับเป็น WAITING และล้าง hold_reason
     await dbRun(
       `UPDATE queue_members 
        SET status = 'WAITING', hold_reason = NULL, hold_timestamp = NULL 
-       WHERE personnel_id = ?;`,
-      [personnel_id]
+       WHERE personnel_id = ? OR personnel_id = CAST(? AS TEXT);`,
+      [targetId, personnel_id]
+    );
+
+    // 2. อัปเดตภารกิจคงค้าง BUSY_PENDING ของคนนี้ ให้พ้นจากสถานะรอดำเนินการ
+    await dbRun(
+      `UPDATE mission_assignments
+       SET assignment_status = 'DECLINED_NO_SUBSTITUTE', decline_reason = 'คืนสิทธิ์ปกติโดยผู้ดูแลระบบ', ack_status = 'DECLINED_BUSY'
+       WHERE personnel_id = ? AND assignment_status = 'BUSY_PENDING';`,
+      [targetId]
     );
 
     res.json({ success: true, message: 'ยกเลิกสถานะ Hold คืนสิทธิ์เข้าคิวปกติเรียบร้อยแล้ว' });
