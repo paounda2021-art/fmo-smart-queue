@@ -746,7 +746,7 @@ body.light-mode .modal-box {
   position: fixed;
   top: 75px;
   right: 20px;
-  z-index: 9999;
+  z-index: 999999 !important;
   display: flex;
   flex-direction: column;
   gap: 10px;

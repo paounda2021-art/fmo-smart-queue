@@ -163,11 +163,18 @@ function handleLogout() {
       }
     });
   } else {
-    if (confirm('คุณต้องการออกจากระบบใช่หรือไม่?')) {
-      sessionStorage.removeItem('fmo_user');
-      sessionStorage.clear();
-      window.location.replace('/login');
-    }
+    showConfirmModal({
+      title: '🚪 ยืนยันออกจากระบบ?',
+      message: 'คุณต้องการออกจากระบบ FMO Smart Queue ใช่หรือไม่',
+      icon: 'fa-right-from-bracket text-rose',
+      confirmText: 'ออกจากระบบ',
+      confirmBtnStyle: 'background: #ef4444; border-color: #ef4444; font-weight: bold;',
+      onConfirm: () => {
+        sessionStorage.removeItem('fmo_user');
+        sessionStorage.clear();
+        window.location.replace('/login');
+      }
+    });
   }
 }
 window.handleLogout = handleLogout;
@@ -729,27 +736,35 @@ async function confirmSkipHold() {
 }
 
 async function unholdPerson(personnelId) {
-  if (!confirm('ยืนยันการคืนสิทธิ์ให้บุคลากรท่านนี้กลับสู่สถานะรอคิวปกติ?')) return;
+  showConfirmModal({
+    title: '🔄 ยืนยันการคืนสิทธิ์',
+    message: 'ยืนยันการคืนสิทธิ์ให้บุคลากรท่านนี้กลับสู่สถานะรอคิวปกติ?',
+    icon: 'fa-rotate-left text-cyan',
+    confirmText: 'คืนสิทธิ์ปกติ',
+    confirmBtnStyle: 'background: #0284c7; border-color: #0284c7; font-weight: bold;',
+    onConfirm: async () => {
+      try {
+        const res = await fetch('/api/queue/unhold', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ personnel_id: personnelId })
+        });
+        const result = await res.json();
 
-  try {
-    const res = await fetch('/api/queue/unhold', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ personnel_id: personnelId })
-    });
-    const result = await res.json();
-
-    if (result.success) {
-      loadQueueView(currentQueueRole);
-      loadDashboardStats();
-      previewCandidates();
-      showToast('คืนสิทธิ์ให้บุคลากรกลับสู่สถานะรอคิวปกติเรียบร้อยแล้ว', 'success');
-    } else {
-      showToast(`Error: ${result.error}`, 'danger');
+        if (result.success) {
+          loadQueueView(currentQueueRole);
+          loadDashboardStats();
+          previewCandidates();
+          showToast('🎉 คืนสิทธิ์ให้บุคลากรกลับสู่สถานะรอคิวปกติเรียบร้อยแล้ว', 'success');
+        } else {
+          showToast(`Error: ${result.error}`, 'danger');
+        }
+      } catch (err) {
+        console.error('Unhold error:', err);
+        showToast('เกิดข้อผิดพลาดในการคืนสิทธิ์', 'danger');
+      }
     }
-  } catch (err) {
-    console.error('Unhold error:', err);
-  }
+  });
 }
 
 // -------------------------------------------------------------
@@ -2344,17 +2359,84 @@ async function exportSummaryData() {
     showToast('เกิดข้อผิดพลาดในการส่งออกไฟล์ CSV', 'danger');
   }
 }
-// -------------------------------------------------------------
-// HELPERS & MODALS
-// -------------------------------------------------------------
+let activeModalStack = [];
+
 function openModal(modalId) {
   const modal = document.getElementById(modalId);
-  if (modal) modal.classList.add('active');
+  if (!modal) return;
+
+  if (!activeModalStack.includes(modalId)) {
+    activeModalStack.push(modalId);
+  }
+
+  modal.classList.add('active');
+  // Dynamic Z-Index ป้องกัน Modal ทับซ้อน
+  modal.style.zIndex = 1000 + (activeModalStack.length * 20);
 }
 
 function closeModal(modalId) {
   const modal = document.getElementById(modalId);
-  if (modal) modal.classList.remove('active');
+  if (modal) {
+    modal.classList.remove('active');
+    modal.style.zIndex = '';
+  }
+  activeModalStack = activeModalStack.filter(id => id !== modalId);
+}
+
+// ปิด Modal บนสุดเมื่อกด ESC บนคีย์บอร์ด
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && activeModalStack.length > 0) {
+    const topModalId = activeModalStack[activeModalStack.length - 1];
+    closeModal(topModalId);
+  }
+});
+
+function showConfirmModal({
+  title = 'ยืนยันการทำรายการ',
+  message = 'คุณต้องการดำเนินการต่อหรือไม่?',
+  icon = 'fa-circle-question text-cyan',
+  confirmText = 'ยืนยัน',
+  cancelText = 'ยกเลิก',
+  confirmBtnStyle = 'background: #0ea5e9; border-color: #0ea5e9;',
+  onConfirm = null
+}) {
+  const iconElem = document.getElementById('custom-confirm-icon');
+  const titleElem = document.getElementById('custom-confirm-title');
+  const msgElem = document.getElementById('custom-confirm-message');
+  const okBtn = document.getElementById('custom-confirm-ok-btn');
+  const cancelBtn = document.getElementById('custom-confirm-cancel-btn');
+
+  if (iconElem) iconElem.innerHTML = `<i class="fa-solid ${icon}"></i>`;
+  if (titleElem) titleElem.textContent = title;
+  if (msgElem) msgElem.textContent = message;
+  if (okBtn) {
+    okBtn.textContent = confirmText;
+    okBtn.setAttribute('style', `min-width: 120px; padding: 0.65rem 1.25rem; font-weight: 600; ${confirmBtnStyle}`);
+  }
+  if (cancelBtn) cancelBtn.textContent = cancelText;
+
+  const handleOk = () => {
+    cleanup();
+    closeModal('modal-custom-confirm');
+    if (typeof onConfirm === 'function') {
+      onConfirm();
+    }
+  };
+
+  const handleCancel = () => {
+    cleanup();
+    closeModal('modal-custom-confirm');
+  };
+
+  const cleanup = () => {
+    if (okBtn) okBtn.removeEventListener('click', handleOk);
+    if (cancelBtn) cancelBtn.removeEventListener('click', handleCancel);
+  };
+
+  if (okBtn) okBtn.addEventListener('click', handleOk, { once: true });
+  if (cancelBtn) cancelBtn.addEventListener('click', handleCancel, { once: true });
+
+  openModal('modal-custom-confirm');
 }
 
 function escapeHtml(str) {
@@ -2608,28 +2690,33 @@ async function saveUser() {
 
 
 async function sendPreEventReminders() {
-  if (!confirm('คุณต้องการส่งข้อความแจ้งเตือนเตือนความจำล่วงหน้า (24 ชั่วโมงก่อนเริ่มงาน) ผ่านทาง LINE & Email ไปยังผู้ปฏิบัติงานหรือไม่?')) {
-    return;
-  }
+  showConfirmModal({
+    title: '🔔 ส่งเตือนความจำล่วงหน้า',
+    message: 'คุณต้องการส่งข้อความแจ้งเตือนเตือนความจำล่วงหน้า (24 ชั่วโมงก่อนเริ่มงาน) ผ่านทาง LINE ไปยังผู้ปฏิบัติงานหรือไม่?',
+    icon: 'fa-bell text-amber',
+    confirmText: 'ส่งแจ้งเตือน',
+    confirmBtnStyle: 'background: #f59e0b; border-color: #f59e0b; font-weight: bold;',
+    onConfirm: async () => {
+      showToast('กำลังส่งแจ้งเตือนเตือนความจำล่วงหน้าทาง LINE...', 'info');
 
-  showToast('กำลังส่งแจ้งเตือนเตือนความจำล่วงหน้าทาง LINE & Email...', 'info');
+      try {
+        const res = await fetch('/api/notifications/pre-event-reminders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const result = await res.json();
 
-  try {
-    const res = await fetch('/api/notifications/pre-event-reminders', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    const result = await res.json();
-
-    if (result.success) {
-      showToast(result.message || 'ส่งเตือนความจำล่วงหน้าเรียบร้อยแล้ว', 'success');
-    } else {
-      showToast(result.error || 'เกิดข้อผิดพลาดในการส่งเตือนความจำ', 'danger');
+        if (result.success) {
+          showToast(result.message || 'ส่งเตือนความจำล่วงหน้าเรียบร้อยแล้ว', 'success');
+        } else {
+          showToast(result.error || 'เกิดข้อผิดพลาดในการส่งเตือนความจำ', 'danger');
+        }
+      } catch (err) {
+        console.error('Error sending pre-event reminders:', err);
+        showToast('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'danger');
+      }
     }
-  } catch (err) {
-    console.error('Error sending pre-event reminders:', err);
-    showToast('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'danger');
-  }
+  });
 }
 
 // -------------------------------------------------------------
