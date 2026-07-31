@@ -1760,6 +1760,7 @@ async function openMissionDetailModal(missionId) {
     }
 
     const { mission, assigned = [] } = result;
+    currentActiveMissionData = mission;
 
     document.getElementById('md-title').innerText = mission.mission_title;
 
@@ -3058,69 +3059,75 @@ async function unbindUserLine(id, name) {
   }
 }
 
+let currentActiveMissionData = null;
+
 async function openEditScheduleModal(missionId) {
-  try {
-    const res = await fetch(`/api/missions/${missionId}`);
-    const data = await res.json();
-    if (!data.success || !data.mission) {
-      showToast('ไม่พบข้อมูลกิจกรรมที่ระบุ', 'danger');
-      return;
-    }
-    const m = data.mission;
+  closeModal('modal-mission-detail');
 
-    const elId = document.getElementById('edit-schedule-mission-id');
-    const elTitle = document.getElementById('edit-schedule-title');
-    const elLoc = document.getElementById('edit-schedule-location');
-    const elDress = document.getElementById('edit-schedule-dress');
-    const elDetails = document.getElementById('edit-schedule-details');
-    const elStart = document.getElementById('edit-schedule-start');
-    const elEnd = document.getElementById('edit-schedule-end');
-
-    if (elId) elId.value = m.id;
-    if (elTitle) elTitle.value = m.mission_title || '';
-    if (elLoc) elLoc.value = m.location || '';
-    if (elDress) elDress.value = m.dress_code || '';
-    if (elDetails) elDetails.value = m.schedule_details || m.description || '';
-
-    if (elStart && m.start_date) {
-      try {
-        const d1 = new Date(m.start_date);
-        if (!isNaN(d1.getTime())) {
-          const tzOffset = d1.getTimezoneOffset() * 60000;
-          elStart.value = (new Date(d1.getTime() - tzOffset)).toISOString().slice(0, 16);
-        } else if (typeof m.start_date === 'string') {
-          elStart.value = m.start_date.slice(0, 16);
-        }
-      } catch (e) {}
-    }
-
-    if (elEnd && m.end_date) {
-      try {
-        const d2 = new Date(m.end_date);
-        if (!isNaN(d2.getTime())) {
-          const tzOffset = d2.getTimezoneOffset() * 60000;
-          elEnd.value = (new Date(d2.getTime() - tzOffset)).toISOString().slice(0, 16);
-        } else if (typeof m.end_date === 'string') {
-          elEnd.value = m.end_date.slice(0, 16);
-        }
-      } catch (e) {}
-    }
-
-    const curFileDiv = document.getElementById('edit-schedule-current-file');
-    if (curFileDiv) {
-      if (m.attachment_file) {
-        curFileDiv.innerHTML = `<i class="fa-solid fa-paperclip"></i> ไฟล์แนบปัจจุบัน: <a href="${m.attachment_file}" target="_blank" style="text-decoration:underline;">${escapeHtml(m.attachment_name || 'ดาวน์โหลดเอกสาร')}</a>`;
-      } else {
-        curFileDiv.innerHTML = '';
+  let m = currentActiveMissionData;
+  if (!m || Number(m.id) !== Number(missionId)) {
+    try {
+      const res = await fetch(`/api/missions/${missionId}`);
+      const data = await res.json();
+      if (data.success && data.mission) {
+        m = data.mission;
       }
-    }
-
-    closeModal('modal-mission-detail');
-    openModal('modal-edit-schedule');
-  } catch (err) {
-    console.error('Error fetching mission for edit:', err);
-    showToast('เกิดข้อผิดพลาดในการเปิดหน้าต่างแก้ไขกิจกรรม', 'danger');
+    } catch (e) {}
   }
+
+  if (!m) {
+    showToast('ไม่สามารถดึงข้อมูลกิจกรรมได้', 'danger');
+    return;
+  }
+
+  const elId = document.getElementById('edit-schedule-mission-id');
+  const elTitle = document.getElementById('edit-schedule-title');
+  const elLoc = document.getElementById('edit-schedule-location');
+  const elDress = document.getElementById('edit-schedule-dress');
+  const elDetails = document.getElementById('edit-schedule-details');
+  const elStart = document.getElementById('edit-schedule-start');
+  const elEnd = document.getElementById('edit-schedule-end');
+
+  if (elId) elId.value = m.id;
+  if (elTitle) elTitle.value = m.mission_title || '';
+  if (elLoc) elLoc.value = m.location || '';
+  if (elDress) elDress.value = m.dress_code || '';
+  if (elDetails) elDetails.value = m.schedule_details || m.description || '';
+
+  if (elStart && m.start_date) {
+    try {
+      const d1 = new Date(m.start_date);
+      if (!isNaN(d1.getTime())) {
+        const tzOffset = d1.getTimezoneOffset() * 60000;
+        elStart.value = (new Date(d1.getTime() - tzOffset)).toISOString().slice(0, 16);
+      } else if (typeof m.start_date === 'string') {
+        elStart.value = m.start_date.slice(0, 16);
+      }
+    } catch (e) {}
+  }
+
+  if (elEnd && m.end_date) {
+    try {
+      const d2 = new Date(m.end_date);
+      if (!isNaN(d2.getTime())) {
+        const tzOffset = d2.getTimezoneOffset() * 60000;
+        elEnd.value = (new Date(d2.getTime() - tzOffset)).toISOString().slice(0, 16);
+      } else if (typeof m.end_date === 'string') {
+        elEnd.value = m.end_date.slice(0, 16);
+      }
+    } catch (e) {}
+  }
+
+  const curFileDiv = document.getElementById('edit-schedule-current-file');
+  if (curFileDiv) {
+    if (m.attachment_file) {
+      curFileDiv.innerHTML = `<i class="fa-solid fa-paperclip"></i> ไฟล์แนบปัจจุบัน: <a href="${m.attachment_file}" target="_blank" style="text-decoration:underline;">${escapeHtml(m.attachment_name || 'ดาวน์โหลดเอกสาร')}</a>`;
+    } else {
+      curFileDiv.innerHTML = '';
+    }
+  }
+
+  openModal('modal-edit-schedule');
 }
 
 async function saveScheduleChanges(e) {
