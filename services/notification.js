@@ -355,6 +355,10 @@ function createPersonalizedFlexCard(
         weight: 'bold'
       }];
 
+  const baseUrl = APP_BASE_URL.replace(/\/app$/, '');
+  const fileUrl = mission.attachment_file ? (mission.attachment_file.startsWith('http') ? mission.attachment_file : `${baseUrl}${mission.attachment_file}`) : null;
+  const fileName = mission.attachment_name || 'ดาวน์โหลดเอกสารกำหนดการ';
+
   return {
     type: 'flex',
 
@@ -544,7 +548,20 @@ function createPersonalizedFlexCard(
             ]
           },
 
-
+          ...(fileUrl ? [{
+            type: 'box',
+            layout: 'vertical',
+            backgroundColor: '#eff6ff',
+            borderColor: '#bfdbfe',
+            borderWidth: '1px',
+            paddingAll: '10px',
+            cornerRadius: '8px',
+            margin: 'md',
+            contents: [
+              { type: 'text', text: '📎 เอกสารกำหนดการแนบ:', size: 'xxs', color: '#1d4ed8', weight: 'bold' },
+              { type: 'text', text: fileName, size: 'xs', color: '#1e40af', weight: 'bold', wrap: true, margin: 'xs' }
+            ]
+          }] : []),
 
           {
             type: 'box',
@@ -627,6 +644,17 @@ function createPersonalizedFlexCard(
                   }
                 ]
           },
+          ...(fileUrl ? [{
+            type: 'button',
+            style: 'primary',
+            color: '#ea580c',
+            height: 'sm',
+            action: {
+              type: 'uri',
+              label: '📄 ดูไฟล์แนบกำหนดการ',
+              uri: fileUrl
+            }
+          }] : []),
           {
             type: 'button',
             style: 'secondary',
@@ -1337,27 +1365,23 @@ async function sendScheduleChangeNotification(mission, assignedList) {
           } : { type: 'spacer', size: 'xs' }
         ]
       },
-      footer: {
-        type: 'box',
-        layout: 'vertical',
-        spacing: 'sm',
-        paddingAll: '12px',
-        contents: [
-          fileUrl ? {
-            type: 'button',
-            style: 'primary',
-            color: '#ea580c',
-            height: 'sm',
-            action: { type: 'uri', label: '📄 ดูไฟล์แนบกำหนดการใหม่', uri: fileUrl }
-          } : { type: 'spacer', size: 'xs' },
-          {
-            type: 'button',
-            style: 'secondary',
-            height: 'sm',
-            action: { type: 'uri', label: '🟢 ตรวจสอบกำหนดการบนเว็บ', uri: APP_BASE_URL }
-          }
-        ]
-      }
+      ...(fileUrl ? {
+        footer: {
+          type: 'box',
+          layout: 'vertical',
+          spacing: 'sm',
+          paddingAll: '12px',
+          contents: [
+            {
+              type: 'button',
+              style: 'primary',
+              color: '#ea580c',
+              height: 'sm',
+              action: { type: 'uri', label: '📄 ดูไฟล์แนบกำหนดการใหม่', uri: fileUrl }
+            }
+          ]
+        }
+      } : {})
     }
   };
 
