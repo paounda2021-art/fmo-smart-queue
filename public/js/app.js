@@ -736,35 +736,26 @@ async function confirmSkipHold() {
 }
 
 async function unholdPerson(personnelId) {
-  showConfirmModal({
-    title: '🔄 ยืนยันการคืนสิทธิ์',
-    message: 'ยืนยันการคืนสิทธิ์ให้บุคลากรท่านนี้กลับสู่สถานะรอคิวปกติ?',
-    icon: 'fa-rotate-left text-cyan',
-    confirmText: 'คืนสิทธิ์ปกติ',
-    confirmBtnStyle: 'background: #0284c7; border-color: #0284c7; font-weight: bold;',
-    onConfirm: async () => {
-      try {
-        const res = await fetch('/api/queue/unhold', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ personnel_id: personnelId })
-        });
-        const result = await res.json();
+  try {
+    const res = await fetch('/api/queue/unhold', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ personnel_id: personnelId })
+    });
+    const result = await res.json();
 
-        if (result.success) {
-          loadQueueView(currentQueueRole);
-          loadDashboardStats();
-          previewCandidates();
-          showToast('🎉 คืนสิทธิ์ให้บุคลากรกลับสู่สถานะรอคิวปกติเรียบร้อยแล้ว', 'success');
-        } else {
-          showToast(`Error: ${result.error}`, 'danger');
-        }
-      } catch (err) {
-        console.error('Unhold error:', err);
-        showToast('เกิดข้อผิดพลาดในการคืนสิทธิ์', 'danger');
-      }
+    if (result.success) {
+      loadQueueView(currentQueueRole);
+      loadDashboardStats();
+      previewCandidates();
+      showToast('🎉 คืนสิทธิ์ให้บุคลากรกลับสู่สถานะรอคิวปกติเรียบร้อยแล้ว', 'success');
+    } else {
+      showToast(`Error: ${result.error}`, 'danger');
     }
-  });
+  } catch (err) {
+    console.error('Unhold error:', err);
+    showToast('เกิดข้อผิดพลาดในการคืนสิทธิ์', 'danger');
+  }
 }
 window.unholdPerson = unholdPerson;
 
