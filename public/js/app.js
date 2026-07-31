@@ -766,6 +766,7 @@ async function unholdPerson(personnelId) {
     }
   });
 }
+window.unholdPerson = unholdPerson;
 
 // -------------------------------------------------------------
 // EMERGENCY SUBSTITUTION (การเปลี่ยนตัวกะทันหัน)
@@ -2403,38 +2404,36 @@ function showConfirmModal({
   const iconElem = document.getElementById('custom-confirm-icon');
   const titleElem = document.getElementById('custom-confirm-title');
   const msgElem = document.getElementById('custom-confirm-message');
-  const okBtn = document.getElementById('custom-confirm-ok-btn');
-  const cancelBtn = document.getElementById('custom-confirm-cancel-btn');
+  let okBtn = document.getElementById('custom-confirm-ok-btn');
+  let cancelBtn = document.getElementById('custom-confirm-cancel-btn');
 
   if (iconElem) iconElem.innerHTML = `<i class="fa-solid ${icon}"></i>`;
   if (titleElem) titleElem.textContent = title;
   if (msgElem) msgElem.textContent = message;
+
   if (okBtn) {
+    const newOkBtn = okBtn.cloneNode(true);
+    okBtn.parentNode.replaceChild(newOkBtn, okBtn);
+    okBtn = newOkBtn;
     okBtn.textContent = confirmText;
     okBtn.setAttribute('style', `min-width: 120px; padding: 0.65rem 1.25rem; font-weight: 600; ${confirmBtnStyle}`);
+    okBtn.addEventListener('click', () => {
+      closeModal('modal-custom-confirm');
+      if (typeof onConfirm === 'function') {
+        onConfirm();
+      }
+    });
   }
-  if (cancelBtn) cancelBtn.textContent = cancelText;
 
-  const handleOk = () => {
-    cleanup();
-    closeModal('modal-custom-confirm');
-    if (typeof onConfirm === 'function') {
-      onConfirm();
-    }
-  };
-
-  const handleCancel = () => {
-    cleanup();
-    closeModal('modal-custom-confirm');
-  };
-
-  const cleanup = () => {
-    if (okBtn) okBtn.removeEventListener('click', handleOk);
-    if (cancelBtn) cancelBtn.removeEventListener('click', handleCancel);
-  };
-
-  if (okBtn) okBtn.addEventListener('click', handleOk, { once: true });
-  if (cancelBtn) cancelBtn.addEventListener('click', handleCancel, { once: true });
+  if (cancelBtn) {
+    const newCancelBtn = cancelBtn.cloneNode(true);
+    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+    cancelBtn = newCancelBtn;
+    cancelBtn.textContent = cancelText;
+    cancelBtn.addEventListener('click', () => {
+      closeModal('modal-custom-confirm');
+    });
+  }
 
   openModal('modal-custom-confirm');
 }
