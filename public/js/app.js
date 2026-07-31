@@ -2456,6 +2456,32 @@ function populateDepartmentFilterOptions() {
   }
 }
 
+function updateUserLineStats() {
+  const totalCount = allUsersData.length;
+  const connectedCount = allUsersData.filter(u => u.line_user_id && u.line_user_id.trim() !== '' && u.line_user_id.toLowerCase() !== 'email').length;
+  const disconnectedCount = totalCount - connectedCount;
+  const percentage = totalCount > 0 ? Math.round((connectedCount / totalCount) * 100) : 0;
+
+  const cElem = document.getElementById('line-connected-count');
+  const tElem = document.getElementById('line-total-count');
+  const pElem = document.getElementById('line-percentage');
+
+  if (cElem) cElem.textContent = connectedCount;
+  if (tElem) tElem.textContent = totalCount;
+  if (pElem) pElem.textContent = `${percentage}%`;
+
+  const lFilter = document.getElementById('user-line-filter');
+  if (lFilter) {
+    const currentLineVal = lFilter.value;
+    lFilter.innerHTML = `
+      <option value="ALL">สถานะ LINE ทั้งหมด (${totalCount} คน)</option>
+      <option value="CONNECTED">🟢 ผูกบัญชี LINE แล้ว (${connectedCount} / ${totalCount} คน)</option>
+      <option value="DISCONNECTED">⚪ ยังไม่ได้ผูก LINE (${disconnectedCount} คน)</option>
+    `;
+    lFilter.value = currentLineVal || 'ALL';
+  }
+}
+
 function toggleSelectAllMenuPermissions(isChecked) {
   const checkboxes = document.querySelectorAll('.menu-perm-cb');
   checkboxes.forEach(cb => {
@@ -2752,6 +2778,7 @@ async function loadUserManagementView() {
     if (data.success) {
       allUsersData = data.users || [];
       populateDepartmentFilterOptions();
+      updateUserLineStats();
       filterUserList();
     } else {
       tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--danger);">เกิดข้อผิดพลาด: ${data.error}</td></tr>`;
