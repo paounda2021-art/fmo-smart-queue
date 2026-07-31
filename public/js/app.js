@@ -754,10 +754,14 @@ async function unholdPerson(personnelId) {
     const result = await res.json();
 
     if (result.success) {
-      await loadQueueView(currentQueueRole);
+      showToast('🎉 คืนสิทธิ์ให้บุคลากรกลับสู่สถานะรอคิวปกติเรียบร้อยแล้ว', 'success');
+      if (typeof loadQueueView === 'function') {
+        await loadQueueView(currentQueueRole || 'DIRECTOR');
+        await loadQueueView('STAFF');
+        await loadQueueView('DIRECTOR');
+      }
       if (typeof loadDashboardStats === 'function') loadDashboardStats();
       if (typeof previewCandidates === 'function') previewCandidates();
-      showToast('🎉 คืนสิทธิ์ให้บุคลากรกลับสู่สถานะรอคิวปกติเรียบร้อยแล้ว', 'success');
     } else {
       showToast(`Error: ${result.error}`, 'danger');
     }
