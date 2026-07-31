@@ -1349,6 +1349,29 @@ async function handleCreateMission(event) {
     return;
   }
 
+  // 💡 ตรวจสอบและอัปโหลดไฟล์แนบเอกสารกำหนดการ (ถ้ามี)
+  let attachmentUrl = '';
+  let attachmentName = '';
+  const fileInput = document.getElementById('alloc-attachment-file');
+  if (fileInput && fileInput.files && fileInput.files.length > 0) {
+    const formData = new FormData();
+    formData.append('attachment', fileInput.files[0]);
+    showToast('กำลังอัปโหลดไฟล์แนบกำหนดการ...', 'info');
+    try {
+      const upRes = await fetch('/api/upload-attachment', {
+        method: 'POST',
+        body: formData
+      });
+      const upResult = await upRes.json();
+      if (upResult.success) {
+        attachmentUrl = upResult.file_url;
+        attachmentName = upResult.file_name;
+      }
+    } catch (e) {
+      console.error('File upload error:', e);
+    }
+  }
+
   try {
     const res = await fetch('/api/missions/create', {
       method: 'POST',
@@ -1359,9 +1382,12 @@ async function handleCreateMission(event) {
         dress_code: dressCode,
         start_date: startFull,
         end_date: endFull,
+        schedule_details: desc,
         description: desc,
         assigned_director_ids: dirIds,
-        assigned_staff_ids: staffIds
+        assigned_staff_ids: staffIds,
+        attachment_file: attachmentUrl,
+        attachment_name: attachmentName
       })
     });
     const result = await res.json();
@@ -1743,9 +1769,10 @@ async function openMissionDetailModal(missionId) {
       `ช่วงเวลา: ${formatDate(mission.start_date)} - ` +
       `${formatDate(mission.end_date)}`;
 
-    document.getElementById('md-dress-code').innerText =
-      `การแต่งกาย: ` +
-      `${mission.dress_code || 'ชุดปฏิบัติงาน อสป.'}`;
+    document.getElementById('md-dress-code').innerHTML =
+      `การแต่งกาย: ${escapeHtml(mission.dress_code || 'ชุดปฏิบัติงาน อสป.')}` +
+      (mission.attachment_file ? `<div style="margin-top:8px;"><a href="${mission.attachment_file}" target="_blank" class="btn btn-outline-primary btn-sm" style="font-weight:bold; padding:4px 10px;"><i class="fa-solid fa-paperclip"></i> 📄 ${escapeHtml(mission.attachment_name || 'ดาวน์โหลดเอกสารกำหนดการ')}</a></div>` : '') +
+      `<div style="margin-top:10px;"><button class="btn btn-warning btn-sm" onclick="openEditScheduleModal(${mission.id})" style="font-weight:bold; background:#ea580c; border:none; color:#fff; padding:6px 12px;"><i class="fa-solid fa-calendar-pen"></i> ✏️ อัปเดตเปลี่ยนแปลงกำหนดการ & แจ้ง LINE อัตโนมัติ</button></div>`;
 
     const tbody =
       document.getElementById('md-assigned-body');
@@ -3031,6 +3058,127 @@ async function unbindUserLine(id, name) {
     Swal.fire('ข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่อยกเลิกผูก LINE ได้', 'error');
   }
 }
+
+async function openEditScheduleModal(missionId) {
+  try {
+    const res = await fetch(`/api/missions/${missionId}`);
+    const data = await res.json();
+    if (!data.success || !data.mission) {
+      showToast('ไม่พบข้อมูลกิจกรรมที่ระบุ', 'danger');
+      return;
+    }
+    const m = data.mission;
+    document.getElementById('edit-schedule-mission-id').value = m.id;
+    document.getElementById('edit-schedule-title').value = m.mission_title || '';
+    document.getElementById('edit-schedule-location').value = m.location || '';
+    document.getElementById('edit-schedule-dress').value = m.dress_code || '';
+    document.getElementById('edit-schedule-details').value = m.schedule_details || m.description || '';
+
+    if (m.start_date) {
+      const d1 = new Date(m.start_date);
+      if (!isNaN(d1.getTime())) {
+        const offset = d1.getTimezoneOffset() * 60000;
+        const localISOTime = (new Date(d1.getTime() - offset)).toISOString().slice(0, 16);
+        document.getElementById('edit-schedule-start').value = localISOTime;
+      }
+    }
+    if (m.end_date) {
+      const d2 = new Date(m.end_date);
+      if (!isNaN(d2.getTime())) {
+        const offset = d2.getTimezoneOffset() * 60000;
+        const localISOTime = (new Date(d2.getTime() - offset)).toISOString().slice(0, 16);
+        document.getElementById('edit-schedule-end').value = localISOTime;
+      }
+    }
+
+    const curFileDiv = document.getElementById('edit-schedule-current-file');
+    if (m.attachment_file) {
+      curFileDiv.innerHTML = `<i class="fa-solid fa-paperclip"></i> ไฟล์แนบปัจจุบัน: <a href="${m.attachment_file}" target="_blank" style="text-decoration:underline;">${escapeHtml(m.attachment_name || 'ดาวน์โหลดเอกสาร')}</a>`;
+    } else {
+      curFileDiv.innerHTML = '';
+    }
+
+    openModal('modal-edit-schedule');
+  } catch (err) {
+    console.error('Error fetching mission for edit:', err);
+    showToast('เกิดข้อผิดพลาดในการโหลดข้อมูลกิจกรรม', 'danger');
+  }
+}
+
+async function saveScheduleChanges(e) {
+  e.preventDefault();
+  const missionId = document.getElementById('edit-schedule-mission-id').value;
+  const title = document.getElementById('edit-schedule-title').value.trim();
+  const startDate = document.getElementById('edit-schedule-start').value;
+  const endDate = document.getElementById('edit-schedule-end').value;
+  const location = document.getElementById('edit-schedule-location').value.trim();
+  const dressCode = document.getElementById('edit-schedule-dress').value.trim();
+  const scheduleDetails = document.getElementById('edit-schedule-details').value.trim();
+  const notifyLine = document.getElementById('edit-schedule-notify-cb').checked;
+
+  let attachmentUrl = null;
+  let attachmentName = null;
+
+  const fileInput = document.getElementById('edit-schedule-file');
+  if (fileInput && fileInput.files && fileInput.files.length > 0) {
+    const formData = new FormData();
+    formData.append('attachment', fileInput.files[0]);
+    showToast('กำลังอัปโหลดไฟล์แนบกำหนดการใหม่...', 'info');
+    try {
+      const upRes = await fetch('/api/upload-attachment', {
+        method: 'POST',
+        body: formData
+      });
+      const upResult = await upRes.json();
+      if (upResult.success) {
+        attachmentUrl = upResult.file_url;
+        attachmentName = upResult.file_name;
+      }
+    } catch (err) {
+      console.error('Upload new file error:', err);
+    }
+  }
+
+  showToast('กำลังบันทึกและส่งแจ้งเตือนเปลี่ยนแปลงกำหนดการทาง LINE...', 'info');
+
+  try {
+    const payload = {
+      mission_title: title,
+      start_date: startDate.replace('T', ' ') + ':00',
+      end_date: endDate.replace('T', ' ') + ':00',
+      location,
+      dress_code: dressCode,
+      schedule_details: scheduleDetails,
+      notify_line: notifyLine
+    };
+    if (attachmentUrl) {
+      payload.attachment_file = attachmentUrl;
+      payload.attachment_name = attachmentName;
+    }
+
+    const res = await fetch(`/api/missions/${missionId}/update-schedule`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const result = await res.json();
+
+    if (result.success) {
+      closeModal('modal-edit-schedule');
+      closeModal('modal-mission-detail');
+      showToast(`🎉 ${result.message}`, 'success');
+      refreshAllSystemData();
+    } else {
+      showToast(`Error: ${result.error}`, 'danger');
+    }
+  } catch (err) {
+    console.error('Error updating schedule:', err);
+    showToast('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์เพื่ออัปเดตกำหนดการได้', 'danger');
+  }
+}
+
+window.openEditScheduleModal = openEditScheduleModal;
+window.saveScheduleChanges = saveScheduleChanges;
 
 
 

@@ -157,6 +157,9 @@ async function initSchema() {
 
   // Ensure missing columns exist if table was previously created
   try { await dbRun(`ALTER TABLE missions ADD COLUMN dress_code VARCHAR(150);`); } catch (e) {}
+  try { await dbRun(`ALTER TABLE missions ADD COLUMN attachment_file TEXT;`); } catch (e) {}
+  try { await dbRun(`ALTER TABLE missions ADD COLUMN attachment_name TEXT;`); } catch (e) {}
+  try { await dbRun(`ALTER TABLE missions ADD COLUMN schedule_details TEXT;`); } catch (e) {}
   try { await dbRun(`ALTER TABLE mission_assignments ADD COLUMN substituted_for_personnel_id INTEGER;`); } catch (e) {}
   try { await dbRun(`ALTER TABLE mission_assignments ADD COLUMN notes TEXT;`); } catch (e) {}
   try { await dbRun(`ALTER TABLE mission_assignments ADD COLUMN ack_status VARCHAR(20) DEFAULT 'PENDING_ACK';`); } catch (e) {}

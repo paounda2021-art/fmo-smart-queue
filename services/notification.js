@@ -1248,10 +1248,172 @@ function createPeerSwapConsentFlexCard(swapId, requester, target, reason) {
   };
 }
 
+async function sendScheduleChangeNotification(mission, assignedList) {
+  if (!mission || !Array.isArray(assignedList) || assignedList.length === 0) {
+    return false;
+  }
+
+  const lineToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+  if (!lineToken) {
+    console.error('❌ ไม่พบ LINE_CHANNEL_ACCESS_TOKEN');
+    return false;
+  }
+
+  const timeStr = `${formatDate24h(mission.start_date)} - ${formatDate24h(mission.end_date)}`;
+  const baseUrl = APP_BASE_URL.replace(/\/app$/, '');
+  const fileUrl = mission.attachment_file ? (mission.attachment_file.startsWith('http') ? mission.attachment_file : `${baseUrl}${mission.attachment_file}`) : null;
+
+  const flexCardObj = {
+    type: 'flex',
+    altText: `📢 [แจ้งเปลี่ยนแปลงกำหนดการ] ${mission.mission_title}`,
+    contents: {
+      type: 'bubble',
+      size: 'mega',
+      header: {
+        type: 'box',
+        layout: 'vertical',
+        backgroundColor: '#ea580c',
+        paddingAll: '16px',
+        contents: [
+          { type: 'text', text: 'FMO SMART QUEUE - SCHEDULE UPDATE', color: '#ffedd5', size: 'xxs', weight: 'bold' },
+          { type: 'text', text: '📢 แจ้งเปลี่ยนแปลงกำหนดการกิจกรรม', color: '#ffffff', size: 'md', weight: 'bold', margin: 'xs' }
+        ]
+      },
+      body: {
+        type: 'box',
+        layout: 'vertical',
+        paddingAll: '16px',
+        spacing: 'md',
+        contents: [
+          { type: 'text', text: mission.mission_title, weight: 'bold', size: 'md', color: '#0f172a', wrap: true },
+          {
+            type: 'box',
+            layout: 'vertical',
+            margin: 'sm',
+            spacing: 'xs',
+            contents: [
+              {
+                type: 'box',
+                layout: 'horizontal',
+                spacing: 'sm',
+                contents: [
+                  { type: 'text', text: '📅 เวลาใหม่:', color: '#ea580c', size: 'xs', flex: 2, weight: 'bold' },
+                  { type: 'text', text: timeStr, color: '#0f172a', size: 'xs', flex: 5, wrap: true, weight: 'bold' }
+                ]
+              },
+              {
+                type: 'box',
+                layout: 'horizontal',
+                spacing: 'sm',
+                contents: [
+                  { type: 'text', text: '📍 สถานที่:', color: '#64748b', size: 'xs', flex: 2 },
+                  { type: 'text', text: mission.location || 'สะพานปลา อสป.', color: '#1e293b', size: 'xs', flex: 5, wrap: true }
+                ]
+              },
+              {
+                type: 'box',
+                layout: 'horizontal',
+                spacing: 'sm',
+                contents: [
+                  { type: 'text', text: '👔 แต่งกาย:', color: '#64748b', size: 'xs', flex: 2 },
+                  { type: 'text', text: mission.dress_code || 'ชุดปฏิบัติงาน อสป.', color: '#a855f7', size: 'xs', flex: 5, wrap: true }
+                ]
+              }
+            ]
+          },
+          mission.schedule_details ? {
+            type: 'box',
+            layout: 'vertical',
+            backgroundColor: '#fff7ed',
+            borderColor: '#ffedd5',
+            borderWidth: '1px',
+            paddingAll: '10px',
+            cornerRadius: '8px',
+            margin: 'md',
+            contents: [
+              { type: 'text', text: '📝 รายละเอียดกำหนดการใหม่:', size: 'xxs', color: '#c2410c', weight: 'bold' },
+              { type: 'text', text: mission.schedule_details, size: 'xs', color: '#431407', wrap: true, margin: 'xs' }
+            ]
+          } : { type: 'spacer', size: 'xs' }
+        ]
+      },
+      footer: {
+        type: 'box',
+        layout: 'vertical',
+        spacing: 'sm',
+        paddingAll: '12px',
+        contents: [
+          fileUrl ? {
+            type: 'button',
+            style: 'primary',
+            color: '#ea580c',
+            height: 'sm',
+            action: { type: 'uri', label: '📄 ดูไฟล์แนบกำหนดการใหม่', uri: fileUrl }
+          } : { type: 'spacer', size: 'xs' },
+          {
+            type: 'button',
+            style: 'secondary',
+            height: 'sm',
+            action: { type: 'uri', label: '🟢 ตรวจสอบกำหนดการบนเว็บ', uri: APP_BASE_URL }
+          }
+        ]
+      }
+    }
+  };
+
+  for (const person of assignedList) {
+    if (person.line_user_id) {
+      try {
+        await axios.post(
+          'https://api.line.me/v2/bot/message/push',
+          {
+            to: person.line_user_id,
+            messages: [flexCardObj]
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${lineToken}`
+            }
+          }
+        );
+        console.log(`✅ ส่งแจ้งเตือนอัปเดตกำหนดการให้ ${person.name} (${person.emp_code}) สำเร็จ`);
+      } catch (err) {
+        console.error(`❌ ส่งแจ้งเตือนอัปเดตกำหนดการให้ ${person.name} ล้มเหลว:`, err.response?.data || err.message);
+      }
+    }
+  }
+
+  const lineGroupId = process.env.LINE_GROUP_ID;
+  if (lineGroupId) {
+    try {
+      await axios.post(
+        'https://api.line.me/v2/bot/message/push',
+        {
+          to: lineGroupId,
+          messages: [flexCardObj]
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${lineToken}`
+          }
+        }
+      );
+      console.log('✅ ส่งแจ้งเตือนอัปเดตกำหนดการเข้า LINE Group สำเร็จ');
+    } catch (err) {
+      console.error('❌ ส่งแจ้งเตือนเข้า LINE Group ล้มเหลว:', err.response?.data || err.message);
+    }
+  }
+
+  return true;
+}
+
 module.exports = {
   sendMissionNotification,
   sendUpcomingQueueNotice,
   dispatchPreEventReminders,
+  sendScheduleChangeNotification,
   formatDate24h,
   createLineFlexCardPayload,
   createPersonalizedFlexCard,

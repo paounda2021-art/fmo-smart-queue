@@ -1,8 +1,50 @@
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
 const { dbRun, dbGet, dbAll } = require('../db/database');
-const { sendMissionNotification, formatDate24h } = require('../services/notification');
+const { sendMissionNotification, sendScheduleChangeNotification, formatDate24h } = require('../services/notification');
+
+// Setup Upload Storage for Attachments
+const uploadDir = path.join(__dirname, '../public/uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    cb(null, 'attach-' + uniqueSuffix + ext);
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: { fileSize: 25 * 1024 * 1024 } // 25MB Max
+});
+
+// POST /api/upload-attachment - อัปโหลดไฟล์แนบกำหนดการกิจกรรม
+router.post('/upload-attachment', upload.single('attachment'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'ไม่พบไฟล์ที่อัปโหลด' });
+    }
+    const fileUrl = `/uploads/${req.file.filename}`;
+    res.json({
+      success: true,
+      file_url: fileUrl,
+      file_name: req.file.originalname
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 // POST /api/login - ตรวจสอบการเข้าสู่ระบบจากตาราง personnel ใน SQLite
 router.post('/login', async (req, res) => {
@@ -2592,6 +2634,84 @@ router.post('/missions/create', async (req, res) => {
       error: 'เกิดข้อผิดพลาดในการสร้างกิจกรรม',
       details: error.message
     });
+  }
+});
+
+// POST /api/missions/:id/update-schedule - อัปเดตเปลี่ยนแปลงกำหนดการและส่ง LINE OA แจ้งเตือนทุกคนในกิจกรรมโดยอัตโนมัติ
+router.post('/missions/:id/update-schedule', async (req, res) => {
+  try {
+    const missionId = req.params.id;
+    const {
+      mission_title,
+      description,
+      location,
+      dress_code,
+      start_date,
+      end_date,
+      schedule_details,
+      attachment_file,
+      attachment_name,
+      notify_line = true
+    } = req.body;
+
+    const mission = await dbGet(`SELECT * FROM missions WHERE id = ?;`, [missionId]);
+    if (!mission) {
+      return res.status(404).json({ success: false, error: 'ไม่พบกิจกรรมที่ระบุ' });
+    }
+
+    await dbRun(
+      `UPDATE missions
+       SET mission_title = COALESCE(?, mission_title),
+           description = COALESCE(?, description),
+           location = COALESCE(?, location),
+           dress_code = COALESCE(?, dress_code),
+           start_date = COALESCE(?, start_date),
+           end_date = COALESCE(?, end_date),
+           schedule_details = COALESCE(?, schedule_details),
+           attachment_file = COALESCE(?, attachment_file),
+           attachment_name = COALESCE(?, attachment_name)
+       WHERE id = ?;`,
+      [
+        mission_title || null,
+        description || null,
+        location || null,
+        dress_code || null,
+        start_date || null,
+        end_date || null,
+        schedule_details || null,
+        attachment_file || null,
+        attachment_name || null,
+        missionId
+      ]
+    );
+
+    const updatedMission = await dbGet(`SELECT * FROM missions WHERE id = ?;`, [missionId]);
+
+    // ดึงผู้เข้าร่วมทุกคนที่มีสถานะเข้าร่วมในกิจกรรมนี้
+    const assignedPersonnel = await dbAll(
+      `SELECT p.* 
+       FROM mission_assignments ma
+       JOIN personnel p ON ma.personnel_id = p.id
+       WHERE ma.mission_id = ? AND (ma.assignment_status IN ('JOINED', 'SUBSTITUTED') OR ma.assignment_status IS NULL);`,
+      [missionId]
+    );
+
+    if (notify_line && assignedPersonnel.length > 0) {
+      try {
+        await sendScheduleChangeNotification(updatedMission, assignedPersonnel);
+      } catch (notifErr) {
+        console.error('❌ Error sending schedule change notification:', notifErr);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `อัปเดตกำหนดการสำเร็จ${notify_line ? ' และแจ้งเตือนผู้เข้าร่วมทาง LINE เรียบร้อยแล้ว' : ''}`,
+      mission: updatedMission,
+      notified_count: assignedPersonnel.length
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 // -------------------------------------------------------------
