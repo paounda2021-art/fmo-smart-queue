@@ -839,7 +839,7 @@ router.post('/line-webhook', async (req, res) => {
 
                 let fileFlexMsg = null;
                 if (assignment.attachment_file) {
-                  const rawBaseUrl = process.env.APP_BASE_URL || 'https://fmo-smart-queue.fishmarket.co.th/app';
+                  const rawBaseUrl = process.env.APP_BASE_URL || 'https://smart-queue.fishmarket.co.th/app';
                   const baseUrl = rawBaseUrl.replace(/\/app$/, '');
                   const fileUrl = assignment.attachment_file.startsWith('http')
                     ? assignment.attachment_file

@@ -4,7 +4,7 @@ const nodemailer = require('nodemailer');
 const { dbRun } = require('../db/database');
 
 // 💡 ตั้งค่า URL หลักของระบบ ใช้สำหรับใส่ในลิงก์ปุ่มของ Flex Message / Email
-const APP_BASE_URL = process.env.APP_BASE_URL || 'https://fmo-smart-queue.fishmarket.co.th/app';
+const APP_BASE_URL = process.env.APP_BASE_URL || 'https://smart-queue.fishmarket.co.th/app';
 
 const { exec } = require('child_process');
 
