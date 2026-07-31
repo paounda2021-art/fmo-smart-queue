@@ -2296,7 +2296,10 @@ router.post('/missions/create', async (req, res) => {
       required_staff,
       assigned_director_ids = [],
       assigned_staff_ids = [],
-      skipped_personnel = []
+      skipped_personnel = [],
+      attachment_file,
+      attachment_name,
+      schedule_details
     } = req.body;
 
     //----------------------------------------------------------
@@ -2369,21 +2372,27 @@ router.post('/missions/create', async (req, res) => {
         end_date,
         required_directors,
         required_staff,
-        status
+        status,
+        attachment_file,
+        attachment_name,
+        schedule_details
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'SCHEDULED');
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'SCHEDULED', ?, ?, ?);
       `,
       [
         newMissionCode,
         mission_title,
-        description || '',
+        description || schedule_details || '',
         location || '',
         dress_code ||
           'ชุดสุภาพ / ชุดปฏิบัติงาน อสป.',
         start_date,
         end_date,
         Number(required_directors) || directorIds.length,
-        Number(required_staff) || staffIds.length
+        Number(required_staff) || staffIds.length,
+        attachment_file || null,
+        attachment_name || null,
+        schedule_details || description || null
       ]
     );
 
