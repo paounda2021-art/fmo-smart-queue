@@ -839,7 +839,8 @@ router.post('/line-webhook', async (req, res) => {
 
                 let fileFlexMsg = null;
                 if (assignment.attachment_file) {
-                  const baseUrl = APP_BASE_URL.replace(/\/app$/, '');
+                  const rawBaseUrl = process.env.APP_BASE_URL || 'https://pyromania-endearing-janitor.ngrok-free.dev/app';
+                  const baseUrl = rawBaseUrl.replace(/\/app$/, '');
                   const fileUrl = assignment.attachment_file.startsWith('http')
                     ? assignment.attachment_file
                     : `${baseUrl}${assignment.attachment_file}`;
