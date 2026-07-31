@@ -3061,6 +3061,7 @@ async function unbindUserLine(id, name) {
 
 async function openEditScheduleModal(missionId) {
   try {
+    closeModal('modal-mission-detail');
     const res = await fetch(`/api/missions/${missionId}`);
     const data = await res.json();
     if (!data.success || !data.mission) {
