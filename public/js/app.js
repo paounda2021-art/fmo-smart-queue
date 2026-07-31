@@ -4,6 +4,14 @@ let previewedDirectors = [];
 let previewedStaff = [];
 let autoFetchDebounceTimer = null;
 
+function cleanFileName(name) {
+  if (!name || typeof name !== 'string') return 'ดาวน์โหลดเอกสารกำหนดการ (PDF/Word/รูปภาพ)';
+  if (/[\u0080-\u00FF]{2,}/.test(name) || name.includes('à') || name.includes('')) {
+    return 'ดาวน์โหลดเอกสารกำหนดการ (PDF/Word/รูปภาพ)';
+  }
+  return name;
+}
+
 // -------------------------------------------------------------
 // TOAST NOTIFICATION SYSTEM
 // -------------------------------------------------------------
@@ -1771,7 +1779,7 @@ async function openMissionDetailModal(missionId) {
 
     document.getElementById('md-dress-code').innerHTML =
       `การแต่งกาย: ${escapeHtml(mission.dress_code || 'ชุดปฏิบัติงาน อสป.')}` +
-      (mission.attachment_file ? `<div style="margin-top:8px;"><a href="${mission.attachment_file}" target="_blank" class="btn btn-outline-primary btn-sm" style="font-weight:bold; padding:4px 10px;"><i class="fa-solid fa-paperclip"></i> 📄 ${escapeHtml(mission.attachment_name || 'ดาวน์โหลดเอกสารกำหนดการ')}</a></div>` : '') +
+      (mission.attachment_file ? `<div style="margin-top:8px;"><a href="${mission.attachment_file}" target="_blank" class="btn btn-outline-primary btn-sm" style="font-weight:bold; padding:6px 14px; display:inline-flex; align-items:center; gap:6px; background:#f0f9ff; color:#0369a1; border:1px solid #0284c7;"><i class="fa-solid fa-file-arrow-down" style="font-size:1.1rem; color:#0284c7;"></i> 📄 ${escapeHtml(cleanFileName(mission.attachment_name))}</a></div>` : '') +
       `<div style="margin-top:10px;"><button type="button" class="btn btn-warning btn-sm" onclick="openEditScheduleModal(${mission.id})" style="font-weight:bold; background:#ea580c; border:none; color:#fff; padding:6px 12px;"><i class="fa-solid fa-calendar-pen"></i> ✏️ อัปเดตเปลี่ยนแปลงกำหนดการ & แจ้ง LINE อัตโนมัติ</button></div>`;
 
     const tbody =

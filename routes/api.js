@@ -35,11 +35,16 @@ router.post('/upload-attachment', upload.single('attachment'), (req, res) => {
     if (!req.file) {
       return res.status(400).json({ success: false, error: 'ไม่พบไฟล์ที่อัปโหลด' });
     }
+    let originalName = req.file.originalname;
+    try {
+      originalName = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+    } catch (e) {}
+
     const fileUrl = `/uploads/${req.file.filename}`;
     res.json({
       success: true,
       file_url: fileUrl,
-      file_name: req.file.originalname
+      file_name: originalName
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
