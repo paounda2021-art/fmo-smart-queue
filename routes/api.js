@@ -754,7 +754,9 @@ router.post('/line-webhook', async (req, res) => {
                   m.location,
                   m.start_date,
                   m.end_date,
-                  m.dress_code
+                  m.dress_code,
+                  m.attachment_file,
+                  m.attachment_name
                 FROM mission_assignments ma
                 JOIN personnel p
                   ON p.id = ma.personnel_id
@@ -781,7 +783,9 @@ router.post('/line-webhook', async (req, res) => {
                     m.location,
                     m.start_date,
                     m.end_date,
-                    m.dress_code
+                    m.dress_code,
+                    m.attachment_file,
+                    m.attachment_name
                   FROM mission_assignments ma
                   JOIN personnel p ON p.id = ma.personnel_id
                   JOIN missions m ON m.id = ma.mission_id
@@ -804,29 +808,21 @@ router.post('/line-webhook', async (req, res) => {
                     'กรุณาติดต่อเจ้าหน้าที่ค่ะ'
                 }];
               }
-              else if (
-                assignment.ack_status === 'ACKNOWLEDGED'
-              ) {
-                replyMessages = [{
-                  type: 'text',
-                  text:
-                    'ℹ️ ท่านได้กดรับทราบกิจกรรมนี้แล้วค่ะ'
-                }];
-              }
               else {
-                await dbRun(
-                  `
-                  UPDATE mission_assignments
-                  SET
-                    ack_status = 'ACKNOWLEDGED',
-                    ack_at = CURRENT_TIMESTAMP
-                  WHERE id = ?;
-                  `,
-                  [assignment.id]
-                );
+                if (assignment.ack_status !== 'ACKNOWLEDGED') {
+                  await dbRun(
+                    `
+                    UPDATE mission_assignments
+                    SET
+                      ack_status = 'ACKNOWLEDGED',
+                      ack_at = CURRENT_TIMESTAMP
+                    WHERE id = ?;
+                    `,
+                    [assignment.id]
+                  );
 
-                await checkAndUpdateMissionStatus(assignment.mission_id);
-
+                  await checkAndUpdateMissionStatus(assignment.mission_id);
+                }
 
                 const missionDescription = String(
                   assignment.description || ''
@@ -836,17 +832,89 @@ router.post('/line-webhook', async (req, res) => {
                   ? `${formatDate24h(assignment.start_date)} - ${formatDate24h(assignment.end_date)}`
                   : '-';
 
-                replyMessages = [{
-                  type: 'text',
-                  text:
-                    `✅ รับทราบแล้วค่ะ คุณ ${assignment.person_name || assignment.name || '-'}\n\n` +
-                    `📋 กิจกรรม:\n${assignment.mission_title || '-'}\n\n` +
-                    `📍 สถานที่: ${assignment.location || '-'}\n` +
-                    `⏰ เวลา (24 ชม.): ${timeStr}\n` +
-                    `👔 การแต่งกาย: ${assignment.dress_code || 'ชุดปฏิบัติงาน อสป.'}\n\n` +
-                    `📝 รายละเอียด/กำหนดการ:\n${missionDescription || 'ไม่มีรายละเอียดเพิ่มเติม'}\n\n` +
-                    `ระบบได้บันทึกการตอบรับเข้าร่วมกิจกรรมเรียบร้อยแล้ว ขอบคุณค่ะ 🙏`
-                }];
+                let fileFlexMsg = null;
+                if (assignment.attachment_file) {
+                  const baseUrl = APP_BASE_URL.replace(/\/app$/, '');
+                  const fileUrl = assignment.attachment_file.startsWith('http')
+                    ? assignment.attachment_file
+                    : `${baseUrl}${assignment.attachment_file}`;
+                  const fileName = assignment.attachment_name || 'ดาวน์โหลดเอกสารกำหนดการ';
+
+                  fileFlexMsg = {
+                    type: 'flex',
+                    altText: '📄 เอกสารแนบกำหนดการกิจกรรม',
+                    contents: {
+                      type: 'bubble',
+                      size: 'mega',
+                      header: {
+                        type: 'box',
+                        layout: 'vertical',
+                        backgroundColor: '#10b981',
+                        paddingAll: '14px',
+                        contents: [
+                          { type: 'text', text: '✅ ตอบรับเข้าร่วมกิจกรรมเรียบร้อยแล้ว', color: '#ffffff', size: 'sm', weight: 'bold' }
+                        ]
+                      },
+                      body: {
+                        type: 'box',
+                        layout: 'vertical',
+                        paddingAll: '16px',
+                        spacing: 'sm',
+                        contents: [
+                          { type: 'text', text: '📎 เอกสารแนบกำหนดการปฏิบัติงาน:', size: 'xs', color: '#047857', weight: 'bold' },
+                          { type: 'text', text: fileName, size: 'sm', color: '#0f172a', weight: 'bold', wrap: true, margin: 'xs' }
+                        ]
+                      },
+                      footer: {
+                        type: 'box',
+                        layout: 'vertical',
+                        paddingAll: '12px',
+                        contents: [
+                          {
+                            type: 'button',
+                            style: 'primary',
+                            color: '#ea580c',
+                            height: 'sm',
+                            action: {
+                              type: 'uri',
+                              label: '📄 คลิกดาวน์โหลดเอกสารกำหนดการ',
+                              uri: fileUrl
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  };
+                }
+
+                if (fileFlexMsg) {
+                  replyMessages = [
+                    {
+                      type: 'text',
+                      text:
+                        `✅ รับทราบแล้วค่ะ คุณ ${assignment.person_name || assignment.name || '-'}\n\n` +
+                        `📋 กิจกรรม:\n${assignment.mission_title || '-'}\n\n` +
+                        `📍 สถานที่: ${assignment.location || '-'}\n` +
+                        `⏰ เวลา (24 ชม.): ${timeStr}\n` +
+                        `👔 การแต่งกาย: ${assignment.dress_code || 'ชุดปฏิบัติงาน อสป.'}\n\n` +
+                        `📝 รายละเอียด/กำหนดการ:\n${missionDescription || 'ไม่มีรายละเอียดเพิ่มเติม'}\n\n` +
+                        `ระบบได้บันทึกการตอบรับเรียบร้อยแล้วค่ะ ท่านสามารถกดดาวน์โหลดไฟล์เอกสารกำหนดการจากปุ่มด้านล่างนี้ได้เลยค่ะ 👇`
+                    },
+                    fileFlexMsg
+                  ];
+                } else {
+                  replyMessages = [{
+                    type: 'text',
+                    text:
+                      `✅ รับทราบแล้วค่ะ คุณ ${assignment.person_name || assignment.name || '-'}\n\n` +
+                      `📋 กิจกรรม:\n${assignment.mission_title || '-'}\n\n` +
+                      `📍 สถานที่: ${assignment.location || '-'}\n` +
+                      `⏰ เวลา (24 ชม.): ${timeStr}\n` +
+                      `👔 การแต่งกาย: ${assignment.dress_code || 'ชุดปฏิบัติงาน อสป.'}\n\n` +
+                      `📝 รายละเอียด/กำหนดการ:\n${missionDescription || 'ไม่มีรายละเอียดเพิ่มเติม'}\n\n` +
+                      `ระบบได้บันทึกการตอบรับเข้าร่วมกิจกรรมเรียบร้อยแล้ว ขอบคุณค่ะ 🙏`
+                  }];
+                }
               }
 
             }
