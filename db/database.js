@@ -1,7 +1,12 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 
-const dbPath = path.resolve(__dirname, 'fmo_smart_queue.db');
+const fs = require('fs');
+const sharedDbPath = 'C:/apps/fmo-smart-queue/db/fmo_smart_queue.db';
+const dbPath = process.env.DB_PATH
+  ? path.resolve(process.env.DB_PATH)
+  : (fs.existsSync(sharedDbPath) ? path.resolve(sharedDbPath) : path.resolve(__dirname, 'fmo_smart_queue.db'));
+
 const db = new sqlite3.Database(dbPath);
 
 // Promisified database helpers for async/await

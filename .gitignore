@@ -2,3 +2,5 @@ node_modules/
 .env
 *.pdf
 *.db
+
+db/fmo_smart_queue.db
