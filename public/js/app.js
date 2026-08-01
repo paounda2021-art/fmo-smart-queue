@@ -747,22 +747,17 @@ async function unholdPerson(personnelId, btnElem) {
   try {
     const pId = Number.parseInt(personnelId, 10);
 
-    // ⚡ Instant Optimistic UI Update: เปลี่ยนป้ายและปุ่มบนหน้าจอทันทีใน 0.01 วินาที!
+    // ⚡ Instant Optimistic UI Update: ค้นหา row แล้วเปลี่ยนเฉพาะเซลล์สถานะและเซลล์ปุ่มทันที
     let targetRow = null;
     if (btnElem && btnElem.closest) {
       targetRow = btnElem.closest('tr');
     }
-    if (!targetRow) {
-      const allBtns = document.querySelectorAll(`button[onclick*="unholdPerson(${pId}"]`);
-      if (allBtns.length > 0) {
-        targetRow = allBtns[0].closest('tr');
-      }
-    }
 
     if (targetRow) {
-      // ค้นหาเซลล์สถานะและปุ่ม action ในแถว
-      const statusCell = targetRow.querySelector('.badge-hold')?.closest('td') || targetRow.cells[4];
-      const actionCell = targetRow.cells[5] || targetRow.cells[targetRow.cells.length - 1];
+      // เซลล์สถานะคืนค่า WAITING ทันที
+      const statusCell = targetRow.querySelector('.badge-hold')?.closest('td');
+      // เซลล์ปุ่ม action (คลาส no-print)
+      const actionCell = targetRow.querySelector('td.no-print');
 
       if (statusCell) {
         statusCell.innerHTML = '<span class="badge badge-waiting"><i class="fa-solid fa-clock"></i> WAITING (รอคิว)</span>';
@@ -781,20 +776,23 @@ async function unholdPerson(personnelId, btnElem) {
 
     if (result.success) {
       showToast('🎉 คืนสิทธิ์ให้บุคลากรกลับสู่สถานะรอคิวปกติเรียบร้อยแล้ว', 'success');
+      // โหลดตารางใหม่ 1 ครั้งในพื้นหลัง (ไม่กะพริบ)
       setTimeout(async () => {
         if (typeof loadQueueView === 'function') {
           await loadQueueView(currentQueueRole || 'DIRECTOR');
         }
         if (typeof loadDashboardStats === 'function') loadDashboardStats();
         if (typeof previewCandidates === 'function') previewCandidates();
-      }, 400);
+      }, 500);
     } else {
       showToast(`Error: ${result.error}`, 'danger');
+      // กรณีผิดพลาดให้โหลดใหม่ทันทีเพื่อย้อน UI
       if (typeof loadQueueView === 'function') loadQueueView(currentQueueRole);
     }
   } catch (err) {
     console.error('Unhold error:', err);
     showToast('เกิดข้อผิดพลาดในการคืนสิทธิ์', 'danger');
+    if (typeof loadQueueView === 'function') loadQueueView(currentQueueRole);
   }
 }
 window.unholdPerson = unholdPerson;
