@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FMO Smart Queue - ระบบจัดสรรพนักงานเข้าร่วมกิจกรรม อสป.</title>
+  <link rel="icon" type="image/png" href="/logoFMO.png">
+
   <!-- Auth Guard: Redirect to login if no session -->
   <script>
     (function() {
@@ -11,12 +13,25 @@
       if (!user) { window.location.replace('/login'); }
     })();
   </script>
+  <script src="/vendor/sweetalert2.all.min.js"></script>
+  <!-- Preconnect & Non-blocking CDN Fonts & Icons for Lightning Fast Load (< 100ms) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Pridi:wght@300;400;500;600;700&family=Maitree:wght@300;400;500;600;700&display=swap" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
+  <noscript>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600&display=swap">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  </noscript>
+  <script src="/vendor/fullcalendar.min.js"></script>
 
-  <!-- Google Fonts: Sarabun, Pridi & Font Awesome Icons -->
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Pridi:wght@300;400;500;600;700&family=Maitree:wght@300;400;500;600;700&display=swap">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/styles.css?v=1.8.0">
+
+
+
+
 </head>
+
 <body>
 
   <!-- Top Navigation Header -->
@@ -24,18 +39,28 @@
     <div class="navbar-container">
       <!-- Top Row: Brand Info + Actions -->
       <div class="navbar-top">
-        <div class="brand">
+        <div class="brand" onclick="goHome()" style="cursor: pointer;" title="คลิกเพื่อกลับสู่หน้าแรก (Dashboard)">
           <img src="/logoFMO.png" alt="โลโก้ องค์การสะพานปลา (อสป.)" class="brand-logo">
-          <div class="brand-text">
-            <h1>FMO Smart Queue</h1>
-            <p>ระบบจัดสรรคิวพนักงานเข้าร่วมกิจกรรม องค์การสะพานปลา (อสป.)</p>
+          <div class="brand-text" style="text-align:left;">
+            <h1 style="margin:0; font-size:1.25rem; font-weight:700; color:var(--text-heading); text-align:left;">FMO Smart Queue</h1>
+            <p class="brand-sub" style="margin:2px 0 0 0; font-size:0.85rem; color:#0284c7; font-weight:500; text-align:left;">ระบบจัดสรรคิวพนักงานเข้าร่วมกิจกรรม องค์การสะพานปลา (อสป.)</p>
           </div>
+
+
+
         </div>
-        <div class="navbar-actions" style="display:flex;align-items:center;gap:10px;">
+        <div class="navbar-actions">
           <!-- Logged-in User Badge -->
-          <div id="user-badge" style="display:flex;align-items:center;gap:8px;background:rgba(2,132,199,0.12);border:1px solid rgba(2,132,199,0.25);border-radius:20px;padding:5px 14px;font-size:0.8rem;color:#94a3b8;">
-            <i class="fa-solid fa-user-circle" style="color:#06b6d4;"></i>
-            <span id="user-label">ผู้ใช้งาน</span>
+          <div id="user-badge" class="user-badge-box">
+            <i class="fa-solid fa-user-shield user-badge-icon"></i>
+            <div class="user-badge-info">
+              <span id="user-label-name" class="user-name">ผู้ใช้งาน</span>
+              <small class="user-meta">
+                <span id="user-label-pos" class="user-pos">ตำแหน่ง</span>
+                <span class="user-sep">|</span>
+                <span id="user-label-role" class="user-role">สิทธิ์</span>
+              </small>
+            </div>
           </div>
           <button class="theme-toggle-btn" onclick="toggleTheme()" title="สลับโหมด สว่าง / ดำ (Light / Dark Mode)">
             <i id="theme-toggle-icon" class="fa-solid fa-moon"></i>
@@ -44,7 +69,12 @@
             <i class="fa-solid fa-right-from-bracket"></i>
           </button>
         </div>
+
+
       </div>
+
+
+
 
       <!-- Bottom Row: Navigation Tabs -->
       <nav class="navbar-nav" id="main-navbar-nav">
@@ -63,7 +93,17 @@
         <button class="nav-btn" onclick="switchTab('reports')" data-menu="reports" data-role="admin">
           <i class="fa-solid fa-file-invoice"></i> รายงานกิจกรรม
         </button>
+        <button class="nav-btn" onclick="switchTab('calendar')" data-menu="calendar">
+          <i class="fa-solid fa-calendar-days text-sky"></i> ปฏิทินกิจกรรม
+        </button>
+        <button class="nav-btn" onclick="switchTab('user-management')" data-menu="user-management" data-role="admin">
+          <i class="fa-solid fa-users-gear text-purple"></i> จัดการผู้ใช้งาน
+        </button>
+
+
+
       </nav>
+
     </div>
   </header>
 
@@ -111,7 +151,7 @@
               <div class="grid-2">
                 <div class="form-group">
                   <label style="font-size: 0.85rem;"><i class="fa-solid fa-calendar-day text-emerald"></i> วันเวลาเริ่มต้น (เวลา 24 ชม.) *</label>
-                  <div style="display: flex; gap: 6px;">
+                  <div class="datetime-picker-group" style="display: flex; gap: 6px;">
                     <input type="date" id="alloc-start-date" class="form-control" required onchange="autoFetchOnNumberChange()">
                     <select id="alloc-start-time" class="form-control" style="width: 110px; font-weight: 600; text-align: center;" onchange="autoFetchOnNumberChange()"></select>
                   </div>
@@ -119,33 +159,108 @@
 
                 <div class="form-group">
                   <label style="font-size: 0.85rem;"><i class="fa-solid fa-calendar-check text-emerald"></i> วันเวลาสิ้นสุด (เวลา 24 ชม.) *</label>
-                  <div style="display: flex; gap: 6px;">
+                  <div class="datetime-picker-group" style="display: flex; gap: 6px;">
                     <input type="date" id="alloc-end-date" class="form-control" required>
                     <select id="alloc-end-time" class="form-control" style="width: 110px; font-weight: 600; text-align: center;"></select>
                   </div>
                 </div>
               </div>
 
-              <div class="form-group" style="margin-bottom: 0;">
-                <label style="font-size: 0.85rem;"><i class="fa-solid fa-align-left text-muted"></i> รายละเอียดเพิ่มเติม (ถ้ามี)</label>
-                <input type="text" id="alloc-desc" class="form-control" placeholder="วัตถุประสงค์สั้น ๆ">
+
+              <div class="form-group" style="margin-bottom: 0.75rem;">
+                <label style="font-size: 0.85rem;"><i class="fa-solid fa-align-left text-muted"></i> รายละเอียดกำหนดการ (ถ้ามี)</label>
+                <textarea id="alloc-desc" class="form-control" rows="2" placeholder="รายละเอียดเพิ่มเติม เช่น กำหนดการเดินทาง / กำหนดการตรวจราชการ"></textarea>
+              </div>
+
+              <div class="form-group" style="margin-top: 0.85rem; background: #f0f9ff; border: 1.5px dashed #0284c7; padding: 12px 16px; border-radius: 10px;">
+                <label style="font-size: 0.88rem; font-weight: 700; color: #0369a1; display: flex; align-items: center; gap: 6px;">
+                  <i class="fa-solid fa-paperclip" style="font-size: 1.1rem; color: #0284c7;"></i> แนบไฟล์เอกสารกำหนดการ หรือ ลิงก์แชร์เอกสาร (Google Drive / OneDrive / URL)
+                </label>
+                <div style="margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                  <div>
+                    <label style="font-size: 0.8rem; font-weight: 600; color: #0369a1;">📁 อัปโหลดไฟล์จากเครื่อง:</label>
+                    <input type="file" id="alloc-attachment-file" class="form-control" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp,.zip,.rar" style="margin-top: 4px; background: #ffffff; cursor: pointer;">
+                  </div>
+                  <div>
+                    <label style="font-size: 0.8rem; font-weight: 600; color: #0369a1;">🔗 หรือใส่ลิงก์แชร์เอกสาร (URL):</label>
+                    <input type="url" id="alloc-attachment-url" class="form-control" placeholder="https://drive.google.com/..." style="margin-top: 4px; background: #ffffff;">
+                  </div>
+                </div>
+                <div id="alloc-attachment-preview" style="display: none; margin-top: 8px; padding: 8px 12px; background: #ffffff; border: 1px solid #bae6fd; border-radius: 6px; font-size: 0.82rem; color: #0369a1; font-weight: 600; word-break: break-all;"></div>
+                <small style="color: #0369a1; font-size: 0.78rem; display: block; margin-top: 6px;">📌 สามารถอัปโหลดไฟล์จากเครื่อง หรือวางลิงก์แชร์เอกสาร (เช่น Google Drive, OneDrive, SharePoint) ได้โดยตรง</small>
               </div>
 
             </div>
 
             <!-- Staff & Team Leader Selection Box -->
-            <div style="background: var(--primary-light); padding: 1.15rem; border-radius: 14px; border: 1px solid rgba(2, 132, 199, 0.3);">
-              
-              <!-- 1. Select Team Leader (Multi-Select Checkboxes) -->
-              <div class="form-group" style="margin-bottom: 1.25rem;">
-                <label style="font-size: 0.88rem; font-weight: 700; color: var(--text-heading); display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                  <span><i class="fa-solid fa-user-tie text-purple"></i> เลือกหัวหน้าทีม (ผอ.ฝ่าย) - เลือกได้มากกว่า 1 ท่าน</span>
-                  <span class="badge badge-purple" id="selected-directors-badge" style="font-size: 0.78rem;">เลือกแล้ว 0 ท่าน</span>
-                </label>
-                <div id="director-select-list" style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 10px; max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;">
-                  <p style="color: var(--text-muted); font-size: 0.82rem;">กำลังโหลดรายชื่อ ผอ.ฝ่าย...</p>
-                </div>
-              </div>
+<div
+  style="
+    background: var(--primary-light);
+    padding: 1.35rem;
+    border-radius: 14px;
+    border: 1px solid rgba(2,132,199,.30);
+    margin-top: 0.5rem;
+    margin-bottom: 1.25rem;
+  "
+>
+
+  <!-- 1. Select Team Leader (Multi-Select Checkboxes) -->
+  <div
+    class="form-group"
+    style="margin-bottom: 1.75rem;"
+  >
+    <label
+      style="
+        font-size: .88rem;
+        font-weight: 700;
+        color: var(--text-heading);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: .75rem;
+      "
+    >
+      <span>
+        <i class="fa-solid fa-user-tie text-purple"></i>
+        เลือกหัวหน้าคณะ (ผู้บริหาร/ผอ.ฝ่าย) - เลือกได้มากกว่า 1 ท่าน
+      </span>
+
+      <span
+        class="badge badge-purple"
+        id="selected-directors-badge"
+        style="font-size:.78rem;"
+      >
+        เลือกแล้ว 0 ท่าน
+      </span>
+    </label>
+
+    <div
+      id="director-select-list"
+      style="
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: 12px;
+        padding: 10px;
+        min-height: 285px;
+        height: auto;
+        max-height: none;
+        overflow: visible;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      "
+    >
+      <p
+        style="
+          color: var(--text-muted);
+          font-size: .82rem;
+          margin: .35rem 0;
+        "
+      >
+        กำลังโหลดรายชื่อ ผอ.ฝ่าย...
+      </p>
+    </div>
+  </div>
 
               <!-- 2. Staff Count for Fair Queue Rotation -->
               <div class="form-group" style="margin-bottom: 0;">
@@ -175,7 +290,7 @@
               <!-- Director Candidate Card -->
               <div style="background: var(--input-bg); padding: 1rem; border-radius: 12px; border: 1px solid rgba(168, 85, 247, 0.35);">
                 <h5 style="color: #a855f7; font-size: 0.88rem; font-weight: 700; margin-bottom: 0.65rem; display: flex; align-items: center; gap: 6px;">
-                  <i class="fa-solid fa-user-tie"></i> หัวหน้าทีม (ผอ.ฝ่าย)
+                  <i class="fa-solid fa-user-tie"></i> หัวหน้าคณะ (ผู้บริหาร/ผอ.ฝ่าย)
                 </h5>
                 <div id="preview-directors-list">
                   <p style="color: var(--text-muted); font-size: 0.85rem;">กำลังดึงคิวอัตโนมัติ...</p>
@@ -319,7 +434,7 @@
     <!-- 2. DUAL QUEUE VISUALIZER VIEW -->
     <section id="view-queue" class="view-content">
       <div class="glass-card">
-        <div class="card-header">
+        <div class="card-header queue-header-layout">
           <div>
             <div class="card-title">
               <i class="fa-solid fa-layer-group"></i> กระดานคิวเข้าร่วมกิจกรรม Dual Rotation Queue
@@ -327,23 +442,46 @@
             <div class="card-subtitle">แสดงลำดับคิว สถานะค้างสิทธิ์ (Hold_In_Round) และการวนรอบของบุคลากร อสป.</div>
           </div>
 
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="tab-btn-director" class="btn btn-primary btn-sm" onclick="loadQueueView('DIRECTOR')">
-              <i class="fa-solid fa-user-tie"></i> <span id="tab-btn-director-text">คิว ผอ.ฝ่าย (กำลังโหลด...)</span>
-            </button>
-            <button id="tab-btn-staff" class="btn btn-secondary btn-sm" onclick="loadQueueView('STAFF')">
-              <i class="fa-solid fa-users"></i> <span id="tab-btn-staff-text">คิว พนักงาน (กำลังโหลด...)</span>
-            </button>
-            <button class="btn btn-secondary btn-sm" onclick="downloadCsvTemplate()">
-              <i class="fa-solid fa-download"></i> 📄 ดาวน์โหลดเทมเพลต CSV
-            </button>
-            <button class="btn btn-warning btn-sm" onclick="openImportCsvModal()">
-              <i class="fa-solid fa-file-import"></i> 📥 นำเข้าชุดข้อมูลจริง (CSV)
-            </button>
+          <div class="queue-toolbar-wrapper">
+            <!-- Segmented Role Switcher -->
+            <div class="queue-segmented-control">
+              <button id="tab-btn-director" class="queue-segment-btn btn-primary active" onclick="loadQueueView('DIRECTOR')">
+                <i class="fa-solid fa-user-tie"></i> <span id="tab-btn-director-text">ผอ.ฝ่าย</span>
+              </button>
+              <button id="tab-btn-staff" class="queue-segment-btn btn-secondary" onclick="loadQueueView('STAFF')">
+                <i class="fa-solid fa-users"></i> <span id="tab-btn-staff-text">พนักงาน</span>
+              </button>
+            </div>
+
+            <!-- Action Tools Bar -->
+            <div class="queue-tools-group">
+              <button class="btn btn-purple btn-sm" onclick="openPeerSwapModal()" title="สลับคิวพนักงาน (Peer Swap)">
+                <i class="fa-solid fa-arrows-rotate"></i> <span>สลับคิว</span>
+              </button>
+              <button class="btn btn-secondary btn-sm" onclick="downloadCsvTemplate()" title="ดาวน์โหลดเทมเพลต CSV">
+                <i class="fa-solid fa-download"></i> <span>เทมเพลต CSV</span>
+              </button>
+              <button class="btn btn-warning btn-sm" onclick="openImportCsvModal()" title="นำเข้าชุดข้อมูลจริง (CSV)">
+                <i class="fa-solid fa-file-import"></i> <span>นำเข้า CSV</span>
+              </button>
+            </div>
           </div>
         </div>
 
+
+
+        <!-- Executive Reserve Info Banner -->
+        <div style="background:rgba(168,85,247,0.08); border:1px solid rgba(168,85,247,0.25); border-radius:12px; padding:0.75rem 1.25rem; margin-bottom:1rem; display:flex; align-items:center; gap:12px; font-size:0.85rem; color:var(--text-main); width:100%; box-sizing:border-box;">
+          <i class="fa-solid fa-crown" style="color:#a855f7; font-size:1.15rem; flex-shrink:0;"></i>
+          <div style="flex:1;">
+            แสดงสถานะเป็น <span style="color:#a855f7; font-weight:700;">"👑 ผู้บริหาร"</span> ไม่เข้าคิววนอัตโนมัติ โดยเจ้าหน้าที่สามารถเลือกเพิ่มท่านเข้าปฏิบัติงานเป็นหัวหน้าคณะได้ทุกเมื่อในฟอร์มจัดสรร
+          </div>
+        </div>
+
+
+
         <div class="table-responsive">
+
           <table class="custom-table">
             <thead>
               <tr>
@@ -391,7 +529,7 @@
 
           <div class="form-group" style="margin-bottom:0;">
             <label>หรือ ค้นหาด้วยรหัส/ชื่อ/ตำแหน่ง</label>
-            <input type="text" id="indiv-search-input" class="form-control" placeholder="พิมพ์ชื่อ หรือ รหัสพนักงาน..." onkeyup="filterPersonDropdown(this.value)">
+            <input type="text" id="indiv-search-input" class="form-control" placeholder="พิมพ์ชื่อ หรือ รหัสพนักงาน..." onkeyup="filterPersonDropdown(this.value)" onkeydown="if(event.key==='Enter'){loadSelectedPerson();}">
           </div>
 
           <div class="form-group" style="margin-bottom:0; display:flex; align-items:flex-end;">
@@ -438,17 +576,60 @@
             <div class="card-subtitle">ตรวจสอบกิจกรรม รายชื่อผู้ปฏิบัติงาน การแต่งกาย และส่งออกข้อมูลย้อนหลัง</div>
           </div>
 
-          <div style="display: flex; gap: 8px;">
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button class="btn btn-warning btn-sm" onclick="sendPreEventReminders()" style="display:none; background:#d97706; border-color:#d97706; color:#ffffff;">
+              <i class="fa-solid fa-clock"></i> 🔔 เตือนความจำล่วงหน้า (LINE/Email)
+            </button>
             <button class="btn btn-secondary btn-sm" onclick="openNotificationLogsModal()">
-              <i class="fa-solid fa-bell text-amber"></i> ประวัติส่งแจ้งเตือน Email & LINE Group
+              <i class="fa-solid fa-bell text-amber"></i> ประวัติส่งแจ้งเตือน & สถานะรับทราบ (LINE/Email)
             </button>
             <button class="btn btn-primary btn-sm" onclick="exportSummaryData()">
               <i class="fa-solid fa-file-csv"></i> Export ข้อมูลสรุป CSV
             </button>
           </div>
+
+        </div>
+
+        <!-- Date Range Filter Bar -->
+        <div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:1.25rem; background:var(--input-bg); padding:0.85rem 1.1rem; border-radius:12px; border:1px solid var(--card-border);">
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <label style="font-size:0.85rem; font-weight:600; color:var(--text-heading); display:flex; align-items:center; gap:6px; margin:0;">
+              <i class="fa-solid fa-calendar-days text-cyan"></i> ค้นหาตามช่วงวันที่กิจกรรม:
+            </label>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <input type="date" id="report-start-date" class="form-control form-control-sm" style="width:auto; padding:4px 8px; font-size:0.82rem;">
+              <span style="color:var(--text-muted); font-size:0.82rem;">ถึง</span>
+              <input type="date" id="report-end-date" class="form-control form-control-sm" style="width:auto; padding:4px 8px; font-size:0.82rem;">
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="filterMissionsByDate()" style="padding:4px 12px; font-size:0.8rem;">
+              <i class="fa-solid fa-magnifying-glass"></i> กรองวันที่
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="resetMissionDateFilter()" style="padding:4px 12px; font-size:0.8rem;">
+              <i class="fa-solid fa-rotate-left"></i> ล้างตัวกรอง
+            </button>
+          </div>
+          <div style="font-size:0.8rem; color:var(--text-muted); font-weight:600;" id="report-filter-summary">
+            กิจกรรมทั้งหมด
+          </div>
+        </div>
+
+        <!-- CANCELLATION NOTICE CARDS CONTAINER -->
+        <div id="cancellation-notices-container" style="margin-bottom: 1.5rem; display: none;">
+          <div style="background: linear-gradient(135deg, #fff7ed, #ffedd5); border: 1.5px solid #fdba74; border-radius: 14px; padding: 1.25rem; box-shadow: 0 4px 12px rgba(234,88,12,0.08);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 1px dashed #f97316; padding-bottom: 0.65rem;">
+              <h3 style="font-size: 1.1rem; font-weight: 700; color: #c2410c; margin: 0; display: flex; align-items: center; gap: 8px;">
+                <i class="fa-solid fa-bullhorn text-amber"></i> 🚫 ประกาศการ์ดแจ้งเตือนยกเลิกกิจกรรม (Cancellation Notice Cards)
+              </h3>
+              <span class="badge" style="background: #ea580c; color: white; font-weight: bold;" id="cancelled-notice-count">0 กิจกรรม</span>
+            </div>
+            <div id="cancelled-notice-cards-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1rem;">
+              <!-- Cards generated dynamically -->
+            </div>
+          </div>
         </div>
 
         <div class="table-responsive">
+
           <table class="custom-table">
             <thead>
               <tr>
@@ -457,7 +638,7 @@
                 <th>สถานที่</th>
                 <th>การแต่งกาย (Dress Code)</th>
                 <th>วันที่เริ่ม - สิ้นสุด</th>
-                <th>หัวหน้าทีม (ผอ.)</th>
+                <th>หัวหน้าคณะ (ผู้บริหาร/ผอ.)</th>
                 <th>จำนวนสมาชิก (พนักงาน)</th>
                 <th>สถานะ</th>
                 <th>รายละเอียด & เปลี่ยนตัว</th>
@@ -465,13 +646,113 @@
             </thead>
             <tbody id="all-missions-table-body">
               <tr><td colspan="9" style="text-align:center;">กำลังโหลดรายการกิจกรรม...</td></tr>
+
+
             </tbody>
           </table>
         </div>
       </div>
     </section>
 
+    <!-- 6. CALENDAR VIEW -->
+    <section id="view-calendar" class="view-content">
+      <div class="glass-card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">
+              <i class="fa-solid fa-calendar-days text-sky"></i> ปฏิทินตารางงานและกิจกรรม อสป. (Calendar View)
+            </div>
+            <div class="card-subtitle">แสดงตารางกิจกรรมในรูปแบบปฏิทินรายเดือน/รายสัปดาห์ พร้อมสถานะ <span style="color:#d97706; font-weight:700;">🟠 SCHEDULED (รอดำเนินการ)</span> และ <span style="color:#10b981; font-weight:700;">🟢 SUCCESS (เสร็จสิ้น)</span></div>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="loadCalendarEvents()">
+            <i class="fa-solid fa-rotate"></i> รีเฟรชปฏิทิน
+          </button>
+        </div>
+        <div id="full-calendar-container" style="min-height: 580px; padding: 12px; background: var(--bg-card); border-radius: 14px; border: 1px solid var(--card-border);"></div>
+      </div>
+    </section>
+
+    <!-- 6. USER & ROLE MANAGEMENT VIEW -->
+    <section id="view-user-management" class="view-content">
+
+      <div class="card" style="margin-bottom: 1.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+          <div>
+            <h2 style="font-size: 1.3rem; color: var(--text-heading); margin-bottom: 4px;">
+              <i class="fa-solid fa-users-gear text-purple"></i> จัดการผู้ใช้งานและสิทธิ์การเข้าถึง (User & Role Management)
+            </h2>
+            <div class="card-subtitle">เพิ่ม แก้ไข ลบข้อมูลบุคลากร สิทธิ์ผู้บริหาร/พนักงาน และจัดการสถานะการผูก LINE OA</div>
+          </div>
+          <button class="btn btn-primary" onclick="openUserModal()" style="background:#a855f7; border-color:#a855f7; font-weight:bold;">
+            <i class="fa-solid fa-user-plus"></i> ➕ เพิ่มผู้ใช้งานใหม่
+          </button>
+        </div>
+
+        <!-- Dummy inputs to trap browser autofill -->
+        <input type="text" style="display:none;" name="username" aria-hidden="true" tabindex="-1">
+        <input type="password" style="display:none;" name="password" aria-hidden="true" tabindex="-1">
+
+        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1.25rem; align-items: center;">
+          <div style="flex: 2; min-width: 220px;">
+            <input type="search" id="user-search-input" name="search_user_query_rand123" class="form-input" placeholder="🔍 ค้นหาชื่อ, รหัสพนักงาน, ตำแหน่ง, สังกัด..." oninput="filterUserList()" autocomplete="new-password" value="">
+          </div>
+
+          <div style="flex: 1; min-width: 180px;">
+            <select id="user-role-filter" class="form-select" onchange="filterUserList()">
+              <option value="ALL">ทุกระดับสิทธิ์</option>
+              <option value="DIRECTOR">👔 ผอ.ฝ่าย / ผู้บริหาร (DIRECTOR)</option>
+              <option value="STAFF">👥 พนักงาน (STAFF)</option>
+              <option value="OPERATOR">⚙️ เจ้าหน้าที่ปฏิบัติการ (OPERATOR)</option>
+              <option value="ADMIN">🛡️ ผู้ดูแลระบบ (ADMIN)</option>
+            </select>
+          </div>
+
+          <div style="flex: 1; min-width: 180px;">
+            <select id="user-dept-filter" class="form-select" onchange="filterUserList()">
+              <option value="ALL">ทุกสังกัด / ฝ่าย</option>
+            </select>
+          </div>
+
+          <div style="flex: 1; min-width: 160px;">
+            <select id="user-line-filter" class="form-select" onchange="filterUserList()">
+              <option value="ALL">สถานะ LINE ทั้งหมด</option>
+              <option value="CONNECTED">🟢 ผูกบัญชี LINE แล้ว</option>
+              <option value="DISCONNECTED">⚪ ยังไม่ได้ผูก LINE</option>
+            </select>
+          </div>
+
+          <div>
+            <button class="btn btn-secondary" onclick="resetUserFilters()" title="ล้างตัวกรองทั้งหมด" style="padding: 0.5rem 0.85rem;">
+              <i class="fa-solid fa-rotate-left"></i> ล้างฟิลเตอร์
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-responsive">
+        <table class="custom-table">
+          <thead>
+            <tr>
+              <th>รหัส</th>
+              <th>ชื่อ - นามสกุล</th>
+              <th>บทบาท / สิทธิ์</th>
+              <th>ตำแหน่ง</th>
+              <th>สังกัด / ฝ่าย</th>
+              <th>ลำดับคิว</th>
+              <th>สถานะ LINE OA</th>
+              <th>การจัดการ</th>
+            </tr>
+          </thead>
+          <tbody id="user-management-table-body">
+            <tr><td colspan="8" style="text-align:center;">กำลังโหลดข้อมูลผู้ใช้งาน...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
   </main>
+
+
 
   <!-- SKIP & HOLD MODAL -->
   <div id="modal-skip" class="modal-overlay">
@@ -509,7 +790,7 @@
 
   <!-- EMERGENCY SUBSTITUTION MODAL -->
   <div id="modal-substitute" class="modal-overlay">
-    <div class="modal-box">
+    <div class="modal-box" style="max-width: 560px;">
       <div class="modal-header">
         <div class="modal-title"><i class="fa-solid fa-user-gear text-amber"></i> เปลี่ยนตัวกะทันหัน (Emergency Substitution)</div>
         <button class="modal-close" onclick="closeModal('modal-substitute')">&times;</button>
@@ -517,19 +798,41 @@
 
       <div class="modal-body">
         <p style="font-size: 0.9rem; color: var(--text-heading); margin-bottom: 1rem;">
-          ต้องการเปลี่ยนตัวให้บุคคลอื่นทำแทน: <strong id="sub-orig-person-name" style="color: var(--danger);">-</strong>
+          ต้องการเปลี่ยนตัวพนักงาน: <strong id="sub-orig-person-name" style="color: var(--danger);">-</strong>
         </p>
 
         <input type="hidden" id="sub-mission-id">
         <input type="hidden" id="sub-orig-person-id">
 
         <div class="form-group">
-          <label>เหตุผลการขอเปลี่ยนตัว *</label>
-          <input type="text" id="sub-reason" class="form-control" placeholder="เช่น ลาป่วย / ลากิจกะทันหัน">
+          <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">รูปแบบการเลือกตัวแทน *</label>
+          <div style="display: flex; flex-direction: column; gap: 0.65rem; margin-bottom: 1rem; background: var(--bg-card); padding: 0.85rem; border-radius: 8px; border: 1px solid var(--border-color);">
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.88rem; font-weight: 500;">
+              <input type="radio" name="sub_mode" value="AUTO" checked onchange="toggleSubModeUI()">
+              <span>🔄 ดึงคิวต่อไปอัตโนมัติ (Auto) : <strong id="sub-auto-preview" style="color: var(--primary);">กำลังโหลด...</strong></span>
+            </label>
+
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.88rem; font-weight: 500;">
+              <input type="radio" name="sub_mode" value="MANUAL" onchange="toggleSubModeUI()">
+              <span>👤 ระบุพนักงานโดยตรง (Manual)</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group" id="sub-manual-group" style="display: none;">
+          <label style="font-weight: 600;">เลือกพนักงานผู้ปฏิบัติงานแทน *</label>
+          <select id="sub-manual-select" class="form-control">
+            <option value="">-- กำลังโหลดรายชื่อพนักงาน --</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label style="font-weight: 600;">เหตุผลการขอเปลี่ยนตัว *</label>
+          <input type="text" id="sub-reason" class="form-control" placeholder="เช่น ลาป่วยกระทันหัน / ติดภารกิจด่วน">
         </div>
 
         <div style="background: var(--primary-light); border: 1px solid rgba(2, 132, 199, 0.3); padding: 0.85rem; border-radius: 8px; font-size: 0.82rem; color: var(--accent);">
-          <i class="fa-solid fa-circle-info"></i> ระบบจะดึงพนักงานคิวถัดไปใน Round นั้นเข้ามาทำแทนทันที พร้อมบันทึกประวัติ <em>"ปฏิบัติงานแทน [ชื่อเดิม]"</em> โดยไม่ทำให้สถิติรอบเสีย
+          <i class="fa-solid fa-paper-plane"></i> เมื่อยืนยันการเปลี่ยนตัว ระบบจะปลดพนักงานเดิม และส่ง <strong>LINE Flex Card การ์ดแจ้งเตือนเข้าปฏิบัติงานด่วน</strong> ไปยังพนักงานคนใหม่ทันที
         </div>
       </div>
 
@@ -537,6 +840,40 @@
         <button class="btn btn-secondary" onclick="closeModal('modal-substitute')">ยกเลิก</button>
         <button class="btn btn-warning" onclick="confirmSubstitution()">
           <i class="fa-solid fa-user-check"></i> ยืนยันการเปลี่ยนตัว
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CANCEL MISSION MODAL -->
+  <div id="modal-cancel-mission" class="modal-overlay">
+    <div class="modal-box" style="max-width: 520px;">
+      <div class="modal-header" style="background: #ef4444; color: #ffffff;">
+        <div class="modal-title" style="color: #ffffff;"><i class="fa-solid fa-ban"></i> ยืนยันการยกเลิกกิจกรรม</div>
+        <button class="modal-close" style="color: #ffffff;" onclick="closeModal('modal-cancel-mission')">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <input type="hidden" id="cancel-mission-id">
+        <p style="font-size: 0.95rem; color: var(--text-heading); margin-bottom: 0.75rem; line-height: 1.4;">
+          คุณกำลังทำรายการยกเลิกกิจกรรม: <strong id="cancel-mission-title-text" style="color: #ef4444;">-</strong>
+        </p>
+
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label style="font-weight: 600; font-size: 0.85rem;">ระบุเหตุผลในการยกเลิกกิจกรรม *</label>
+          <textarea id="cancel-mission-reason" class="form-control" rows="3" placeholder="เช่น ยกเลิกตามคำสั่งผู้บริหาร / สภาพอากาศไม่เอื้ออำนวย / เลื่อนกิจกรรมไม่มีกำหนด"></textarea>
+        </div>
+
+        <div style="background: #fef2f2; border: 1px solid #fca5a5; padding: 12px 14px; border-radius: 10px; font-size: 0.82rem; color: #b91c1c; line-height: 1.5;">
+          <i class="fa-solid fa-circle-exclamation" style="font-size: 1.1rem; color: #ef4444;"></i>
+          <strong>ข้อควรทราบ:</strong> การยกเลิกกิจกรรมจะทำการคืนสิทธิ์สถานะคิวรอ <strong>(WAITING)</strong> ให้แก่บุคลากรทุกคนที่ถูกจัดสรรในกิจกรรมนี้ เพื่อให้กลับมารอคิวในรอบปัจจุบันได้ตามปกติโดยไม่เสียสิทธิ์ และระบบจะสร้างการ์ดแจ้งเตือนยกเลิกกิจกรรมให้ทราบ
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('modal-cancel-mission')">ยกเลิก</button>
+        <button type="button" class="btn btn-danger" onclick="confirmCancelMission()" style="background: #ef4444; border-color: #ef4444; font-weight: bold;">
+          <i class="fa-solid fa-ban"></i> ยืนยันการยกเลิกกิจกรรม
         </button>
       </div>
     </div>
@@ -554,6 +891,8 @@
         <h3 id="md-title" style="color: var(--text-heading); font-size: 1.2rem; margin-bottom: 4px;">-</h3>
         <p id="md-location-time" style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 6px;">-</p>
         <p id="md-dress-code" style="color: var(--accent); font-size: 0.85rem; font-weight: 500; margin-bottom: 1rem;">-</p>
+
+
 
         <div style="background: var(--warning-light); border: 1px solid rgba(245, 158, 11, 0.3); padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.82rem; color: var(--warning); margin-bottom: 1rem;">
           <i class="fa-solid fa-clock"></i> <strong>ข้อปฏิบัติตน:</strong> ควรมาถึงสถานที่ปฏิบัติงาน<strong>ก่อนเวลาเริ่มกิจกรรม 30 นาที</strong>
@@ -585,34 +924,147 @@
     </div>
   </div>
 
+  <!-- EDIT SCHEDULE & NOTIFY MODAL -->
+  <div id="modal-edit-schedule" class="modal-overlay">
+    <div class="modal-box" style="max-width: 580px;">
+      <div class="modal-header">
+        <div class="modal-title"><i class="fa-solid fa-calendar-pen text-amber"></i> อัปเดตและแจ้งเปลี่ยนแปลงกำหนดการ</div>
+        <button class="modal-close" onclick="closeModal('modal-edit-schedule')">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <form id="edit-schedule-form" onsubmit="saveScheduleChanges(event)">
+          <input type="hidden" id="edit-schedule-mission-id">
+
+          <div class="form-group" style="margin-bottom: 0.85rem;">
+            <label style="font-weight: 600; font-size: 0.85rem;">ชื่อกิจกรรม *</label>
+            <input type="text" id="edit-schedule-title" class="form-control" required>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 0.85rem;">
+            <div class="form-group">
+              <label style="font-size: 0.82rem;">วันเวลาเริ่มใหม่ *</label>
+              <input type="datetime-local" id="edit-schedule-start" class="form-control" required>
+            </div>
+            <div class="form-group">
+              <label style="font-size: 0.82rem;">วันเวลาสิ้นสุดใหม่ *</label>
+              <input type="datetime-local" id="edit-schedule-end" class="form-control" required>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 0.85rem;">
+            <div class="form-group">
+              <label style="font-size: 0.82rem;">สถานที่ปฏิบัติงาน</label>
+              <input type="text" id="edit-schedule-location" class="form-control">
+            </div>
+            <div class="form-group">
+              <label style="font-size: 0.82rem;">การแต่งกาย</label>
+              <input type="text" id="edit-schedule-dress" class="form-control">
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 0.85rem;">
+            <label style="font-size: 0.85rem;">รายละเอียดกำหนดการเพิ่มเติม / สิ่งที่เปลี่ยนแปลง</label>
+            <textarea id="edit-schedule-details" class="form-control" rows="2" placeholder="ระบุการเปลี่ยนแปลง เช่น เปลี่ยนเวลาเริ่มงานเป็น 09.00 น. หรือสถานที่นัดหมายใหม่"></textarea>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 1.25rem; background: #fff7ed; border: 1.5px dashed #ea580c; padding: 12px 16px; border-radius: 10px;">
+            <label style="font-size: 0.88rem; font-weight: 700; color: #c2410c; display: flex; align-items: center; gap: 6px;">
+              <i class="fa-solid fa-paperclip" style="font-size: 1.1rem; color: #ea580c;"></i> แนบไฟล์กำหนดการใหม่ หรือ ใส่ลิงก์แชร์เอกสาร (Google Drive / URL)
+            </label>
+            <div style="margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+              <div>
+                <label style="font-size: 0.8rem; font-weight: 600; color: #c2410c;">📁 อัปโหลดไฟล์ใหม่:</label>
+                <input type="file" id="edit-schedule-file" class="form-control" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp,.zip,.rar" style="margin-top: 4px; background: #ffffff; cursor: pointer;">
+              </div>
+              <div>
+                <label style="font-size: 0.8rem; font-weight: 600; color: #c2410c;">🔗 หรือใส่ลิงก์แชร์เอกสาร (URL):</label>
+                <input type="url" id="edit-schedule-url" class="form-control" placeholder="https://drive.google.com/..." style="margin-top: 4px; background: #ffffff;">
+              </div>
+            </div>
+            <div id="edit-schedule-current-file" style="margin-top: 6px; font-size: 0.82rem; color: #c2410c; font-weight: 600;"></div>
+          </div>
+
+          <div style="background: #fff7ed; border: 1px solid #fed7aa; padding: 10px 14px; border-radius: 8px; margin-bottom: 1.25rem;">
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 0.88rem; color: #c2410c; font-weight: 600; cursor: pointer;">
+              <input type="checkbox" id="edit-schedule-notify-cb" checked>
+              <span>📢 ส่ง LINE Flex Card แจ้งเปลี่ยนแปลงกำหนดการไปยังผู้ร่วมกิจกรรมทุกคนอัตโนมัติ</span>
+            </label>
+          </div>
+
+          <div class="modal-footer" style="padding-top: 0.5rem; margin-top: 0.5rem;">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modal-edit-schedule')">ยกเลิก</button>
+            <button type="submit" class="btn btn-primary" style="background: linear-gradient(135deg, #ea580c, #c2410c); border: none; font-weight: bold;">
+              <i class="fa-solid fa-paper-plane"></i> บันทึกและแจ้งเตือนผู้เข้าร่วมทาง LINE
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <!-- NOTIFICATION LOGS MODAL -->
   <div id="modal-notif-logs" class="modal-overlay">
-    <div class="modal-box" style="max-width: 780px;">
+    <div class="modal-box" style="max-width: 860px;">
       <div class="modal-header">
-        <div class="modal-title"><i class="fa-solid fa-bell text-amber"></i> ประวัติการส่งแจ้งเตือน (Email & LINE Group Logs)</div>
+        <div class="modal-title"><i class="fa-solid fa-bell text-amber"></i> ประวัติส่งแจ้งเตือน & สถานะการรับทราบ (LINE / Email)</div>
         <button class="modal-close" onclick="closeModal('modal-notif-logs')">&times;</button>
       </div>
 
       <div class="modal-body">
-        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
-          บันทึกการส่งการแจ้งเตือน Real-time เมื่อมีการออกคำสั่งจัดสรรกิจกรรม หรือมีการจัดสรรพนักงานทดแทนอัตโนมัติ
-        </p>
+        <!-- Sub Tabs -->
+        <div style="display:flex; gap:8px; margin-bottom:1rem; border-bottom:1px solid var(--card-border); padding-bottom:8px;">
+          <button class="btn btn-sm btn-primary" id="btn-notif-tab-ack" onclick="switchNotifSubTab('ack')">
+            <i class="fa-solid fa-circle-check"></i> สถานะการรับทราบรายบุคคล (LINE / Email)
+          </button>
+          <button class="btn btn-sm btn-secondary" id="btn-notif-tab-system" onclick="switchNotifSubTab('system')">
+            <i class="fa-solid fa-paper-plane"></i> ประวัติการยิงส่งระบบ (System Logs)
+          </button>
+        </div>
 
-        <div class="table-responsive">
-          <table class="custom-table">
-            <thead>
-              <tr>
-                <th>ช่องทาง (Channel)</th>
-                <th>ผู้รับ (Recipient)</th>
-                <th>หัวข้อแจ้งเตือน</th>
-                <th>สถานะ</th>
-                <th>เวลาที่ส่ง (24 ชม.)</th>
-              </tr>
-            </thead>
-            <tbody id="notif-logs-body">
-              <tr><td colspan="5">กำลังโหลดประวัติ...</td></tr>
-            </tbody>
-          </table>
+        <!-- Section 1: Individual Ack Status -->
+        <div id="notif-subtab-ack">
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+            ตรวจสอบสถานะการตอบรับ/รับทราบกิจกรรมของบุคลากรรายบุคคล ผ่านทาง 💬 LINE หรือ ✉️ Email
+          </p>
+          <div class="table-responsive">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>พนักงาน</th>
+                  <th>กิจกรรม</th>
+                  <th>สถานะ & ช่องทางรับทราบ</th>
+                  <th>วันที่รับทราบ (เวลา 24 ชม.)</th>
+                </tr>
+              </thead>
+              <tbody id="notif-ack-body">
+                <tr><td colspan="4" style="text-align:center; padding:1.5rem;">กำลังโหลดประวัติ...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Section 2: System Logs -->
+        <div id="notif-subtab-system" style="display:none;">
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+            บันทึกการส่งการแจ้งเตือน Real-time ออกไปยัง LINE Push/Group และ Email ผู้ปฏิบัติงาน
+          </p>
+          <div class="table-responsive">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>ช่องทาง (Channel)</th>
+                  <th>ผู้รับ (Recipient)</th>
+                  <th>หัวข้อแจ้งเตือน</th>
+                  <th>รายละเอียด</th>
+                  <th>เวลาที่ส่ง (24 ชม.)</th>
+                </tr>
+              </thead>
+              <tbody id="notif-logs-body">
+                <tr><td colspan="5" style="text-align:center; padding:1.5rem;">กำลังโหลดประวัติ...</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -621,6 +1073,7 @@
       </div>
     </div>
   </div>
+
 
   <!-- IMPORT REAL PERSONNEL CSV MODAL -->
   <div id="modal-import-csv" class="modal-overlay">
@@ -662,6 +1115,197 @@
     </div>
   </div>
 
-  <script src="/js/app.js"></script>
+  <!-- PEER SWAP MODAL -->
+  <div id="modal-peer-swap" class="modal-overlay">
+    <div class="modal-box" style="max-width: 580px;">
+      <div class="modal-header">
+        <div class="modal-title"><i class="fa-solid fa-arrows-rotate text-purple"></i> ยื่นคำขอ & อนุมัติสลับคิวพนักงาน (Peer Swap)</div>
+        <button class="modal-close" onclick="closeModal('modal-peer-swap')">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 1rem;">
+          สลับตำแหน่งลำดับคิวในตารางหมุนเวียนระหว่างบุคลากร 2 ท่านอย่างถาวรในรอบปัจจุบัน
+        </p>
+
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label class="form-label" style="font-weight:700;">📂 เลือกระดับคิวที่ต้องการสลับ:</label>
+          <select id="swap-role-type" class="form-select" onchange="changePeerSwapRole(this.value)">
+            <option value="DIRECTOR">👔 คิว ผอ.ฝ่าย</option>
+            <option value="STAFF">👥 คิว พนักงาน</option>
+          </select>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label class="form-label" style="font-weight:700;">👤 เลือกผู้ขอสลับคิว (คนแรก):</label>
+          <select id="swap-person-1" class="form-select" onchange="filterPeerSwapTargets()"></select>
+        </div>
+
+
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label class="form-label" style="font-weight:700;">🔁 เลือกผู้รับสลับคิว (คนที่สอง):</label>
+          <select id="swap-person-2" class="form-select"></select>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+          <label class="form-label" style="font-weight:700;">📝 เหตุผลในการขอสลับคิว:</label>
+          <input type="text" id="swap-reason" class="form-input" placeholder="เช่น ติดภารกิจส่วนตัว / สลับคิวตามข้อตกลงร่วมกัน">
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+          <button class="btn btn-secondary" onclick="closeModal('modal-peer-swap')">ยกเลิก</button>
+          <button class="btn btn-primary" onclick="executePeerSwap()" style="background:#a855f7; border-color:#a855f7; font-weight:bold;">
+            <i class="fa-solid fa-check"></i> อนุมัติสลับลำดับคิว
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- USER FORM MODAL (ADD / EDIT USER) -->
+  <div id="modal-user-form" class="modal-overlay">
+    <div class="modal-box" style="max-width: 600px;">
+      <div class="modal-header">
+        <div class="modal-title" id="user-modal-title"><i class="fa-solid fa-user-pen text-purple"></i> ข้อมูลผู้ใช้งาน</div>
+        <button class="modal-close" onclick="closeModal('modal-user-form')">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <input type="hidden" id="user-form-id">
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 1.1rem;">
+          <div class="form-group">
+            <label class="form-label"><i class="fa-solid fa-id-card text-purple"></i> รหัสพนักงาน / Username *</label>
+            <input type="text" id="user-form-emp-code" class="form-control" placeholder="เช่น EMP-001 หรือ ADMIN-01">
+          </div>
+          <div class="form-group">
+            <label class="form-label"><i class="fa-solid fa-user-shield text-sky"></i> บทบาท / สิทธิ์การเข้าถึง *</label>
+            <select id="user-form-role" class="form-control form-select" onchange="togglePermissionChecklist(this.value)">
+              <option value="STAFF">👥 พนักงาน (STAFF)</option>
+              <option value="DIRECTOR">👔 ผอ.ฝ่าย (DIRECTOR)</option>
+              <option value="OPERATOR">⚙️ เจ้าหน้าที่ปฏิบัติการ (OPERATOR)</option>
+              <option value="ADMIN">🛡️ ผู้ดูแลระบบ (ADMIN)</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 1.1rem;">
+          <div class="form-group">
+            <label class="form-label"><i class="fa-solid fa-user text-cyan"></i> ชื่อ - นามสกุล *</label>
+            <input type="text" id="user-form-name" class="form-control" placeholder="เช่น นายสมชาย ใจดี">
+          </div>
+          <div class="form-group">
+            <label class="form-label"><i class="fa-solid fa-key text-amber"></i> รหัสผ่านเข้าสู่ระบบ (Password)</label>
+            <input type="password" id="user-form-password" class="form-control" placeholder="รหัสผ่านล็อกอิน (เว้นว่างไว้หากไม่เปลี่ยน)">
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 1.1rem;">
+          <div class="form-group">
+            <label class="form-label"><i class="fa-solid fa-briefcase text-amber"></i> ตำแหน่ง</label>
+            <input type="text" id="user-form-position" class="form-control" placeholder="เช่น พนักงานบริหารงาน 4">
+          </div>
+          <div class="form-group">
+            <label class="form-label"><i class="fa-solid fa-sitemap text-emerald"></i> ฝ่าย / สังกัด</label>
+            <input type="text" id="user-form-department" class="form-control" placeholder="เช่น ฝ่ายบริหารงานทั่วไป">
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 1.1rem;">
+          <div class="form-group">
+            <label class="form-label"><i class="fa-solid fa-phone text-blue"></i> เบอร์โทรศัพท์</label>
+            <input type="text" id="user-form-phone" class="form-control" placeholder="เช่น 0812345678">
+          </div>
+          <div class="form-group">
+            <label class="form-label"><i class="fa-solid fa-envelope text-indigo"></i> อีเมล</label>
+            <input type="email" id="user-form-email" class="form-control" placeholder="เช่น somchai@fmo.or.th">
+          </div>
+        </div>
+
+        <!-- MENU PERMISSIONS CHECKBOXES -->
+        <div class="form-group" style="background: rgba(168, 85, 247, 0.05); border: 1px solid rgba(168, 85, 247, 0.2); padding: 12px 14px; border-radius: 12px; margin-bottom: 1.25rem;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px dashed rgba(168, 85, 247, 0.25);">
+            <label class="form-label" style="color: #7e22ce; margin-bottom: 0;">
+              <i class="fa-solid fa-list-check"></i> กำหนดสิทธิ์การเข้าถึงเมนูบนระบบเว็บ (Menu Permissions)
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:700; color:#7e22ce; font-size:0.84rem;">
+              <input type="checkbox" id="menu-perm-select-all" onchange="toggleSelectAllMenuPermissions(this.checked)"> ✨ เลือกทั้งหมด
+            </label>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.82rem;">
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" class="menu-perm-cb" value="quick" onchange="updateSelectAllState()" checked> ⚡ จัดสรรคิว (Quick)
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" class="menu-perm-cb" value="dashboard" onchange="updateSelectAllState()" checked> 📊 แดชบอร์ด (Dashboard)
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" class="menu-perm-cb" value="queue" onchange="updateSelectAllState()" checked> 📋 กระดานวนคิว (Queue)
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" class="menu-perm-cb" value="individual" onchange="updateSelectAllState()" checked> 📇 ประวัติรายบุคคล
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" class="menu-perm-cb" value="reports" onchange="updateSelectAllState()" checked> 📄 รายงานกิจกรรม (Reports)
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" class="menu-perm-cb" value="calendar" onchange="updateSelectAllState()" checked> 📅 ปฏิทินกิจกรรม (Calendar)
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer; grid-column: span 2;">
+              <input type="checkbox" class="menu-perm-cb" value="user-management" onchange="updateSelectAllState()" checked> 👥 จัดการผู้ใช้งานและสิทธิ์ (User & Role)
+            </label>
+          </div>
+        </div>
+
+
+
+        <div style="display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid var(--card-border); padding-top: 1.25rem;">
+          <button class="btn btn-secondary" onclick="closeModal('modal-user-form')">ยกเลิก</button>
+          <button class="btn btn-primary" onclick="saveUser()" style="background: linear-gradient(135deg, #a855f7, #7e22ce); border: none; font-weight:bold; padding: 0.7rem 1.4rem;">
+            <i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูลผู้ใช้งาน
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7. CUSTOM CONFIRMATION MODAL -->
+    <div id="modal-custom-confirm" class="modal-overlay" tabindex="-1">
+      <div class="modal-box" style="max-width: 440px; text-align: center; padding: 1.75rem 1.5rem;">
+        <div id="custom-confirm-icon" style="font-size: 3rem; color: #0ea5e9; margin-bottom: 0.75rem;">
+          <i class="fa-solid fa-circle-question"></i>
+        </div>
+        <h3 id="custom-confirm-title" style="font-size: 1.25rem; color: var(--text-heading); margin-bottom: 0.5rem; font-weight: 700;">
+          ยืนยันการทำรายการ
+        </h3>
+        <p id="custom-confirm-message" style="font-size: 0.95rem; color: var(--text-sub); margin-bottom: 1.5rem; line-height: 1.45;">
+          คุณต้องการดำเนินการต่อหรือไม่?
+        </p>
+        <div style="display: flex; justify-content: center; gap: 0.75rem;">
+          <button id="custom-confirm-cancel-btn" class="btn btn-secondary" style="min-width: 110px; padding: 0.65rem 1.25rem;">
+            ยกเลิก
+          </button>
+          <button id="custom-confirm-ok-btn" class="btn btn-primary" style="min-width: 120px; padding: 0.65rem 1.25rem; font-weight: 600;">
+            ยืนยัน
+          </button>
+        </div>
+      </div>
+    </div>
+
+  <script src="/js/app.js?v=1.8.0"></script>
+
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+</body>
+</html>
+
+
+
