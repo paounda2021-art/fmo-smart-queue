@@ -25,7 +25,7 @@
   </noscript>
   <script src="/vendor/fullcalendar.min.js"></script>
 
-  <link rel="stylesheet" href="/css/styles.css?v=1.8.0">
+  <link rel="stylesheet" href="/css/styles.css?v=2.0.0">
 
 
 
@@ -918,7 +918,10 @@
         </div>
       </div>
 
-      <div class="modal-footer">
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+        <button id="md-cancel-btn-in-modal" type="button" class="btn btn-danger" onclick="triggerCancelFromDetailModal()" style="background:#ef4444; border-color:#ef4444; font-weight:bold;">
+          <i class="fa-solid fa-ban"></i> 🚫 ยกเลิกกิจกรรมนี้
+        </button>
         <button class="btn btn-secondary" onclick="closeModal('modal-mission-detail')">ปิด</button>
       </div>
     </div>
@@ -1291,7 +1294,7 @@
       </div>
     </div>
 
-  <script src="/js/app.js?v=1.8.0"></script>
+  <script src="/js/app.js?v=2.0.0"></script>
 
 </body>
 </html>
