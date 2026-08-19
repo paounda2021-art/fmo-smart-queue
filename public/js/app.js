@@ -1882,8 +1882,6 @@ function renderMissionsTable(list) {
     const creatorName = m.created_by || 'ผู้ดูแลระบบ';
     const createdAtFormatted = formatDate(m.created_at || m.start_date);
 
-    const safeTitle = String(m.mission_title || '').replace(/'/g, "\\'");
-
     let actionButtons = `
       <button class="btn btn-secondary btn-sm" onclick="openMissionDetailModal(${m.id})">
         <i class="fa-solid fa-eye"></i> รายชื่อ & เปลี่ยนตัว
@@ -1892,7 +1890,7 @@ function renderMissionsTable(list) {
 
     if (statusUpper !== 'CANCELLED') {
       actionButtons += `
-        <button class="btn btn-danger btn-sm" onclick="openCancelMissionModal(${m.id}, '${safeTitle}')" style="background:#ef4444; border-color:#ef4444; margin-left:4px;">
+        <button class="btn btn-danger btn-sm" onclick="openCancelMissionModal(${m.id})" style="background:#ef4444 !important; border-color:#ef4444 !important; color:#ffffff !important; font-weight:bold; margin-left:4px;">
           <i class="fa-solid fa-ban"></i> ยกเลิก
         </button>
       `;
@@ -1915,7 +1913,7 @@ function renderMissionsTable(list) {
         <td><span class="badge badge-staff">${m.staff_count} ท่าน</span></td>
         <td>${statusBadge}</td>
         <td onclick="event.stopPropagation()">
-          <div style="display:flex; gap:4px; align-items:center;">
+          <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; min-width:210px;">
             ${actionButtons}
           </div>
         </td>
@@ -1935,8 +1933,13 @@ function renderMissionsTable(list) {
 // -------------------------------------------------------------
 
 function openCancelMissionModal(missionId, title) {
+  let mTitle = title;
+  if (!mTitle && Array.isArray(allMissionsCache)) {
+    const found = allMissionsCache.find(m => Number(m.id) === Number(missionId));
+    if (found) mTitle = found.mission_title;
+  }
   document.getElementById('cancel-mission-id').value = missionId;
-  document.getElementById('cancel-mission-title-text').innerText = title || 'กิจกรรมที่เลือก';
+  document.getElementById('cancel-mission-title-text').innerText = mTitle || 'กิจกรรมที่เลือก';
   document.getElementById('cancel-mission-reason').value = '';
   openModal('modal-cancel-mission');
 }
