@@ -538,6 +538,8 @@ async function loadRecentMissionsList() {
         statusBadge = '<span class="badge badge-completed"><i class="fa-solid fa-circle-check"></i> SUCCESS</span>';
       } else if (statusUpper === 'ON_PROCESS' || statusUpper === 'ON PROCESS') {
         statusBadge = '<span class="badge badge-onprocess-pulse"><i class="fa-solid fa-hourglass-half animated-hourglass"></i> ON PROCESS</span>';
+      } else if (statusUpper === 'CANCELLED') {
+        statusBadge = '<span class="badge badge-hold" style="background:#ef4444; color:white;"><i class="fa-solid fa-ban"></i> CANCELLED</span>';
       }
 
 
@@ -1877,45 +1879,35 @@ function renderMissionsTable(list) {
     }
 
     const isRecent = isNewMission(m.created_at || m.start_date);
-    const newBadge = isRecent ? ' <span class="badge-new-pulse"><i class="fa-solid fa-bell fa-beat"></i> NEW</span>' : '';
+    const newBadge = (isRecent && statusUpper !== 'CANCELLED') ? ' <span class="badge-new-pulse"><i class="fa-solid fa-bell fa-beat"></i> NEW</span>' : '';
 
     const creatorName = m.created_by || 'ผู้ดูแลระบบ';
     const createdAtFormatted = formatDate(m.created_at || m.start_date);
 
     let actionButtons = `
-      <button class="btn btn-secondary btn-sm" onclick="openMissionDetailModal(${m.id})">
+      <button class="btn btn-secondary btn-sm" onclick="openMissionDetailModal(${m.id})" style="padding: 4px 8px; font-size: 0.78rem; white-space: nowrap;">
         <i class="fa-solid fa-eye"></i> รายชื่อ & เปลี่ยนตัว
       </button>
     `;
 
-    if (statusUpper !== 'CANCELLED') {
-      actionButtons += `
-        <button class="btn btn-danger btn-sm" onclick="openCancelMissionModal(${m.id})" style="background:#ef4444 !important; border-color:#ef4444 !important; color:#ffffff !important; font-weight:bold; margin-left:4px;">
-          <i class="fa-solid fa-ban"></i> ยกเลิก
-        </button>
-      `;
-    }
-
     html += `
       <tr style="cursor: pointer;" onclick="openMissionDetailModal(${m.id})" title="คลิกเพื่อดูรายละเอียดและเปลี่ยนตัว">
-        <td><code>${m.mission_code || 'ACT-' + m.id}</code></td>
-        <td>
-          <strong style="color:var(--text-heading); font-size: 0.95rem;">${escapeHtml(m.mission_title)}</strong>${newBadge}
-          <div style="font-size: 0.78rem; color: #64748b; margin-top: 3px; font-weight: 500;">
+        <td style="white-space: nowrap; text-align: center;"><code>${m.mission_code || 'ACT-' + m.id}</code></td>
+        <td style="min-width: 360px; max-width: 550px;">
+          <strong style="color:var(--text-heading); font-size: 0.95rem; line-height: 1.45; display: inline-block;">${escapeHtml(m.mission_title)}</strong>${newBadge}
+          <div style="font-size: 0.78rem; color: #64748b; margin-top: 4px; font-weight: 500;">
             <i class="fa-solid fa-user-pen" style="color:#0284c7;"></i> ${escapeHtml(creatorName)} | 
             <i class="fa-solid fa-clock" style="color:#0284c7;"></i> ${createdAtFormatted}
           </div>
         </td>
         <td>${escapeHtml(m.location || '-')}</td>
         <td>${escapeHtml(m.dress_code || 'ชุดปฏิบัติงาน อสป.')}</td>
-        <td>${formatDate(m.start_date)}</td>
-        <td><span class="badge badge-director">${m.directors_count} ท่าน</span></td>
-        <td><span class="badge badge-staff">${m.staff_count} ท่าน</span></td>
-        <td>${statusBadge}</td>
-        <td onclick="event.stopPropagation()">
-          <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; min-width:210px;">
-            ${actionButtons}
-          </div>
+        <td style="white-space: nowrap;">${formatDate(m.start_date)}</td>
+        <td style="text-align: center;"><span class="badge badge-director" style="padding: 3px 6px; font-size: 0.76rem;">${m.directors_count}</span></td>
+        <td style="text-align: center;"><span class="badge badge-staff" style="padding: 3px 6px; font-size: 0.76rem;">${m.staff_count}</span></td>
+        <td style="text-align: center; white-space: nowrap;">${statusBadge}</td>
+        <td onclick="event.stopPropagation()" style="text-align: center;">
+          ${actionButtons}
         </td>
       </tr>
     `;
@@ -1923,9 +1915,6 @@ function renderMissionsTable(list) {
   });
 
   tbody.innerHTML = html;
-
-  // โหลดการ์ดแจ้งเตือนยกเลิกกิจกรรมเมื่อแสดงตารางกิจกรรม
-  loadCancelledNoticeCards();
 }
 
 // -------------------------------------------------------------
@@ -2130,16 +2119,34 @@ async function openMissionDetailModal(missionId) {
     const { mission, assigned = [] } = result;
     currentActiveMissionData = mission;
 
+    const isCancelled = String(mission.status || '').toUpperCase() === 'CANCELLED';
     const creatorName = mission.created_by || 'ผู้ดูแลระบบ';
     const createdAtFormatted = formatDate(mission.created_at || mission.start_date);
 
+    let statusBannerHtml = '';
+    if (isCancelled) {
+      statusBannerHtml = `
+        <div style="background:#fee2e2; border:1px solid #f87171; border-radius:8px; padding:8px 14px; margin-top:8px; color:#991b1b; font-size:0.88rem; font-weight:600; display:flex; align-items:center; gap:8px;">
+          <i class="fa-solid fa-ban" style="font-size:1.1rem; color:#dc2626;"></i>
+          <div>
+            <div><strong>กิจกรรมนี้ถูกยกเลิกแล้ว</strong> (CANCELLED)</div>
+            <div style="font-size:0.8rem; font-weight:500; color:#b91c1c; margin-top:2px;">เหตุผล: ${escapeHtml(mission.cancel_reason || 'ผู้ดูแลระบบยกเลิกกิจกรรม')} ${mission.cancelled_at ? `| เมื่อ: ${formatDate(mission.cancelled_at)}` : ''}</div>
+          </div>
+        </div>
+      `;
+    }
+
     document.getElementById('md-title').innerHTML = `
-      <div style="font-size: 1.35rem; font-weight: 700; color: var(--text-heading);">${escapeHtml(mission.mission_title)}</div>
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        <span style="font-size: 1.35rem; font-weight: 700; color: var(--text-heading);">${escapeHtml(mission.mission_title)}</span>
+        ${isCancelled ? '<span class="badge badge-hold" style="background:#ef4444; color:white; font-size:0.8rem;"><i class="fa-solid fa-ban"></i> CANCELLED</span>' : ''}
+      </div>
       <div style="font-size: 0.85rem; color: #475569; margin-top: 6px; font-weight: 500; background: #f8fafc; padding: 6px 12px; border-radius: 6px; border: 1px solid #e2e8f0; display: inline-flex; align-items: center; gap: 12px; flex-wrap: wrap;">
         <span><i class="fa-solid fa-user-pen" style="color: #0284c7;"></i> <strong>ผู้สร้างกิจกรรม:</strong> ${escapeHtml(creatorName)}</span>
         <span style="color: #cbd5e1;">|</span>
         <span><i class="fa-solid fa-clock" style="color: #0284c7;"></i> <strong>สร้างเมื่อ:</strong> ${createdAtFormatted}</span>
       </div>
+      ${statusBannerHtml}
     `;
 
     document.getElementById('md-location-time').innerText =
@@ -2147,14 +2154,16 @@ async function openMissionDetailModal(missionId) {
       `ช่วงเวลา: ${formatDate(mission.start_date)} - ` +
       `${formatDate(mission.end_date)}`;
 
+    const scheduleEditBtnHtml = isCancelled ? '' : `<div style="margin-top:10px;"><button type="button" class="btn btn-warning btn-sm" onclick="openEditScheduleModal(${mission.id})" style="font-weight:bold; background:#ea580c; border:none; color:#fff; padding:6px 12px;"><i class="fa-solid fa-calendar-pen"></i> ✏️ อัปเดตเปลี่ยนแปลงกำหนดการ & แจ้ง LINE อัตโนมัติ</button></div>`;
+
     document.getElementById('md-dress-code').innerHTML =
       `การแต่งกาย: ${escapeHtml(mission.dress_code || 'ชุดปฏิบัติงาน อสป.')}` +
       (mission.attachment_file ? `<div style="margin-top:8px;"><a href="${mission.attachment_file}" target="_blank" class="btn btn-outline-primary btn-sm" style="font-weight:bold; padding:6px 14px; display:inline-flex; align-items:center; gap:6px; background:#f0f9ff; color:#0369a1; border:1px solid #0284c7;"><i class="fa-solid fa-file-arrow-down" style="font-size:1.1rem; color:#0284c7;"></i> 📄 ${escapeHtml(cleanFileName(mission.attachment_name))}</a></div>` : '') +
-      `<div style="margin-top:10px;"><button type="button" class="btn btn-warning btn-sm" onclick="openEditScheduleModal(${mission.id})" style="font-weight:bold; background:#ea580c; border:none; color:#fff; padding:6px 12px;"><i class="fa-solid fa-calendar-pen"></i> ✏️ อัปเดตเปลี่ยนแปลงกำหนดการ & แจ้ง LINE อัตโนมัติ</button></div>`;
+      scheduleEditBtnHtml;
 
     const cancelModalBtn = document.getElementById('md-cancel-btn-in-modal');
     if (cancelModalBtn) {
-      if (String(mission.status || '').toUpperCase() === 'CANCELLED') {
+      if (isCancelled) {
         cancelModalBtn.style.display = 'none';
       } else {
         cancelModalBtn.style.display = 'inline-flex';

@@ -3549,6 +3549,11 @@ async function checkAndUpdateMissionStatus(missionId) {
     const mission = await dbGet(`SELECT id, start_date, end_date, status FROM missions WHERE id = ?;`, [missionId]);
     if (!mission) return;
 
+    // ถ้ากิจกรรมถูกยกเลิก (CANCELLED) ไปแล้ว ห้ามเปลี่ยนสถานะกลับ
+    if (mission.status === 'CANCELLED') {
+      return;
+    }
+
     const now = new Date();
     const endDate = mission.end_date ? new Date(mission.end_date) : null;
 
@@ -3641,13 +3646,14 @@ router.get('/missions/calendar-events', async (req, res) => {
 
     const events = missions.map(m => {
       const isSuccess = (m.status === 'SUCCESS' || m.status === 'COMPLETED');
+      const isCancelled = (m.status === 'CANCELLED');
       return {
         id: m.id,
-        title: m.mission_title,
+        title: (isCancelled ? '🚫 [ยกเลิก] ' : '') + m.mission_title,
         start: m.start_date,
         end: m.end_date || m.start_date,
-        backgroundColor: isSuccess ? '#10b981' : '#d97706',
-        borderColor: isSuccess ? '#059669' : '#b45309',
+        backgroundColor: isCancelled ? '#ef4444' : (isSuccess ? '#10b981' : '#d97706'),
+        borderColor: isCancelled ? '#dc2626' : (isSuccess ? '#059669' : '#b45309'),
         extendedProps: {
           location: m.location || 'สะพานปลา อสป.',
           dressCode: m.dress_code || 'ชุดปฏิบัติงาน อสป.',

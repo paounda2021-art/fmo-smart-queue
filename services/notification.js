@@ -1,4 +1,4 @@
-// Notification Service (LINE Flex Message Card & Email Notification Dispatcher)
+﻿// Notification Service (LINE Flex Message Card & Email Notification Dispatcher)
 require('dotenv').config();
 const axios = require('axios');
 const nodemailer = require('nodemailer');
@@ -1004,7 +1004,7 @@ async function sendUpcomingQueueNotice() {
 /**
  * Dispatch Pre-Event Reminders Automatically via mapped channel (LINE/Email)
  * Conditions requested by User:
- * 1. ก่อนกิจกรรม 1 วัน (24 ชั่วโมงล่วงหน้า): '🔔 เตือนความจำล่วงหน้า (1 วัน)'
+ * 1. ก่อนกิจกรรม 1 วัน : '🔔 เตือนความจำล่วงหน้า (1 วัน)'
  * 2. ก่อนเริ่มกิจกรรม 30 นาที อีกครั้ง: '🚨 เตือนความจำใกล้ถึงเวลา (อีก 30 นาที)'
  */
 async function dispatchPreEventReminders() {
@@ -1073,7 +1073,7 @@ async function dispatchPreEventReminders() {
         textHighlightColor = '#b45309';
         footerNoticeText = '🚨 อีกประมาณ 30 นาทีจะถึงเวลาเริ่มปฏิบัติงาน! กรุณาเตรียมพร้อมและเดินทางถึงสถานที่ปฏิบัติงานทันทีค่ะ';
       } else if (diffMinutes >= 12 * 60 && diffMinutes <= 28 * 60) {
-        // เงื่อนไขที่ 1: เตือนล่วงหน้า 1 วัน (24 ชม.)
+        // เงื่อนไขที่ 1: เตือนล่วงหน้า 1 วัน
         reminderTag = '🔔 เตือนความจำล่วงหน้า (1 วัน)';
         headerBgColor = '#eab308';
         headerSubColor = '#fefce8';
@@ -1125,7 +1125,7 @@ async function dispatchPreEventReminders() {
                     spacing: 'xs',
                     contents: [
                       { type: 'text', text: `📍 สถานที่: ${mission.location || 'สะพานปลา อสป.'}`, size: 'xs', color: '#1e293b', wrap: true },
-                      { type: 'text', text: `⏰ เวลาเริ่มงาน (24 ชม.): ${timeStr}`, size: 'xs', color: textHighlightColor, weight: 'bold' },
+                      { type: 'text', text: `⏰ เวลาเริ่มงาน : ${timeStr}`, size: 'xs', color: textHighlightColor, weight: 'bold' },
                       { type: 'text', text: `👔 การแต่งกาย: ${mission.dress_code || 'ชุดปฏิบัติงาน อสป.'}`, size: 'xs', color: '#8b5cf6', wrap: true }
                     ]
                   },
@@ -1188,7 +1188,7 @@ async function dispatchPreEventReminders() {
               <p>ระบบอัตโนมัติขอแจ้งเตือนความจำปฏิบัติหน้าที่ในกิจกรรม <strong>${mission.mission_title}</strong></p>
               <div style="background: ${isUrgent30m ? '#fff7ed' : '#fffbeb'}; padding: 15px; border-radius: 8px; margin: 15px 0; border: 1px solid ${isUrgent30m ? '#ffedd5' : '#fde68a'};">
                 <p style="margin: 4px 0;"><strong>📍 สถานที่:</strong> ${mission.location || '-'}</p>
-                <p style="margin: 4px 0;"><strong>⏰ เวลา (24 ชม.):</strong> ${timeStr}</p>
+                <p style="margin: 4px 0;"><strong>⏰ เวลา :</strong> ${timeStr}</p>
                 <p style="margin: 4px 0;"><strong>👔 การแต่งกาย:</strong> ${mission.dress_code || 'ชุดปฏิบัติงาน อสป.'}</p>
               </div>
               <p style="color: ${isUrgent30m ? '#9a3412' : '#b45309'}; font-weight: bold;">
